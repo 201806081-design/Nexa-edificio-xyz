@@ -12,34 +12,41 @@ function PanelBranding({ compacto = false }) {
         backgroundPosition: 'center',
         display: 'flex',
         flexDirection: 'column',
-        justifyContent: compacto ? 'center' : 'space-between',
-        p: compacto ? 3 : 5,
-        gap: compacto ? 1.5 : 0,
+        justifyContent: 'space-between',
+        p:compacto ? 3 : 5,
+        pb: compacto ? 0.5 : 5,
         height: '100%',
       }}
     >
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-        <ApartmentIcon sx={{ fontSize: compacto ? 30 : 38 }} />
-        <Box>
-          <Typography sx={{ fontWeight: 700, lineHeight: 1 }}>EDIFICIO XYZ</Typography>
-          <Typography variant="body2" sx={{ opacity: 0.85 }}>Sistema de Gestion</Typography>
+      {/* GRUPO DE ARRIBA: logo + linea + titulo + descripcion, todos juntos */}
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: compacto ? 0.5 : 1.5, mt: 4, ml:4 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+          <ApartmentIcon sx={{ fontSize: compacto ? 34 : 48 }} />
+          <Box>
+            <Typography sx={{ fontWeight: 700, lineHeight: 1.1, fontSize: compacto ? '1rem' : '1.25rem' }}>
+              EDIFICIO XYZ
+            </Typography>
+            <Typography sx={{ opacity: 0.85, fontSize: compacto ? '0.8rem' : '0.95rem' }}>
+              Sistema de Gestion
+            </Typography>
+          </Box>
         </Box>
-      </Box>
 
-      <Box>
-        {!compacto && <Box sx={{ width: 48, height: 3, bgcolor: '#fff', opacity: 0.6, mb: 3 }} />}
+        <Box sx={{ width: 56, height: 4, bgcolor: '#fff', opacity: 0.6 }} />
+
         <Typography
-          variant="h1"
-          sx={{ fontSize: compacto ? '1.4rem' : '2rem', fontWeight: 700, lineHeight: 1.2, mb: compacto ? 1 : 2 }}
+          sx={{ fontSize: compacto ? '1.5rem' : '2.4rem', fontWeight: 700, lineHeight: 1.2 }}
         >
-          Administracion mas simple, comunidades mas conectadas
+          Administracion<br />mas simple,<br />comunidades<br />mas conectadas
         </Typography>
-        <Typography variant="body2" sx={{ opacity: 0.9, maxWidth: 300 }}>
-          Gestion de propietarios, inquilinos y espacios en un solo lugar
+
+        <Typography sx={{ opacity: 0.9, maxWidth: 340, fontSize: compacto ? '0.9rem' : '1.05rem', mt: compacto ? 0 : 0 }}>
+          Gestion de propietarios, inquilinos<br /> y espacios en un solo lugar
         </Typography>
       </Box>
 
-      <Typography variant="body2" sx={{ opacity: 0.75, letterSpacing: 1, fontSize: compacto ? '0.7rem' : '0.8rem' }}>
+      {/* GRUPO DE ABAJO: pegado al fondo */}
+      <Typography sx={{ opacity: 0.75, letterSpacing: 1.5, fontSize: compacto ? '0.72rem' : '0.9rem', ml:4, mt:3}}>
         SEGURIDAD · ORGANIZACION · CONFIANZA
       </Typography>
     </Box>

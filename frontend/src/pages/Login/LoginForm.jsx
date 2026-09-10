@@ -10,6 +10,15 @@ import VisibilityOff from '@mui/icons-material/VisibilityOff';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 
+// Anula el fondo azul/amarillo que Chrome pone al autocompletar
+const sinAutofill = {
+  '& input:-webkit-autofill': {
+    WebkitBoxShadow: '0 0 0 100px #FFFFFF inset',
+    WebkitTextFillColor: '#132B3E',
+    transition: 'background-color 9999s ease-in-out 0s',
+  },
+};
+
 export default function LoginForm() {
   const navigate = useNavigate();
   const { login } = useAuth();
@@ -49,6 +58,9 @@ export default function LoginForm() {
     }
   };
 
+  const usuarioError = !!errors.usuario || !!apiError;
+  const passwordError = !!errors.password || !!apiError;
+
   return (
     <Box component="form" onSubmit={handleSubmit} noValidate sx={{ width: '100%', maxWidth: 400 }}>
       <Typography variant="h1" sx={{ fontSize: '2rem', mb: 0.5 }}>
@@ -65,9 +77,9 @@ export default function LoginForm() {
         placeholder="Ingrese su usuario"
         value={form.usuario}
         onChange={handleChange}
-        error={!!errors.usuario}
+        error={usuarioError}
         helperText={errors.usuario}
-        sx={{ mb: 2 }}
+        sx={{ mb: 2, ...sinAutofill }}
         slotProps={{
           input: {
             startAdornment: (
@@ -85,8 +97,9 @@ export default function LoginForm() {
         placeholder="Ingrese su contraseña"
         value={form.password}
         onChange={handleChange}
-        error={!!errors.password}
+        error={passwordError}
         helperText={errors.password}
+        sx={sinAutofill}
         slotProps={{
           input: {
             startAdornment: (
