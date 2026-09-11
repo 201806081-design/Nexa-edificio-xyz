@@ -1,7 +1,6 @@
-import { Box, Typography } from '@mui/material';
+import { Box, Typography, Toolbar } from '@mui/material';
 import Sidebar from '../components/Sidebar';
 
-// Formatea la fecha de hoy en espanol: "Lunes, 1 de Septiembre de 2026"
 function fechaHoy() {
   const opciones = { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' };
   const texto = new Date().toLocaleDateString('es-ES', opciones);
@@ -13,14 +12,15 @@ export default function DashboardLayout({ children }) {
     <Box sx={{ display: 'flex', minHeight: '100vh', bgcolor: 'background.default' }}>
       <Sidebar />
 
-      <Box sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
-        {/* Header con la fecha */}
-        <Box sx={{ display: 'flex', justifyContent: 'flex-end', p: 3 }}>
+      <Box sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+        {/* Espaciador para la barra superior en movil */}
+        <Toolbar sx={{ display: { xs: 'block', md: 'none' } }} />
+
+        <Box sx={{ display: 'flex', justifyContent: 'flex-end', p: 3, pb: 0 }}>
           <Typography variant="body2" color="text.secondary">{fechaHoy()}</Typography>
         </Box>
 
-        {/* Aqui se muestra cada pantalla */}
-        <Box sx={{ px: 4, pb: 4, flexGrow: 1 }}>
+        <Box sx={{ px: 4, pb: 4, pt: 2, flexGrow: 1 }}>
           {children}
         </Box>
       </Box>
