@@ -1,0 +1,136 @@
+{
+  "info": {
+    "name": "NEXA API · Backend",
+    "description": "Sistema Integral de Administración Edificio XYZ. Ejecuta primero 'Auth · Login': guarda el token en la variable {{token}} y el resto de peticiones lo usan automáticamente.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8000/api" },
+    { "key": "token", "value": "" }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }]
+  },
+  "item": [
+    {
+      "name": "Salud",
+      "item": [
+        { "name": "Health", "request": { "auth": { "type": "noauth" }, "method": "GET", "url": "{{baseUrl}}/health" } }
+      ]
+    },
+    {
+      "name": "Auth (HU-SE-01)",
+      "item": [
+        {
+          "name": "Login · usuario1 (Administrador)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Responde 200 con token y user', () => {",
+            "  pm.response.to.have.status(200);",
+            "  const json = pm.response.json();",
+            "  pm.expect(json).to.have.property('token');",
+            "  pm.expect(json.user).to.have.property('rol');",
+            "  pm.collectionVariables.set('token', json.token);",
+            "});"
+          ] } }],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"usuario\": \"usuario1\",\n  \"password\": \"1234\"\n}" },
+            "url": "{{baseUrl}}/auth/login"
+          }
+        },
+        {
+          "name": "Login · usuario3 (Consulta)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "const json = pm.response.json();",
+            "if (json.token) pm.collectionVariables.set('token', json.token);"
+          ] } }],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"usuario\": \"usuario3\",\n  \"password\": \"1234\"\n}" },
+            "url": "{{baseUrl}}/auth/login"
+          }
+        },
+        {
+          "name": "Login · contraseña incorrecta (401)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Rechaza credenciales inválidas', () => pm.response.to.have.status(401));"
+          ] } }],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"usuario\": \"usuario1\",\n  \"password\": \"mala\"\n}" },
+            "url": "{{baseUrl}}/auth/login"
+          }
+        },
+        { "name": "Me (perfil del token)", "request": { "method": "GET", "url": "{{baseUrl}}/auth/me" } }
+      ]
+    },
+    {
+      "name": "Financiero · Expensas (HU-FI-01)",
+      "item": [
+        { "name": "Listar expensas", "request": { "method": "GET", "url": "{{baseUrl}}/financiero/expensas" } },
+        { "name": "Expensas pendientes", "request": { "method": "GET", "url": "{{baseUrl}}/financiero/expensas?estado=PENDIENTE" } },
+        { "name": "Expensas de septiembre 2026", "request": { "method": "GET", "url": "{{baseUrl}}/financiero/expensas?anio=2026&mes=9" } },
+        { "name": "Resumen por estado", "request": { "method": "GET", "url": "{{baseUrl}}/financiero/expensas/resumen" } },
+        { "name": "Detalle de expensa", "request": { "method": "GET", "url": "{{baseUrl}}/financiero/expensas/1" } }
+      ]
+    },
+    {
+      "name": "Financiero · Periodos (generación automática)",
+      "item": [
+        { "name": "Listar periodos", "request": { "method": "GET", "url": "{{baseUrl}}/financiero/periodos" } },
+        {
+          "name": "Generar periodo · monto FIJO por tipo",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"anio\": 2026,\n  \"mes\": 10,\n  \"modo\": \"FIJO\",\n  \"montoBase\": 350,\n  \"montosPorTipo\": { \"PARQUEO\": 50, \"BAULERA\": 20 }\n}" },
+            "url": "{{baseUrl}}/financiero/periodos"
+          }
+        },
+        {
+          "name": "Generar periodo · prorrateo por COEFICIENTE",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"anio\": 2026,\n  \"mes\": 11,\n  \"modo\": \"COEFICIENTE\",\n  \"presupuestoTotal\": 12000\n}" },
+            "url": "{{baseUrl}}/financiero/periodos"
+          }
+        },
+        {
+          "name": "Generar periodo repetido (409)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('No permite duplicar el periodo', () => pm.response.to.have.status(409));"
+          ] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"anio\": 2026,\n  \"mes\": 9,\n  \"montoBase\": 350\n}" },
+            "url": "{{baseUrl}}/financiero/periodos"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Financiero · Unidades y estado de cuenta",
+      "item": [
+        { "name": "Listar unidades con ocupantes", "request": { "method": "GET", "url": "{{baseUrl}}/financiero/unidades" } },
+        { "name": "Estado de cuenta DEP-101 (al día)", "request": { "method": "GET", "url": "{{baseUrl}}/financiero/unidades/1/estado-cuenta" } },
+        { "name": "Estado de cuenta DEP-301 (moroso)", "request": { "method": "GET", "url": "{{baseUrl}}/financiero/unidades/3/estado-cuenta" } }
+      ]
+    },
+    {
+      "name": "Financiero · Caja y bancos",
+      "item": [
+        { "name": "Listar cuentas", "request": { "method": "GET", "url": "{{baseUrl}}/financiero/cuentas" } },
+        { "name": "Movimientos de Caja General", "request": { "method": "GET", "url": "{{baseUrl}}/financiero/cuentas/1/movimientos" } }
+      ]
+    }
+  ]
+}
