@@ -1,0 +1,45 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum TipoUnidad {
+  DEPARTAMENTO
+  PARQUEO
+  BAULERA
+}
+
+model Persona {
+  id                 String   @id @default(cuid())
+  nombres            String
+  apellidos          String
+  documentoIdentidad String   @unique
+  telefono           String
+  correoElectronico  String   @unique
+  unidadesComoPropietario Unidad[] @relation("Propietario")
+  unidadesComoInquilino    Unidad[] @relation("Inquilino")
+  creadoEn           DateTime @default(now())
+  actualizadoEn      DateTime @updatedAt
+}
+
+model Unidad {
+  id             String     @id @default(cuid())
+  tipo           TipoUnidad
+  codigo         String
+  piso           Int?
+  superficieM2   Decimal?   @db.Decimal(10, 2)
+  propietarioId  String?
+  inquilinoId    String?
+  propietario    Persona?   @relation("Propietario", fields: [propietarioId], references: [id])
+  inquilino      Persona?   @relation("Inquilino", fields: [inquilinoId], references: [id])
+  creadoEn       DateTime   @default(now())
+  actualizadoEn  DateTime   @updatedAt
+
+  @@unique([tipo, codigo])
+  @@index([propietarioId])
+  @@index([inquilinoId])
+}
