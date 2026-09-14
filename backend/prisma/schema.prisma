@@ -22,6 +22,7 @@ model Persona {
   correoElectronico  String   @unique
   unidadesComoPropietario Unidad[] @relation("Propietario")
   unidadesComoInquilino    Unidad[] @relation("Inquilino")
+  ocupaciones              Ocupacion[]
   creadoEn           DateTime @default(now())
   actualizadoEn      DateTime @updatedAt
 }
@@ -36,10 +37,25 @@ model Unidad {
   inquilinoId    String?
   propietario    Persona?   @relation("Propietario", fields: [propietarioId], references: [id])
   inquilino      Persona?   @relation("Inquilino", fields: [inquilinoId], references: [id])
+  historialOcupantes Ocupacion[]
   creadoEn       DateTime   @default(now())
   actualizadoEn  DateTime   @updatedAt
 
   @@unique([tipo, codigo])
   @@index([propietarioId])
   @@index([inquilinoId])
+}
+
+model Ocupacion {
+  id         String   @id @default(cuid())
+  unidadId   String
+  personaId  String
+  fechaInicio DateTime
+  fechaFin   DateTime?
+  unidad     Unidad   @relation(fields: [unidadId], references: [id], onDelete: Cascade)
+  persona    Persona  @relation(fields: [personaId], references: [id], onDelete: Restrict)
+  creadoEn   DateTime @default(now())
+
+  @@index([unidadId, fechaInicio])
+  @@index([personaId])
 }
