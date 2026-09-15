@@ -1,4 +1,4 @@
-import { Box, Typography, Button, Chip, Alert, Divider, Grid } from '@mui/material';
+import { Box, Typography, Button, Chip, Alert, Divider } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import { useNavigate, useParams } from 'react-router-dom';
 import DashboardLayout from '../../layouts/DashboardLayout';
@@ -11,6 +11,12 @@ function Dato({ etiqueta, valor }) {
       <Typography variant="body1">{valor || '-'}</Typography>
     </Box>
   );
+}
+
+function chipSx(tipo) {
+  return tipo === 'Propietario'
+    ? { bgcolor: '#D6F0E4', color: '#2E9D78' }
+    : { bgcolor: '#C5E0F2', color: '#1F5F8B' };
 }
 
 export default function DetallePersona() {
@@ -45,7 +51,7 @@ export default function DetallePersona() {
           <Typography variant="h3" sx={{ fontSize: '1.3rem', fontWeight: 700 }}>
             {persona.nombres} {persona.apellidos}
           </Typography>
-          <Chip label={persona.tipo} sx={{ bgcolor: '#C5E0F2', color: '#132B3E' }} />
+          <Chip label={persona.tipo} sx={chipSx(persona.tipo)} />
         </Box>
 
         <Typography variant="body2" sx={{ fontWeight: 600, mt: 2, mb: 1 }}>Datos personales</Typography>
@@ -53,18 +59,31 @@ export default function DetallePersona() {
         <Divider sx={{ my: 2 }} />
 
         <Typography variant="body2" sx={{ fontWeight: 600, mb: 1 }}>Datos de contacto</Typography>
-        <Grid container spacing={2}>
-          <Grid item xs={12} md={6}><Dato etiqueta="Telefono" valor={persona.telefono} /></Grid>
-          <Grid item xs={12} md={6}><Dato etiqueta="Correo electronico" valor={persona.correo} /></Grid>
-        </Grid>
+        <Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' } }}>
+          <Box sx={{ width: { xs: '100%', md: '50%' } }}>
+            <Dato etiqueta="Telefono" valor={persona.telefono} />
+          </Box>
+          <Box sx={{ width: { xs: '100%', md: '50%' } }}>
+            <Dato etiqueta="Correo electronico" valor={persona.correo} />
+          </Box>
+        </Box>
         <Divider sx={{ my: 2 }} />
 
         <Typography variant="body2" sx={{ fontWeight: 600, mb: 1 }}>Unidad relacionada</Typography>
         <Dato etiqueta="Departamento" valor={persona.unidad} />
 
-        <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 2, mt: 3 }}>
-          <Button variant="outlined" onClick={() => navigate('/copropietarios')}>Volver a la lista</Button>
-          <Button variant="contained" startIcon={<EditIcon />} onClick={() => navigate(`/copropietarios/${persona.id}/editar`)}>
+        <Box sx={{
+          display: 'flex', gap: 2, mt: 3,
+          flexDirection: { xs: 'column-reverse', md: 'row' },
+          justifyContent: { md: 'flex-end' },
+        }}>
+          <Button variant="outlined" onClick={() => navigate('/copropietarios')}
+            sx={{ width: { xs: '100%', md: 'auto' } }}>
+            Volver a la lista
+          </Button>
+          <Button variant="contained" startIcon={<EditIcon />}
+            onClick={() => navigate(`/copropietarios/${persona.id}/editar`)}
+            sx={{ width: { xs: '100%', md: 'auto' } }}>
             Editar datos
           </Button>
         </Box>
