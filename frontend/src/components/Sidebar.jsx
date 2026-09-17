@@ -13,6 +13,7 @@ import MenuIcon from '@mui/icons-material/Menu';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { MENU_POR_ROL } from '../constants/permisos';
+import PeopleIcon from '@mui/icons-material/People';
 
 const ANCHO = 260;
 
@@ -20,6 +21,7 @@ const OPCIONES = {
   Inicio: { icon: <HomeIcon />, ruta: '/dashboard' },
   'Usuarios y roles': { icon: <GroupIcon />, ruta: '/usuarios' },
   'Permisos por rol': { icon: <ShieldIcon />, ruta: '/permisos' },
+  Copropietarios: { icon: <PeopleIcon />, ruta: '/copropietarios' },
 };
 
 // Contenido del menu (se usa tanto en escritorio como en el drawer movil)
