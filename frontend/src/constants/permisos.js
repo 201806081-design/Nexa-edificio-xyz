@@ -56,10 +56,10 @@ export const PERMISOS_POR_ROL = {
   },
 };
 
-// Opciones del menu lateral que ve cada rol (segun los mockups del sidebar)
-// Admin ve las 3 opciones; Directorio y Consulta solo "Inicio"
+// Opciones del menu lateral que ve cada rol 
+// Admin ve las 4 opciones; Directorio y Consulta solo "Inicio"
 export const MENU_POR_ROL = {
-  [ROLES.ADMINISTRADOR]: ['Inicio', 'Usuarios y roles', 'Permisos por rol'],
-  [ROLES.DIRECTORIO]: ['Inicio'],
-  [ROLES.CONSULTA]: ['Inicio'],
+  [ROLES.ADMINISTRADOR]: ['Inicio', 'Usuarios y roles', 'Permisos por rol', 'Copropietarios'],
+  [ROLES.DIRECTORIO]: ['Inicio', 'Copropietarios'],
+  [ROLES.CONSULTA]: ['Inicio', 'Copropietarios'],
 };
