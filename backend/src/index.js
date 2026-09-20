@@ -10,6 +10,8 @@ async function main() {
     console.log(`🚀 NEXA API en http://localhost:${env.PORT}/api  [${env.NODE_ENV}]`);
     console.log('   POST /api/auth/login · GET /api/auth/me · GET /api/health');
     console.log('   GET  /api/financiero/expensas · /cuentas · /periodos · /unidades/:id/estado-cuenta');
+    console.log('   POST /api/financiero/pagos · /ingresos · /egresos   (rol ADMINISTRADOR)');
+    console.log('   GET  /api/financiero/contabilidad/plan-cuentas · /asientos · /balance-comprobacion');
   });
 }
 

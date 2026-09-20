@@ -4,6 +4,8 @@ const prisma = require('../../../config/prisma');
 const { HttpError } = require('../../../shared/errors');
 const { configMoraVigente } = require('./configuracion.service');
 const { validarDatosPeriodo, calcularFechasPeriodo, generarExpensasParaUnidades } = require('../utils/periodos.utils');
+const { CUENTAS } = require('../utils/contabilidad.utils');
+const { asentar } = require('./contabilidad.service');
 
 const D = (v) => new Prisma.Decimal(v);
 
@@ -27,7 +29,7 @@ async function listar() {
  * Crea el periodo del mes y genera una expensa por cada unidad activa, todo en una transacción.
  * Si el periodo ya existe responde 409 (restricción única anio+mes).
  */
-async function crear(datos) {
+async function crear(datos, usuarioId = null) {
   const cfg = validarDatosPeriodo(datos);
 
   const { fechaEmision } = calcularFechasPeriodo({ anio: cfg.anio, mes: cfg.mes });
@@ -59,7 +61,19 @@ async function crear(datos) {
       data: filas.map((f) => ({ ...f, monto: D(f.monto), saldoPendiente: D(f.saldoPendiente) })),
     });
 
-    return { periodo, expensasGeneradas: filas.length, totalEmitido, modo: cfg.modo };
+    // Devengado: al emitir las expensas nace el derecho de cobro y el ingreso del periodo
+    const asiento = await asentar(tx, {
+      fecha: fechaEmision,
+      glosa: `Emisión de expensas ${String(cfg.mes).padStart(2, '0')}/${cfg.anio} (${filas.length} unidades)`,
+      origenTipo: 'EMISION_EXPENSAS',
+      origenId: periodo.id,
+      lineas: [
+        { cuenta: CUENTAS.CUENTAS_POR_COBRAR, debe: totalEmitido, descripcion: 'Expensas por cobrar' },
+        { cuenta: CUENTAS.INGRESOS_EXPENSAS, haber: totalEmitido, descripcion: 'Ingresos por expensas del periodo' },
+      ],
+    }, usuarioId);
+
+    return { periodo, expensasGeneradas: filas.length, totalEmitido, modo: cfg.modo, asientoId: asiento.id };
   });
 }
 
