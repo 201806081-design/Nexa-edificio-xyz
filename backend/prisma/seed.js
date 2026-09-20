@@ -1,55 +1,24 @@
 // =====================================================================
 //  Seed de datos de prueba · NEXA API
-//  Ejecutar: npm run db:seed   (idempotente: limpia y vuelve a cargar)
+//  Ejecutar: npm run db:seed   (idempotente: TRUNCATE + carga)
 //
-//  Usuarios (coinciden con los mocks del frontend HU-SE-02):
-//    usuario1 / 1234 → Administrador
-//    usuario2 / 1234 → Directorio
-//    usuario3 / 1234 → Consulta
+//  El seed usa los MISMOS servicios que la API (periodos, pagos, ingresos,
+//  egresos), así los datos de prueba nacen con sus movimientos de caja y
+//  sus asientos contables, igual que en producción.
+//
+//  Usuarios: usuario1 / usuario2 / usuario3 · contraseña 1234
 // =====================================================================
 require('dotenv').config();
 const bcrypt = require('bcryptjs');
-const { PrismaClient, Prisma } = require('@prisma/client');
+const { Prisma } = require('@prisma/client');
+const prisma = require('../src/config/prisma');
+const periodosService = require('../src/modules/financiero/services/periodos.service');
+const pagosService = require('../src/modules/financiero/services/pagos.service');
+const ieService = require('../src/modules/financiero/services/ingresosEgresos.service');
+const contabilidadService = require('../src/modules/financiero/services/contabilidad.service');
 
-const prisma = new PrismaClient();
 const D = (v) => new Prisma.Decimal(v);
 const fecha = (iso) => new Date(iso);
-
-// ---------------------------------------------------------------------
-// Helpers de negocio (mismo flujo que usarán los servicios de pagos)
-// ---------------------------------------------------------------------
-async function registrarMovimiento(tx, { cuentaId, tipo, monto, origenTipo, descripcion, usuarioId, fechaMov }) {
-  const cuenta = await tx.cuenta.findUniqueOrThrow({ where: { id: cuentaId } });
-  const saldoResultante = tipo === 'INGRESO' ? cuenta.saldoActual.plus(monto) : cuenta.saldoActual.minus(monto);
-  const movimiento = await tx.movimiento.create({
-    data: { cuentaId, tipo, monto, saldoResultante, origenTipo, descripcion, usuarioId, ...(fechaMov && { fecha: fechaMov }) },
-  });
-  await tx.cuenta.update({ where: { id: cuentaId }, data: { saldoActual: saldoResultante } });
-  return movimiento;
-}
-
-async function registrarPagoExpensa({ expensaId, copropietarioId, cuentaId, monto, metodo, referencia, usuarioId, fechaPago }) {
-  return prisma.$transaction(async (tx) => {
-    const expensa = await tx.expensa.findUniqueOrThrow({ where: { id: expensaId }, include: { unidad: true, periodo: true } });
-    const movimiento = await registrarMovimiento(tx, {
-      cuentaId, tipo: 'INGRESO', monto, origenTipo: 'PAGO', usuarioId, fechaMov: fechaPago,
-      descripcion: `Pago expensa ${String(expensa.periodo.mes).padStart(2, '0')}/${expensa.periodo.anio} ${expensa.unidad.codigo}`,
-    });
-    const pago = await tx.pago.create({
-      data: {
-        unidadId: expensa.unidadId, copropietarioId, cuentaId, movimientoId: movimiento.id,
-        monto, metodo, referencia, usuarioId, ...(fechaPago && { fecha: fechaPago }),
-        detalles: { create: [{ expensaId: expensa.id, montoAplicado: monto, aplicadoA: 'CAPITAL' }] },
-      },
-    });
-    const nuevoSaldo = expensa.saldoPendiente.minus(monto);
-    await tx.expensa.update({
-      where: { id: expensa.id },
-      data: { saldoPendiente: nuevoSaldo, estado: nuevoSaldo.isZero() ? 'PAGADA' : 'PARCIAL' },
-    });
-    return pago;
-  });
-}
 
 /** Crea registros uno por uno para que los ids autoincrementales sigan el orden de la lista. */
 async function crearEnOrden(modelo, lista) {
@@ -59,13 +28,60 @@ async function crearEnOrden(modelo, lista) {
 }
 
 async function limpiar() {
-  // TRUNCATE ... RESTART IDENTITY deja los ids estables en cada seed (usuario1 = 1, DEP-101 = 1, etc.)
   const tablas = [
-    'pago_detalle', 'anticipo', 'pago', 'planilla_detalle', 'anticipo_empleado', 'planilla', 'ingreso', 'egreso',
-    'movimiento', 'conciliacion', 'expensa', 'periodo', 'configuracion_mora', 'ocupacion', 'unidad', 'copropietario',
-    'categoria', 'cuenta', 'empleado', 'usuario',
+    'asiento_detalle', 'asiento', 'pago_detalle', 'anticipo', 'pago', 'planilla_detalle', 'anticipo_empleado', 'planilla',
+    'ingreso', 'egreso', 'movimiento', 'conciliacion', 'expensa', 'periodo', 'configuracion_mora', 'ocupacion', 'unidad',
+    'copropietario', 'categoria', 'cuenta', 'cuenta_contable', 'empleado', 'usuario',
   ];
   await prisma.$executeRawUnsafe(`TRUNCATE TABLE ${tablas.map((t) => `"${t}"`).join(', ')} RESTART IDENTITY CASCADE`);
+}
+
+// ---------------------------------------------------------------------
+// Plan de cuentas básico para administración de edificios (Bolivia)
+// ---------------------------------------------------------------------
+const PLAN = [
+  // código, nombre, tipo, naturaleza, imputable
+  ['1', 'ACTIVO', 'ACTIVO', 'DEUDORA', false],
+  ['1.1', 'Activo Corriente', 'ACTIVO', 'DEUDORA', false],
+  ['1.1.01', 'Caja', 'ACTIVO', 'DEUDORA', true],
+  ['1.1.02', 'Bancos', 'ACTIVO', 'DEUDORA', true],
+  ['1.1.03', 'Cuentas por Cobrar Copropietarios', 'ACTIVO', 'DEUDORA', true],
+  ['1.1.04', 'Intereses por Mora por Cobrar', 'ACTIVO', 'DEUDORA', true],
+  ['2', 'PASIVO', 'PASIVO', 'ACREEDORA', false],
+  ['2.1', 'Pasivo Corriente', 'PASIVO', 'ACREEDORA', false],
+  ['2.1.01', 'Anticipos de Copropietarios', 'PASIVO', 'ACREEDORA', true],
+  ['2.1.02', 'Sueldos por Pagar', 'PASIVO', 'ACREEDORA', true],
+  ['3', 'PATRIMONIO', 'PATRIMONIO', 'ACREEDORA', false],
+  ['3.1', 'Fondos del Edificio', 'PATRIMONIO', 'ACREEDORA', false],
+  ['3.1.01', 'Fondo Común del Edificio', 'PATRIMONIO', 'ACREEDORA', true],
+  ['4', 'INGRESOS', 'INGRESO', 'ACREEDORA', false],
+  ['4.1', 'Ingresos Ordinarios', 'INGRESO', 'ACREEDORA', false],
+  ['4.1.01', 'Ingresos por Expensas', 'INGRESO', 'ACREEDORA', true],
+  ['4.1.02', 'Ingresos por Mora', 'INGRESO', 'ACREEDORA', true],
+  ['4.2', 'Ingresos Extraordinarios', 'INGRESO', 'ACREEDORA', false],
+  ['4.2.01', 'Alquiler de Áreas Comunes', 'INGRESO', 'ACREEDORA', true],
+  ['4.2.02', 'Multas', 'INGRESO', 'ACREEDORA', true],
+  ['4.2.09', 'Otros Ingresos', 'INGRESO', 'ACREEDORA', true],
+  ['5', 'GASTOS', 'GASTO', 'DEUDORA', false],
+  ['5.1', 'Gastos Operativos', 'GASTO', 'DEUDORA', false],
+  ['5.1.01', 'Servicios Básicos', 'GASTO', 'DEUDORA', true],
+  ['5.1.02', 'Mantenimiento y Reparaciones', 'GASTO', 'DEUDORA', true],
+  ['5.1.03', 'Limpieza', 'GASTO', 'DEUDORA', true],
+  ['5.1.04', 'Sueldos y Salarios', 'GASTO', 'DEUDORA', true],
+  ['5.1.09', 'Otros Gastos', 'GASTO', 'DEUDORA', true],
+];
+
+async function crearPlanCuentas() {
+  const porCodigo = new Map();
+  for (const [codigo, nombre, tipo, naturaleza, imputable] of PLAN) {
+    const partes = codigo.split('.');
+    const padreCodigo = partes.length > 1 ? partes.slice(0, -1).join('.') : null;
+    const cuenta = await prisma.cuentaContable.create({
+      data: { codigo, nombre, tipo, naturaleza, imputable, nivel: partes.length, padreId: padreCodigo ? porCodigo.get(padreCodigo).id : null },
+    });
+    porCodigo.set(codigo, cuenta);
+  }
+  return porCodigo;
 }
 
 async function main() {
@@ -80,41 +96,42 @@ async function main() {
     { username: 'usuario3', nombre: 'Usuario de Consulta', email: 'consulta@nexa.bo', passwordHash: hash('1234'), rol: 'CONSULTA' },
   ]);
 
-  // ---------- Cuentas: caja y banco ----------
-  const caja = await prisma.cuenta.create({ data: { nombre: 'Caja General', tipo: 'CAJA', saldoInicial: D('1500.00'), saldoActual: D('1500.00') } });
-  const banco = await prisma.cuenta.create({
-    data: { nombre: 'Banco Unión - Cta. Cte.', tipo: 'BANCO', banco: 'Banco Unión', nroCuenta: '1000-2345-6789', saldoInicial: D('25000.00'), saldoActual: D('25000.00') },
-  });
+  // ---------- Plan de cuentas ----------
+  const plan = await crearPlanCuentas();
+  const cc = (codigo) => plan.get(codigo).id;
 
-  // ---------- Categorías ----------
-  await prisma.categoria.createMany({
-    data: [
-      { nombre: 'Alquiler de salón de eventos', tipo: 'INGRESO' },
-      { nombre: 'Multas', tipo: 'INGRESO' },
-      { nombre: 'Otros ingresos', tipo: 'INGRESO' },
-      { nombre: 'Servicios básicos (luz, agua)', tipo: 'EGRESO' },
-      { nombre: 'Mantenimiento', tipo: 'EGRESO' },
-      { nombre: 'Limpieza', tipo: 'EGRESO' },
-      { nombre: 'Sueldos y salarios', tipo: 'EGRESO' },
-    ],
-  });
-  const catAlquiler = await prisma.categoria.findFirst({ where: { nombre: 'Alquiler de salón de eventos' } });
-  const catServicios = await prisma.categoria.findFirst({ where: { nombre: 'Servicios básicos (luz, agua)' } });
+  // ---------- Cuentas de caja y banco (ligadas a su cuenta contable) ----------
+  const [caja, banco] = await crearEnOrden(prisma.cuenta, [
+    { nombre: 'Caja General', tipo: 'CAJA', saldoInicial: D('1500.00'), saldoActual: D('1500.00'), cuentaContableId: cc('1.1.01') },
+    { nombre: 'Banco Unión - Cta. Cte.', tipo: 'BANCO', banco: 'Banco Unión', nroCuenta: '1000-2345-6789', saldoInicial: D('25000.00'), saldoActual: D('25000.00'), cuentaContableId: cc('1.1.02') },
+  ]);
+
+  // ---------- Categorías (ligadas a su cuenta contable) ----------
+  const [catAlquiler, , , catServicios] = await crearEnOrden(prisma.categoria, [
+    { nombre: 'Alquiler de salón de eventos', tipo: 'INGRESO', cuentaContableId: cc('4.2.01') },
+    { nombre: 'Multas', tipo: 'INGRESO', cuentaContableId: cc('4.2.02') },
+    { nombre: 'Otros ingresos', tipo: 'INGRESO', cuentaContableId: cc('4.2.09') },
+    { nombre: 'Servicios básicos (luz, agua)', tipo: 'EGRESO', cuentaContableId: cc('5.1.01') },
+    { nombre: 'Mantenimiento', tipo: 'EGRESO', cuentaContableId: cc('5.1.02') },
+    { nombre: 'Limpieza', tipo: 'EGRESO', cuentaContableId: cc('5.1.03') },
+    { nombre: 'Sueldos y salarios', tipo: 'EGRESO', cuentaContableId: cc('5.1.04') },
+  ]);
 
   // ---------- Unidades ----------
   const [dep101, dep201, dep301, parq01, baul01] = await crearEnOrden(prisma.unidad, [
-      { codigo: 'DEP-101', tipo: 'DEPARTAMENTO', piso: 1, superficieM2: D('85.50'), coeficiente: D('0.0420') },
-      { codigo: 'DEP-201', tipo: 'DEPARTAMENTO', piso: 2, superficieM2: D('92.00'), coeficiente: D('0.0455') },
-      { codigo: 'DEP-301', tipo: 'DEPARTAMENTO', piso: 3, superficieM2: D('110.00'), coeficiente: D('0.0540') },
-      { codigo: 'PARQ-01', tipo: 'PARQUEO', piso: -1, superficieM2: D('12.50'), coeficiente: D('0.0060') },
-      { codigo: 'BAUL-01', tipo: 'BAULERA', piso: -1, superficieM2: D('4.00'), coeficiente: D('0.0020') },
+    { codigo: 'DEP-101', tipo: 'DEPARTAMENTO', piso: 1, superficieM2: D('85.50'), coeficiente: D('0.0420') },
+    { codigo: 'DEP-201', tipo: 'DEPARTAMENTO', piso: 2, superficieM2: D('92.00'), coeficiente: D('0.0455') },
+    { codigo: 'DEP-301', tipo: 'DEPARTAMENTO', piso: 3, superficieM2: D('110.00'), coeficiente: D('0.0540') },
+    { codigo: 'PARQ-01', tipo: 'PARQUEO', piso: -1, superficieM2: D('12.50'), coeficiente: D('0.0060') },
+    { codigo: 'BAUL-01', tipo: 'BAULERA', piso: -1, superficieM2: D('4.00'), coeficiente: D('0.0020') },
   ]);
 
   // ---------- Copropietarios y ocupaciones ----------
-  const maria = await prisma.copropietario.create({ data: { nombres: 'María', apellidos: 'Fernández Quiroga', ci: '4567890 CB', telefono: '70712345', email: 'maria@mail.com', tipo: 'PROPIETARIO' } });
-  const carlos = await prisma.copropietario.create({ data: { nombres: 'Carlos', apellidos: 'Rojas Mendoza', ci: '5678901 CB', telefono: '71823456', email: 'carlos@mail.com', tipo: 'PROPIETARIO' } });
-  const lucia = await prisma.copropietario.create({ data: { nombres: 'Lucía', apellidos: 'Vargas Soto', ci: '6789012 CB', telefono: '72934567', email: 'lucia@mail.com', tipo: 'INQUILINO' } });
-
+  const [maria, carlos, lucia] = await crearEnOrden(prisma.copropietario, [
+    { nombres: 'María', apellidos: 'Fernández Quiroga', ci: '4567890 CB', telefono: '70712345', email: 'maria@mail.com', tipo: 'PROPIETARIO' },
+    { nombres: 'Carlos', apellidos: 'Rojas Mendoza', ci: '5678901 CB', telefono: '71823456', email: 'carlos@mail.com', tipo: 'PROPIETARIO' },
+    { nombres: 'Lucía', apellidos: 'Vargas Soto', ci: '6789012 CB', telefono: '72934567', email: 'lucia@mail.com', tipo: 'INQUILINO' },
+  ]);
   await prisma.ocupacion.createMany({
     data: [
       { unidadId: dep101.id, copropietarioId: maria.id, fechaInicio: fecha('2024-03-01') },
@@ -130,56 +147,42 @@ async function main() {
     data: { tasaMensual: D('2.00'), diasGracia: 5, diaVencimiento: 10, metodo: 'SIMPLE', vigenteDesde: fecha('2026-01-01'), creadoPorId: admin.id },
   });
 
-  // ---------- Periodos agosto y septiembre 2026 ----------
-  const montoPorTipo = { DEPARTAMENTO: D('350.00'), PARQUEO: D('50.00'), BAULERA: D('20.00') };
-  const unidades = [dep101, dep201, dep301, parq01, baul01];
-  const expensas = {};
+  // ---------- Periodos agosto y septiembre (mismo servicio que POST /periodos) ----------
+  const cfgPeriodo = { modo: 'FIJO', montoBase: 350, montosPorTipo: { PARQUEO: 50, BAULERA: 20 } };
+  await periodosService.crear({ anio: 2026, mes: 8, ...cfgPeriodo }, admin.id);
+  await periodosService.crear({ anio: 2026, mes: 9, ...cfgPeriodo }, admin.id);
+  await prisma.periodo.update({ where: { anio_mes: { anio: 2026, mes: 8 } }, data: { estado: 'CERRADO' } });
 
-  for (const [anio, mes, emision, venc] of [[2026, 8, '2026-08-01', '2026-08-10'], [2026, 9, '2026-09-01', '2026-09-10']]) {
-    const periodo = await prisma.periodo.create({
-      data: { anio, mes, montoBase: D('350.00'), fechaEmision: fecha(emision), fechaVencimiento: fecha(venc), estado: mes === 8 ? 'CERRADO' : 'ABIERTO' },
-    });
-    for (const u of unidades) {
-      const monto = montoPorTipo[u.tipo];
-      expensas[`${u.codigo}-${mes}`] = await prisma.expensa.create({
-        data: { unidadId: u.id, periodoId: periodo.id, monto, saldoPendiente: monto, fechaVencimiento: periodo.fechaVencimiento },
-      });
-    }
-  }
+  // ---------- Pagos (mismo servicio que POST /pagos): agosto todos menos DEP-301 ----------
+  const pagar = (datos) => pagosService.registrar(datos, admin.id);
+  await pagar({ unidadId: dep101.id, cuentaId: caja.id, monto: 350, metodo: 'EFECTIVO', referencia: 'REC-0001', fecha: '2026-08-05T14:00:00Z' });
+  await pagar({ unidadId: parq01.id, cuentaId: caja.id, monto: 50, metodo: 'EFECTIVO', referencia: 'REC-0002', fecha: '2026-08-05T14:05:00Z' });
+  await pagar({ unidadId: baul01.id, cuentaId: caja.id, monto: 20, metodo: 'EFECTIVO', referencia: 'REC-0003', fecha: '2026-08-05T14:06:00Z' });
+  await pagar({ unidadId: dep201.id, cuentaId: banco.id, monto: 350, metodo: 'TRANSFERENCIA', referencia: 'TRX-77120', fecha: '2026-08-09T19:30:00Z' });
+  // septiembre: DEP-101 total, DEP-201 parcial
+  await pagar({ unidadId: dep101.id, cuentaId: caja.id, monto: 350, metodo: 'EFECTIVO', referencia: 'REC-0004', fecha: '2026-09-03T13:00:00Z' });
+  await pagar({ unidadId: dep201.id, cuentaId: banco.id, monto: 200, metodo: 'TRANSFERENCIA', referencia: 'TRX-88912', fecha: '2026-09-04T15:20:00Z' });
+  // DEP-301 no pagó agosto → vencida
+  const agostoDep301 = await prisma.expensa.findFirst({ where: { unidadId: dep301.id, periodo: { mes: 8 } } });
+  await prisma.expensa.update({ where: { id: agostoDep301.id }, data: { estado: 'VENCIDA' } });
 
-  // ---------- Pagos de agosto: todos pagan menos DEP-301 (queda VENCIDA) ----------
-  await registrarPagoExpensa({ expensaId: expensas['DEP-101-8'].id, copropietarioId: maria.id, cuentaId: caja.id, monto: D('350.00'), metodo: 'EFECTIVO', referencia: 'REC-0001', usuarioId: admin.id, fechaPago: fecha('2026-08-05T10:00:00Z') });
-  await registrarPagoExpensa({ expensaId: expensas['PARQ-01-8'].id, copropietarioId: maria.id, cuentaId: caja.id, monto: D('50.00'), metodo: 'EFECTIVO', referencia: 'REC-0002', usuarioId: admin.id, fechaPago: fecha('2026-08-05T10:05:00Z') });
-  await registrarPagoExpensa({ expensaId: expensas['BAUL-01-8'].id, copropietarioId: maria.id, cuentaId: caja.id, monto: D('20.00'), metodo: 'EFECTIVO', referencia: 'REC-0003', usuarioId: admin.id, fechaPago: fecha('2026-08-05T10:06:00Z') });
-  await registrarPagoExpensa({ expensaId: expensas['DEP-201-8'].id, copropietarioId: carlos.id, cuentaId: banco.id, monto: D('350.00'), metodo: 'TRANSFERENCIA', referencia: 'TRX-77120', usuarioId: admin.id, fechaPago: fecha('2026-08-09T15:30:00Z') });
-  await prisma.expensa.update({ where: { id: expensas['DEP-301-8'].id }, data: { estado: 'VENCIDA' } });
-
-  // ---------- Pagos de septiembre: uno total, uno parcial ----------
-  await registrarPagoExpensa({ expensaId: expensas['DEP-101-9'].id, copropietarioId: maria.id, cuentaId: caja.id, monto: D('350.00'), metodo: 'EFECTIVO', referencia: 'REC-0004', usuarioId: admin.id, fechaPago: fecha('2026-09-03T09:00:00Z') });
-  await registrarPagoExpensa({ expensaId: expensas['DEP-201-9'].id, copropietarioId: carlos.id, cuentaId: banco.id, monto: D('200.00'), metodo: 'TRANSFERENCIA', referencia: 'TRX-88912', usuarioId: admin.id, fechaPago: fecha('2026-09-04T11:20:00Z') });
-
-  // ---------- Ingreso extraordinario y egreso ----------
-  await prisma.$transaction(async (tx) => {
-    const mov = await registrarMovimiento(tx, { cuentaId: banco.id, tipo: 'INGRESO', monto: D('800.00'), origenTipo: 'INGRESO', descripcion: 'Alquiler salón de eventos - Sra. Pérez', usuarioId: admin.id, fechaMov: fecha('2026-09-03T16:00:00Z') });
-    await tx.ingreso.create({ data: { categoriaId: catAlquiler.id, cuentaId: banco.id, movimientoId: mov.id, fecha: fecha('2026-09-03'), monto: D('800.00'), descripcion: 'Alquiler salón de eventos - Sra. Pérez', usuarioId: admin.id } });
-  });
-  await prisma.$transaction(async (tx) => {
-    const mov = await registrarMovimiento(tx, { cuentaId: caja.id, tipo: 'EGRESO', monto: D('420.50'), origenTipo: 'EGRESO', descripcion: 'Factura ELFEC agosto 2026', usuarioId: admin.id, fechaMov: fecha('2026-09-04T12:00:00Z') });
-    await tx.egreso.create({ data: { categoriaId: catServicios.id, cuentaId: caja.id, movimientoId: mov.id, fecha: fecha('2026-09-04'), monto: D('420.50'), proveedor: 'ELFEC', nroFactura: '00123456', descripcion: 'Factura ELFEC agosto 2026', usuarioId: admin.id } });
-  });
+  // ---------- Ingreso extraordinario y egreso (mismos servicios que la API) ----------
+  await ieService.registrarIngreso({ categoriaId: catAlquiler.id, cuentaId: banco.id, monto: 800, descripcion: 'Alquiler salón de eventos - Sra. Pérez', fecha: '2026-09-03' }, admin.id);
+  await ieService.registrarEgreso({ categoriaId: catServicios.id, cuentaId: caja.id, monto: 420.5, descripcion: 'Factura ELFEC agosto 2026', proveedor: 'ELFEC', nroFactura: '00123456', fecha: '2026-09-04' }, admin.id);
 
   // ---------- Empleado ----------
   await prisma.empleado.create({ data: { nombres: 'Juan', apellidos: 'Mamani Choque', ci: '3456789 CB', cargo: 'Portero', salarioBase: D('2500.00'), fechaIngreso: fecha('2022-05-01') } });
 
   // ---------- Resumen ----------
   const cuentas = await prisma.cuenta.findMany({ orderBy: { id: 'asc' } });
-  const nExp = await prisma.expensa.count();
-  const nPagos = await prisma.pago.count();
-  const nMov = await prisma.movimiento.count();
+  const [nExp, nPagos, nMov, nAsientos] = await Promise.all([prisma.expensa.count(), prisma.pago.count(), prisma.movimiento.count(), prisma.asiento.count()]);
+  const balance = await contabilidadService.balanceComprobacion();
   console.log('\n✅ Seed completado');
   console.log('   Usuarios: usuario1 / usuario2 / usuario3 (contraseña 1234)');
-  console.log(`   Unidades: 5 | Copropietarios: 3 | Periodos: 2 | Expensas: ${nExp} | Pagos: ${nPagos} | Movimientos: ${nMov}`);
+  console.log(`   Plan de cuentas: ${PLAN.length} cuentas | Unidades: 5 | Copropietarios: 3`);
+  console.log(`   Periodos: 2 | Expensas: ${nExp} | Pagos: ${nPagos} | Movimientos: ${nMov} | Asientos: ${nAsientos}`);
   for (const c of cuentas) console.log(`   ${c.nombre}: Bs ${c.saldoActual.toFixed(2)}`);
+  console.log(`   Balance de comprobación: debe ${balance.totales.debe.toFixed(2)} = haber ${balance.totales.haber.toFixed(2)} → ${balance.totales.cuadra ? 'CUADRA ✔' : 'NO CUADRA ✘'}`);
 }
 
 main()
