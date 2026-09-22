@@ -1,6 +1,6 @@
 import { Box, Typography, Button, Chip, Alert, Divider } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import { COPROPIETARIOS_MOCK } from '../../constants/copropietariosMock';
 
@@ -22,6 +22,9 @@ function chipSx(tipo) {
 export default function DetallePersona() {
   const navigate = useNavigate();
   const { id } = useParams();
+  const location = useLocation();
+  // Mensaje de exito solo si viene de registrar/editar
+  const mensaje = location.state?.mensaje;
   const persona = COPROPIETARIOS_MOCK.find((p) => p.id === Number(id));
 
   if (!persona) {
@@ -42,9 +45,11 @@ export default function DetallePersona() {
         Informacion registrada del propietario o inquilino
       </Typography>
 
-      <Alert severity="success" sx={{ mb: 3 }}>
-        {persona.tipo} registrado correctamente
-      </Alert>
+      {mensaje && (
+        <Alert severity="success" sx={{ mb: 3 }}>
+          {mensaje}
+        </Alert>
+      )}
 
       <Box sx={{ bgcolor: 'background.paper', borderRadius: 3, p: 4, boxShadow: 1 }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
@@ -70,7 +75,17 @@ export default function DetallePersona() {
         <Divider sx={{ my: 2 }} />
 
         <Typography variant="body2" sx={{ fontWeight: 600, mb: 1 }}>Unidad relacionada</Typography>
-        <Dato etiqueta="Departamento" valor={persona.unidad} />
+        <Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' } }}>
+          <Box sx={{ width: { xs: '100%', md: '33%' } }}>
+            <Dato etiqueta="Departamento" valor={persona.unidad} />
+          </Box>
+          <Box sx={{ width: { xs: '100%', md: '33%' } }}>
+            <Dato etiqueta="Tipo de departamento" valor={persona.tipoDepartamento} />
+          </Box>
+          <Box sx={{ width: { xs: '100%', md: '33%' } }}>
+            <Dato etiqueta="Piso" valor={persona.piso} />
+          </Box>
+        </Box>
 
         <Box sx={{
           display: 'flex', gap: 2, mt: 3,

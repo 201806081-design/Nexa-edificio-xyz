@@ -9,9 +9,11 @@ export default function EditarPersona() {
   const persona = COPROPIETARIOS_MOCK.find((p) => p.id === Number(id));
 
   const guardar = (datos) => {
-    // MOCK: aqui se llamara al backend para actualizar. Por ahora navega al detalle.
-    console.log('Actualizar persona:', datos);
-    navigate(`/copropietarios/${id}`);
+    // MOCK: se actualiza el registro. Con backend, aqui iria el PUT.
+    Object.assign(persona, datos);
+    navigate(`/copropietarios/${id}`, {
+      state: { mensaje: 'Datos actualizados correctamente' },
+    });
   };
 
   if (!persona) {
@@ -29,6 +31,7 @@ export default function EditarPersona() {
         subtitulo="Actualiza la informacion personal y de contacto"
         valorInicial={persona}
         textoBoton="Guardar cambios"
+        tipoEditable={false}
         onGuardar={guardar}
         onCancelar={() => navigate(`/copropietarios/${id}`)}
       />

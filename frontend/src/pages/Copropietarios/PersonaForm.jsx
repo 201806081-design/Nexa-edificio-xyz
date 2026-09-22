@@ -3,7 +3,7 @@ import {
   Box, Typography, TextField, Button, ToggleButton, ToggleButtonGroup,
   Select, MenuItem, Alert,
 } from '@mui/material';
-import { UNIDADES_MOCK } from '../../constants/copropietariosMock';
+import { UNIDADES_MOCK, UNIDADES_INFO } from '../../constants/copropietariosMock';
 
 const VACIO = {
   tipo: 'Propietario',
@@ -13,7 +13,15 @@ const VACIO = {
   telefono: '',
   correo: '',
   unidad: '',
+  tipoDepartamento: '',
+  piso: '',
 };
+
+// Etiqueta de la unidad para el selector: "Depto. 302 -- 2 dormitorios -- piso 3"
+function etiquetaUnidad(u) {
+  const info = UNIDADES_INFO[u];
+  return info ? `${u} -- ${info.tipoDepartamento} -- piso ${info.piso}` : u;
+}
 
 // Un campo con su etiqueta arriba
 function Campo({ label, ...props }) {
@@ -25,13 +33,22 @@ function Campo({ label, ...props }) {
   );
 }
 
-export default function PersonaForm({ titulo, subtitulo, valorInicial, textoBoton, onGuardar, onCancelar }) {
+export default function PersonaForm({
+  titulo, subtitulo, valorInicial, textoBoton, onGuardar, onCancelar,
+  tipoEditable = true, // en editar se pasa false: el tipo queda bloqueado
+}) {
   const [form, setForm] = useState(valorInicial ?? VACIO);
   const [errores, setErrores] = useState({});
   const [mostrarAviso, setMostrarAviso] = useState(false);
 
   const cambiar = (campo, valor) => {
-    setForm((f) => ({ ...f, [campo]: valor }));
+    if (campo === 'unidad') {
+      // Al elegir unidad, se autocompletan tipo de departamento y piso
+      const info = UNIDADES_INFO[valor] ?? { tipoDepartamento: '', piso: '' };
+      setForm((f) => ({ ...f, unidad: valor, ...info }));
+    } else {
+      setForm((f) => ({ ...f, [campo]: valor }));
+    }
     setErrores((e) => ({ ...e, [campo]: '' }));
   };
 
@@ -65,22 +82,35 @@ export default function PersonaForm({ titulo, subtitulo, valorInicial, textoBoto
           Informacion personal
         </Typography>
 
-        <Typography variant="body2" sx={{ fontWeight: 500, mb: 0.5 }}>Tipo de persona *</Typography>
-        <ToggleButtonGroup
-          exclusive
-          value={form.tipo}
-          onChange={(e, v) => v && cambiar('tipo', v)}
-          sx={{
-            mb: 3,
-            '& .MuiToggleButton-root.Mui-selected': {
-              bgcolor: '#1F5F8B', color: '#fff',
-              '&:hover': { bgcolor: '#1C4E70' },
-            },
-          }}
-        >
-          <ToggleButton value="Propietario" sx={{ textTransform: 'none', px: 4 }}>Propietario</ToggleButton>
-          <ToggleButton value="Inquilino" sx={{ textTransform: 'none', px: 4 }}>Inquilino</ToggleButton>
-        </ToggleButtonGroup>
+        {tipoEditable ? (
+          <>
+            <Typography variant="body2" sx={{ fontWeight: 500, mb: 0.5 }}>Tipo de persona *</Typography>
+            <ToggleButtonGroup
+              exclusive
+              value={form.tipo}
+              onChange={(e, v) => v && cambiar('tipo', v)}
+              sx={{
+                mb: 3,
+                '& .MuiToggleButton-root.Mui-selected': {
+                  bgcolor: '#1F5F8B', color: '#fff',
+                  '&:hover': { bgcolor: '#1C4E70' },
+                },
+              }}
+            >
+              <ToggleButton value="Propietario" sx={{ textTransform: 'none', px: 4 }}>Propietario</ToggleButton>
+              <ToggleButton value="Inquilino" sx={{ textTransform: 'none', px: 4 }}>Inquilino</ToggleButton>
+            </ToggleButtonGroup>
+          </>
+        ) : (
+          // En editar el tipo no se cambia: se muestra bloqueado
+          <Box sx={{
+            display: 'inline-flex', gap: 1, alignItems: 'center',
+            bgcolor: '#EEF1F4', borderRadius: 2, px: 2, py: 1.5, mb: 3,
+          }}>
+            <Typography variant="body2" sx={{ fontWeight: 600 }}>Tipo de persona :</Typography>
+            <Typography variant="body2" color="text.secondary">{form.tipo}</Typography>
+          </Box>
+        )}
 
         {/* Fila 1: Nombres + Apellidos */}
         <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', mb: 2 }}>
@@ -117,11 +147,10 @@ export default function PersonaForm({ titulo, subtitulo, valorInicial, textoBoto
         <Select fullWidth displayEmpty value={form.unidad}
           onChange={(e) => cambiar('unidad', e.target.value)}>
           <MenuItem value=""><em>Seleccione unidad</em></MenuItem>
-          {UNIDADES_MOCK.map((u) => <MenuItem key={u} value={u}>{u}</MenuItem>)}
+          {UNIDADES_MOCK.map((u) => (
+            <MenuItem key={u} value={u}>{etiquetaUnidad(u)}</MenuItem>
+          ))}
         </Select>
-        <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-          La asociacion puede completarse cuando corresponda
-        </Typography>
 
         {mostrarAviso && (
           <Alert severity="error" sx={{ mt: 3 }}>
