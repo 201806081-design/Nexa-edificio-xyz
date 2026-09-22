@@ -8,6 +8,7 @@ import EditIcon from '@mui/icons-material/Edit';
 import BadgeIcon from '@mui/icons-material/Badge';
 import PhoneIcon from '@mui/icons-material/Phone';
 import ApartmentIcon from '@mui/icons-material/Apartment';
+import HomeIcon from '@mui/icons-material/Home';
 import { useNavigate } from 'react-router-dom';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import { COPROPIETARIOS_MOCK } from '../../constants/copropietariosMock';
@@ -50,8 +51,9 @@ export default function Copropietarios() {
               <TableCell><strong>Nombre</strong></TableCell>
               <TableCell><strong>Tipo</strong></TableCell>
               <TableCell><strong>Documento</strong></TableCell>
+              <TableCell><strong>Departamento</strong></TableCell>
+              <TableCell><strong>Tipo de dpto</strong></TableCell>
               <TableCell><strong>Contacto</strong></TableCell>
-              <TableCell><strong>Unidad</strong></TableCell>
               <TableCell align="center"><strong>Acciones</strong></TableCell>
             </TableRow>
           </TableHead>
@@ -61,8 +63,9 @@ export default function Copropietarios() {
                 <TableCell>{p.nombres} {p.apellidos}</TableCell>
                 <TableCell><Chip label={p.tipo} size="small" sx={chipSx(p.tipo)} /></TableCell>
                 <TableCell>CI {p.documento}</TableCell>
-                <TableCell>{p.telefono}</TableCell>
                 <TableCell>{p.unidad}</TableCell>
+                <TableCell>{p.tipoDepartamento}</TableCell>
+                <TableCell>{p.telefono}</TableCell>
                 <TableCell align="center">
                   <IconButton color="primary" onClick={() => navigate(`/copropietarios/${p.id}`)}>
                     <VisibilityIcon />
@@ -93,12 +96,16 @@ export default function Copropietarios() {
               <Typography variant="body2">CI {p.documento}</Typography>
             </Box>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5, color: 'text.secondary' }}>
-              <PhoneIcon fontSize="small" color="primary" />
-              <Typography variant="body2">{p.telefono}</Typography>
-            </Box>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1, color: 'text.secondary' }}>
               <ApartmentIcon fontSize="small" color="primary" />
               <Typography variant="body2">{p.unidad}</Typography>
+            </Box>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5, color: 'text.secondary' }}>
+              <HomeIcon fontSize="small" color="primary" />
+              <Typography variant="body2">{p.tipoDepartamento}</Typography>
+            </Box>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1, color: 'text.secondary' }}>
+              <PhoneIcon fontSize="small" color="primary" />
+              <Typography variant="body2">{p.telefono}</Typography>
             </Box>
             <Divider sx={{ mb: 1 }} />
             <Box sx={{ display: 'flex', justifyContent: 'center', gap: 3 }}>
