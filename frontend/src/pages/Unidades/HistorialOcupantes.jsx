@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Box, Typography, Select, MenuItem, Button, Chip, Divider } from '@mui/material';
 import ApartmentIcon from '@mui/icons-material/Apartment';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import {
     departamentos, ocupanteActual, ocupantesAnteriores, etiquetaUnidad,
@@ -19,12 +19,17 @@ function formatFecha(iso) {
 
 export default function HistorialOcupantes() {
     const navigate = useNavigate();
-    const [unidadId, setUnidadId] = useState('');
-
+    const [searchParams] = useSearchParams();
     const deptos = departamentos();
-    const id = Number(unidadId);
-    const actual = unidadId ? ocupanteActual(id) : null;
-    const anteriores = unidadId ? ocupantesAnteriores(id) : [];
+
+    // Preselecciona el departamento si viene por la URL (?departamento=id), desde el listado
+    const [unidadId, setUnidadId] = useState(() => {
+        const pid = Number(searchParams.get('departamento'));
+        return deptos.some((d) => d.id === pid) ? pid : '';
+    });
+
+    const actual = unidadId ? ocupanteActual(unidadId) : null;
+    const anteriores = unidadId ? ocupantesAnteriores(unidadId) : [];
 
     return (
         <DashboardLayout>
