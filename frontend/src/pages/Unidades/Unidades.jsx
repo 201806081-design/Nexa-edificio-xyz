@@ -21,7 +21,7 @@ const PESTANA_A_TIPO = { Departamentos: 'Departamento', Parqueos: 'Parqueo', Bau
 function chipSx(tipo) {
     if (tipo === 'Departamento') return { bgcolor: '#D6F0E4', color: '#2E9D78' };
     if (tipo === 'Parqueo') return { bgcolor: '#C5E0F2', color: '#1F5F8B' };
-    return { bgcolor: '#EEF1F4', color: '#5A6B7B' }; // Baulera
+    return { bgcolor: '#FCE7CB', color: '#C06E00' }; // Baulera (naranja)
 }
 
 const tipoDepto = (u) => (u.tipo === 'Departamento' ? u.tipoDepartamento : 'No aplica');
@@ -68,19 +68,32 @@ export default function Unidades() {
 
             {mensaje && <Alert severity="success" sx={{ mb: 2 }}>{mensaje}</Alert>}
 
-            {/* Pestañas de filtro por tipo */}
-            <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mb: 2 }}>
-                {PESTANAS.map((p) => (
-                    <Button
-                        key={p}
-                        onClick={() => setPestana(p)}
-                        variant={pestana === p ? 'contained' : 'outlined'}
-                        size="small"
-                        sx={{ borderRadius: 999, textTransform: 'none' }}
-                    >
-                        {p}
-                    </Button>
-                ))}
+            {/* Pestañas de filtro por tipo: pills en movil, segmentado a lo ancho en escritorio */}
+            <Box sx={{ display: 'flex', gap: 1, flexWrap: { xs: 'wrap', md: 'nowrap' }, mb: 2 }}>
+                {PESTANAS.map((p) => {
+                    const activa = pestana === p;
+                    return (
+                        <Button
+                            key={p}
+                            onClick={() => setPestana(p)}
+                            disableElevation
+                            variant={activa ? 'contained' : 'outlined'}
+                            sx={{
+                                flex: { xs: '0 0 auto', md: 1 },
+                                minWidth: 0,
+                                py: { xs: 0.6, md: 1.1 },
+                                px: { xs: 2, md: 0.5 },
+                                borderRadius: { xs: 999, md: 2 },
+                                textTransform: 'none',
+                                fontWeight: 600,
+                                fontSize: { xs: '0.78rem', md: '0.85rem' },
+                                ...(activa ? {} : { bgcolor: '#fff', color: '#1F5F8B', borderColor: '#cdd8e3' }),
+                            }}
+                        >
+                            {p}
+                        </Button>
+                    );
+                })}
             </Box>
 
             {/* VISTA ESCRITORIO: tabla */}
