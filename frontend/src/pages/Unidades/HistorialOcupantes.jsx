@@ -1,9 +1,11 @@
 import { useState } from 'react';
-import { Box, Typography, Select, MenuItem, Button, Chip } from '@mui/material';
+import { Box, Typography, Select, MenuItem, Button, Chip, Divider } from '@mui/material';
 import ApartmentIcon from '@mui/icons-material/Apartment';
 import { useNavigate } from 'react-router-dom';
 import DashboardLayout from '../../layouts/DashboardLayout';
-import { departamentos, ocupanteActual, etiquetaUnidad } from '../../constants/unidadesMock';
+import {
+    departamentos, ocupanteActual, ocupantesAnteriores, etiquetaUnidad,
+} from '../../constants/unidadesMock';
 
 const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
     'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
@@ -20,7 +22,9 @@ export default function HistorialOcupantes() {
     const [unidadId, setUnidadId] = useState('');
 
     const deptos = departamentos();
-    const actual = unidadId ? ocupanteActual(Number(unidadId)) : null;
+    const id = Number(unidadId);
+    const actual = unidadId ? ocupanteActual(id) : null;
+    const anteriores = unidadId ? ocupantesAnteriores(id) : [];
 
     return (
         <DashboardLayout>
@@ -58,9 +62,10 @@ export default function HistorialOcupantes() {
                 </Box>
             )}
 
-            {/* Departamento elegido: ocupante actual */}
+            {/* Departamento elegido: ocupante actual + anteriores */}
             {unidadId && (
                 <Box sx={{ bgcolor: 'background.paper', borderRadius: 3, p: 4, boxShadow: 1 }}>
+                    {/* Ocupante actual */}
                     <Typography variant="body2" sx={{ fontWeight: 600, mb: 1.5 }}>Ocupante actual</Typography>
                     {actual ? (
                         <Box sx={{ border: '1.5px solid #2E9D78', bgcolor: '#F2FBF7', borderRadius: 2, p: 2.5 }}>
@@ -76,6 +81,31 @@ export default function HistorialOcupantes() {
                         <Typography variant="body2" color="text.secondary">
                             Esta unidad no tiene un ocupante actual.
                         </Typography>
+                    )}
+
+                    <Divider sx={{ my: 3 }} />
+
+                    {/* Ocupantes anteriores (ordenados del mas reciente al mas antiguo) */}
+                    <Typography variant="body2" sx={{ fontWeight: 600, mb: 1.5 }}>Ocupantes anteriores</Typography>
+                    {anteriores.length === 0 ? (
+                        <Typography variant="body2" color="text.secondary">
+                            Aun no hay ocupantes anteriores registrados.
+                        </Typography>
+                    ) : (
+                        anteriores.map((o) => (
+                            <Box key={o.id} sx={{
+                                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                                gap: 1, py: 1.5, borderBottom: '1px solid', borderColor: 'divider',
+                            }}>
+                                <Box>
+                                    <Typography sx={{ fontWeight: 600 }}>{o.nombre}</Typography>
+                                    <Typography variant="body2" color="text.secondary">
+                                        {o.tipo} · {formatFecha(o.fechaInicio)} — {formatFecha(o.fechaFin)}
+                                    </Typography>
+                                </Box>
+                                <Chip label="Anterior" size="small" sx={{ bgcolor: '#EEF1F4', color: '#5A6B7B', fontWeight: 600 }} />
+                            </Box>
+                        ))
                     )}
                 </Box>
             )}
