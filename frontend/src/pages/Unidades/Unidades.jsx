@@ -2,6 +2,7 @@ import { useState } from 'react';
 import {
     Box, Typography, Table, TableHead, TableBody, TableRow, TableCell,
     Button, Chip, Paper, IconButton, Divider, Alert,
+    ToggleButton, ToggleButtonGroup,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import VisibilityIcon from '@mui/icons-material/Visibility';
@@ -68,33 +69,35 @@ export default function Unidades() {
 
             {mensaje && <Alert severity="success" sx={{ mb: 2 }}>{mensaje}</Alert>}
 
-            {/* Pestañas de filtro por tipo: pills en movil, segmentado a lo ancho en escritorio */}
-            <Box sx={{ display: 'flex', gap: 1, flexWrap: { xs: 'wrap', md: 'nowrap' }, mb: 2 }}>
-                {PESTANAS.map((p) => {
-                    const activa = pestana === p;
-                    return (
-                        <Button
-                            key={p}
-                            onClick={() => setPestana(p)}
-                            disableElevation
-                            variant={activa ? 'contained' : 'outlined'}
-                            sx={{
-                                flex: { xs: '0 0 auto', md: 1 },
-                                minWidth: 0,
-                                py: { xs: 0.6, md: 1.1 },
-                                px: { xs: 2, md: 0.5 },
-                                borderRadius: { xs: 999, md: 2 },
-                                textTransform: 'none',
-                                fontWeight: 600,
-                                fontSize: { xs: '0.78rem', md: '0.85rem' },
-                                ...(activa ? {} : { bgcolor: '#fff', color: '#1F5F8B', borderColor: '#cdd8e3' }),
-                            }}
-                        >
-                            {p}
-                        </Button>
-                    );
-                })}
-            </Box>
+            {/* Pestañas de filtro por tipo: barra segmentada (como el mockup) */}
+            <ToggleButtonGroup
+                exclusive
+                fullWidth
+                value={pestana}
+                onChange={(e, v) => v && setPestana(v)}
+                sx={{
+                    mb: 2,
+                    bgcolor: '#fff',
+                    '& .MuiToggleButton-root': {
+                        textTransform: 'none',
+                        fontWeight: 600,
+                        color: '#1F5F8B',
+                        borderColor: '#cdd8e3',
+                        py: 1.1,
+                        px: { xs: 0.5, md: 1 },
+                        fontSize: { xs: '0.72rem', md: '0.85rem' },
+                    },
+                    '& .MuiToggleButton-root.Mui-selected': {
+                        bgcolor: '#1F5F8B',
+                        color: '#fff',
+                        '&:hover': { bgcolor: '#1C4E70' },
+                    },
+                }}
+            >
+                {PESTANAS.map((p) => (
+                    <ToggleButton key={p} value={p}>{p}</ToggleButton>
+                ))}
+            </ToggleButtonGroup>
 
             {/* VISTA ESCRITORIO: tabla */}
             <Paper sx={{ p: 2, borderRadius: 3, display: { xs: 'none', md: 'block' } }}>

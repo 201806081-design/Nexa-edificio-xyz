@@ -114,17 +114,27 @@ export default function UnidadForm({ titulo, subtitulo, valorInicial, textoBoton
                 <Typography variant="body2" sx={{ fontWeight: 500, mb: 0.5 }}>Tipo de unidad *</Typography>
                 <ToggleButtonGroup
                     exclusive
+                    fullWidth
                     value={form.tipo}
                     onChange={(e, v) => v && cambiar('tipo', v)}
                     sx={{
-                        mb: 3, flexWrap: 'wrap',
+                        mb: 3,
+                        bgcolor: '#fff',
+                        '& .MuiToggleButton-root': {
+                            textTransform: 'none',
+                            fontWeight: 600,
+                            color: '#1F5F8B',
+                            borderColor: '#cdd8e3',
+                            py: 1.1,
+                            fontSize: { xs: '0.75rem', md: '0.9rem' },
+                        },
                         '& .MuiToggleButton-root.Mui-selected': {
                             bgcolor: '#1F5F8B', color: '#fff', '&:hover': { bgcolor: '#1C4E70' },
                         },
                     }}
                 >
                     {TIPOS_UNIDAD.map((t) => (
-                        <ToggleButton key={t} value={t} sx={{ textTransform: 'none', px: 4 }}>{t}</ToggleButton>
+                        <ToggleButton key={t} value={t}>{t}</ToggleButton>
                     ))}
                 </ToggleButtonGroup>
 
