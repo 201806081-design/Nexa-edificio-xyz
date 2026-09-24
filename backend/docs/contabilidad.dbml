@@ -1,0 +1,41 @@
+// ---- Tablas contables (Semana 4) · pegar al final del diagrama en dbdiagram.io ----
+Table cuenta_contable {
+  id int [pk, increment]
+  codigo varchar(20) [not null, unique, note: '1.1.01, 4.1.01, ...']
+  nombre varchar(120) [not null]
+  tipo varchar(20) [not null, note: 'ACTIVO | PASIVO | PATRIMONIO | INGRESO | GASTO']
+  naturaleza varchar(20) [not null, note: 'DEUDORA | ACREEDORA']
+  nivel int [not null, default: 1]
+  imputable boolean [not null, default: true, note: 'Solo las hojas reciben movimientos']
+  activa boolean [not null, default: true]
+  padre_id int [ref: > cuenta_contable.id]
+  Note: 'Plan de cuentas jerárquico'
+}
+
+Table asiento {
+  id int [pk, increment]
+  fecha date [not null]
+  glosa varchar(255) [not null]
+  origen_tipo varchar(20) [not null, note: 'EMISION_EXPENSAS | PAGO | INGRESO | EGRESO | NOMINA | AJUSTE | MANUAL']
+  origen_id int [note: 'id del pago / ingreso / egreso / periodo que lo generó']
+  total_debe decimal(12,2) [not null]
+  total_haber decimal(12,2) [not null]
+  estado varchar(20) [not null, default: 'REGISTRADO', note: 'REGISTRADO | ANULADO']
+  usuario_id int [ref: > usuario.id]
+  creado_en timestamp [not null, default: `now()`]
+  indexes { fecha  (origen_tipo, origen_id) }
+  Note: 'Libro diario. Siempre cuadrado: total_debe = total_haber'
+}
+
+Table asiento_detalle {
+  id int [pk, increment]
+  asiento_id int [not null, ref: > asiento.id]
+  cuenta_contable_id int [not null, ref: > cuenta_contable.id]
+  debe decimal(12,2) [not null, default: 0]
+  haber decimal(12,2) [not null, default: 0]
+  descripcion varchar(255)
+}
+
+// Vínculo de las cuentas operativas y categorías con el plan de cuentas
+Ref: cuenta.cuenta_contable_id > cuenta_contable.id
+Ref: categoria.cuenta_contable_id > cuenta_contable.id

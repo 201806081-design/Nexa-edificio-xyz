@@ -42,8 +42,18 @@ Usuarios de prueba (coinciden con el frontend): `usuario1`, `usuario2`, `usuario
 | POST | `/api/financiero/periodos` | ADMINISTRADOR | Genera las expensas del mes para todas las unidades |
 | GET | `/api/financiero/unidades` | cualquiera | Unidades con ocupantes actuales |
 | GET | `/api/financiero/unidades/:id/estado-cuenta` | cualquiera | Expensas, pagos, mora estimada y saldo |
+| GET | `/api/financiero/pagos` | cualquiera | Pagos registrados (filtros: `unidadId`, `desde`, `hasta`) |
+| GET | `/api/financiero/pagos/:id` | cualquiera | Detalle de un pago con expensas aplicadas |
+| POST | `/api/financiero/pagos` | ADMINISTRADOR | Registra un pago: aplica a expensas, caja/banco, anticipo y asiento |
+| GET | `/api/financiero/categorias` | cualquiera | Categorías de ingreso/egreso (`?tipo=`) |
+| GET/POST | `/api/financiero/ingresos` | cualq. / ADMIN | Ingresos extraordinarios (con asiento) |
+| GET/POST | `/api/financiero/egresos` | cualq. / ADMIN | Egresos (valida saldo; con asiento) |
 | GET | `/api/financiero/cuentas` | cualquiera | Cuentas de caja y bancos |
 | GET | `/api/financiero/cuentas/:id/movimientos` | cualquiera | Libro de movimientos |
+| GET | `/api/financiero/contabilidad/plan-cuentas` | cualquiera | Plan de cuentas (`?imputables=true`) |
+| GET | `/api/financiero/contabilidad/asientos` | cualquiera | Libro diario (`desde`, `hasta`, `origenTipo`) |
+| GET | `/api/financiero/contabilidad/asientos/:id` | cualquiera | Detalle de un asiento |
+| GET | `/api/financiero/contabilidad/balance-comprobacion` | cualquiera | Sumas y saldos por cuenta (`desde`, `hasta`) |
 
 Todas las rutas de `/api/financiero` requieren `Authorization: Bearer <token>`.
 
@@ -58,10 +68,27 @@ o prorrateando un presupuesto por alícuota:
 { "anio": 2026, "mes": 11, "modo": "COEFICIENTE", "presupuestoTotal": 12000 }
 ```
 
+### Registrar un pago
+
+```json
+POST /api/financiero/pagos
+{ "unidadId": 3, "cuentaId": 1, "monto": 350, "metodo": "EFECTIVO", "referencia": "REC-0005", "cobrarMora": false }
+```
+El pago se aplica a las expensas pendientes de la unidad de la más antigua a la más reciente (mora primero si `cobrarMora`), el excedente queda como anticipo, y genera el movimiento de caja y el asiento contable en la misma transacción.
+
+### Contabilidad (partida doble)
+
+| Operación | Debe | Haber |
+|---|---|---|
+| Emisión de expensas | 1.1.03 Cuentas por Cobrar | 4.1.01 Ingresos por Expensas |
+| Pago de expensas | 1.1.01 Caja / 1.1.02 Bancos | 1.1.03 Cuentas por Cobrar · 4.1.02 Ingresos por Mora · 2.1.01 Anticipos |
+| Ingreso extraordinario | 1.1.01 Caja / 1.1.02 Bancos | 4.2.xx cuenta de la categoría |
+| Egreso | 5.1.xx cuenta de la categoría | 1.1.01 Caja / 1.1.02 Bancos |
+
 ## Documentación y pruebas
 
 - Colección Postman: `docs/NEXA-API.postman_collection.json` (el login guarda el token automáticamente).
-- Pruebas unitarias: `npm test` (runner nativo `node:test`, sin dependencias).
+- Pruebas unitarias: `npm test` (74 casos, runner nativo `node:test`, sin dependencias).
 
 ## Estructura
 
@@ -77,7 +104,7 @@ src/
   modules/
     auth/                     ← login, me
     financiero/
-      controllers/ services/ utils/
+      controllers/ services/ utils/   ← expensas, periodos, pagos, ingresos/egresos, contabilidad
 prisma/
   schema.prisma  seed.js  migrations/
 tests/                        ← *.test.js

@@ -112,6 +112,35 @@ enum EstadoPlanilla {
   PAGADA
 }
 
+// ---- Contabilidad ----
+enum TipoCuentaContable {
+  ACTIVO
+  PASIVO
+  PATRIMONIO
+  INGRESO
+  GASTO
+}
+
+enum NaturalezaCuenta {
+  DEUDORA
+  ACREEDORA
+}
+
+enum OrigenAsiento {
+  EMISION_EXPENSAS
+  PAGO
+  INGRESO
+  EGRESO
+  NOMINA
+  AJUSTE
+  MANUAL
+}
+
+enum EstadoAsiento {
+  REGISTRADO
+  ANULADO
+}
+
 // =====================================================================
 // REFERENCIA: seguridad y copropietarios (otros módulos)
 // =====================================================================
@@ -134,6 +163,7 @@ model Usuario {
   ingresos            Ingreso[]
   egresos             Egreso[]
   planillas           Planilla[]
+  asientos            Asiento[]
 
   @@map("usuario")
 }
@@ -254,7 +284,9 @@ model Cuenta {
   saldoInicial Decimal    @default(0) @map("saldo_inicial") @db.Decimal(12, 2)
   saldoActual  Decimal    @default(0) @map("saldo_actual") @db.Decimal(12, 2)
   activa       Boolean    @default(true)
+  cuentaContableId Int?   @map("cuenta_contable_id")
 
+  cuentaContable CuentaContable? @relation(fields: [cuentaContableId], references: [id])
   movimientos    Movimiento[]
   conciliaciones Conciliacion[]
   pagos          Pago[]
@@ -386,7 +418,9 @@ model Categoria {
   tipo        TipoCategoria
   descripcion String?       @db.VarChar(255)
   activa      Boolean       @default(true)
+  cuentaContableId Int?     @map("cuenta_contable_id")
 
+  cuentaContable CuentaContable? @relation(fields: [cuentaContableId], references: [id])
   ingresos Ingreso[]
   egresos  Egreso[]
 
@@ -512,4 +546,66 @@ model PlanillaDetalle {
   planilla Planilla @relation(fields: [planillaId], references: [id], onDelete: Cascade)
 
   @@map("planilla_detalle")
+}
+
+// =====================================================================
+// CONTABILIDAD (req. 4 y 5): plan de cuentas y asientos de partida doble
+// =====================================================================
+
+/// Plan de cuentas jerárquico. Solo las cuentas "imputables" (hoja) reciben movimientos.
+model CuentaContable {
+  id         Int                @id @default(autoincrement())
+  codigo     String             @unique @db.VarChar(20)
+  nombre     String             @db.VarChar(120)
+  tipo       TipoCuentaContable
+  naturaleza NaturalezaCuenta
+  nivel      Int                @default(1)
+  imputable  Boolean            @default(true)
+  activa     Boolean            @default(true)
+  padreId    Int?               @map("padre_id")
+
+  padre      CuentaContable?  @relation("JerarquiaCuentas", fields: [padreId], references: [id])
+  hijas      CuentaContable[] @relation("JerarquiaCuentas")
+  detalles   AsientoDetalle[]
+  cuentas    Cuenta[]
+  categorias Categoria[]
+
+  @@index([tipo])
+  @@map("cuenta_contable")
+}
+
+/// Asiento del libro diario. Siempre cuadrado: total_debe = total_haber.
+model Asiento {
+  id         Int           @id @default(autoincrement())
+  fecha      DateTime      @db.Date
+  glosa      String        @db.VarChar(255)
+  origenTipo OrigenAsiento @map("origen_tipo")
+  origenId   Int?          @map("origen_id")
+  totalDebe  Decimal       @map("total_debe") @db.Decimal(12, 2)
+  totalHaber Decimal       @map("total_haber") @db.Decimal(12, 2)
+  estado     EstadoAsiento @default(REGISTRADO)
+  usuarioId  Int?          @map("usuario_id")
+  creadoEn   DateTime      @default(now()) @map("creado_en")
+
+  usuario  Usuario?         @relation(fields: [usuarioId], references: [id])
+  detalles AsientoDetalle[]
+
+  @@index([fecha])
+  @@index([origenTipo, origenId])
+  @@map("asiento")
+}
+
+model AsientoDetalle {
+  id               Int     @id @default(autoincrement())
+  asientoId        Int     @map("asiento_id")
+  cuentaContableId Int     @map("cuenta_contable_id")
+  debe             Decimal @default(0) @db.Decimal(12, 2)
+  haber            Decimal @default(0) @db.Decimal(12, 2)
+  descripcion      String? @db.VarChar(255)
+
+  asiento        Asiento        @relation(fields: [asientoId], references: [id], onDelete: Cascade)
+  cuentaContable CuentaContable @relation(fields: [cuentaContableId], references: [id])
+
+  @@index([cuentaContableId])
+  @@map("asiento_detalle")
 }

@@ -9,7 +9,7 @@ async function listar(req, res, next) {
 
 async function crear(req, res, next) {
   try {
-    const data = await service.crear(req.body || {});
+    const data = await service.crear(req.body || {}, req.user.id);
     res.status(201).json({ ok: true, mensaje: `Periodo ${data.periodo.mes}/${data.periodo.anio} generado con ${data.expensasGeneradas} expensas`, data });
   } catch (err) { next(err); }
 }
