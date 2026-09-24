@@ -7,6 +7,11 @@ import Copropietarios from '../pages/Copropietarios/Copropietarios';
 import RegistrarPersona from '../pages/Copropietarios/RegistrarPersona';
 import DetallePersona from '../pages/Copropietarios/DetallePersona';
 import EditarPersona from '../pages/Copropietarios/EditarPersona';
+import Unidades from '../pages/Unidades/Unidades';
+import RegistrarUnidad from '../pages/Unidades/RegistrarUnidad';
+import DetalleUnidad from '../pages/Unidades/DetalleUnidad';
+import EditarUnidad from '../pages/Unidades/EditarUnidad';
+import HistorialOcupantes from '../pages/Unidades/HistorialOcupantes';
 import ProtectedRoute from './ProtectedRoute';
 
 export default function AppRoutes() {
@@ -21,6 +26,12 @@ export default function AppRoutes() {
       <Route path="/copropietarios/registrar" element={<ProtectedRoute><RegistrarPersona /></ProtectedRoute>} />
       <Route path="/copropietarios/:id" element={<ProtectedRoute><DetallePersona /></ProtectedRoute>} />
       <Route path="/copropietarios/:id/editar" element={<ProtectedRoute><EditarPersona /></ProtectedRoute>} />
+
+      <Route path="/unidades" element={<ProtectedRoute><Unidades /></ProtectedRoute>} />
+      <Route path="/unidades/registrar" element={<ProtectedRoute><RegistrarUnidad /></ProtectedRoute>} />
+      <Route path="/unidades/historial" element={<ProtectedRoute><HistorialOcupantes /></ProtectedRoute>} />
+      <Route path="/unidades/:id" element={<ProtectedRoute><DetalleUnidad /></ProtectedRoute>} />
+      <Route path="/unidades/:id/editar" element={<ProtectedRoute><EditarUnidad /></ProtectedRoute>} />
 
       <Route path="*" element={<Navigate to="/login" replace />} />
     </Routes>

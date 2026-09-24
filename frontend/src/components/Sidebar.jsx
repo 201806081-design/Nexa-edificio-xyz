@@ -10,10 +10,11 @@ import ShieldIcon from '@mui/icons-material/Shield';
 import AccountCircleIcon from '@mui/icons-material/AccountCircle';
 import LogoutIcon from '@mui/icons-material/Logout';
 import MenuIcon from '@mui/icons-material/Menu';
+import PeopleIcon from '@mui/icons-material/People';
+import DomainIcon from '@mui/icons-material/Domain';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { MENU_POR_ROL } from '../constants/permisos';
-import PeopleIcon from '@mui/icons-material/People';
 
 const ANCHO = 260;
 
@@ -22,6 +23,7 @@ const OPCIONES = {
   'Usuarios y roles': { icon: <GroupIcon />, ruta: '/usuarios' },
   'Permisos por rol': { icon: <ShieldIcon />, ruta: '/permisos' },
   Copropietarios: { icon: <PeopleIcon />, ruta: '/copropietarios' },
+  Unidades: { icon: <DomainIcon />, ruta: '/unidades' },
 };
 
 // Contenido del menu (se usa tanto en escritorio como en el drawer movil)
