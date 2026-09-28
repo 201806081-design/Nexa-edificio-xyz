@@ -1,16 +1,17 @@
 version: "3.9"
 
-# Entorno local de desarrollo.
-# En staging/producción se usa Neon (no una BD local en contenedor),
-# por lo que el servicio "db" es solo para desarrollo offline opcional.
+# Entorno local de desarrollo con PostgreSQL en contenedor.
 
 services:
   backend:
     build: ./backend
     ports:
       - "8000:8000"
-    env_file:
-      - ./backend/.env
+    environment:
+      NODE_ENV: development
+      PORT: 8000
+      DATABASE_URL: postgresql://nexa:nexa@db:5432/nexa_edificio_local?schema=public
+      JWT_SECRET: local-development-only
     depends_on:
       db:
         condition: service_healthy
@@ -22,8 +23,6 @@ services:
     build: ./frontend
     ports:
       - "5173:80"
-    env_file:
-      - ./frontend/.env
     depends_on:
       - backend
 
