@@ -23,7 +23,10 @@ function errorHandler(err, req, res, next) {
     mensaje = 'JSON inválido en el cuerpo de la petición';
   }
 
-  if (status >= 500) console.error(err);
+  if (status >= 500) {
+    console.error(err);
+    mensaje = 'Error interno del servidor';
+  }
   res.status(status).json({ ok: false, error: mensaje });
 }
 
