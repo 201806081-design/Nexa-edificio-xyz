@@ -79,10 +79,12 @@ export default function LoginForm() {
         Inicia sesion para acceder al sistema
       </Typography>
 
-      <Typography variant="body2" sx={{ fontWeight: 500, mb: 0.5 }}>Usuario</Typography>
       <TextField
         fullWidth
+        label="Usuario"
+        required
         name="usuario"
+        autoComplete="username"
         placeholder="Ingrese su usuario"
         value={form.usuario}
         onChange={handleChange}
@@ -98,10 +100,12 @@ export default function LoginForm() {
         }}
       />
 
-      <Typography variant="body2" sx={{ fontWeight: 500, mb: 0.5 }}>Contraseña</Typography>
       <TextField
         fullWidth
+        label="Contraseña"
+        required
         name="password"
+        autoComplete="current-password"
         type={showPassword ? 'text' : 'password'}
         placeholder="Ingrese su contraseña"
         value={form.password}
@@ -116,7 +120,13 @@ export default function LoginForm() {
             ),
             endAdornment: (
               <InputAdornment position="end">
-                <IconButton onClick={() => setShowPassword((s) => !s)} edge="end" aria-label="mostrar contraseña">
+                <IconButton
+                  type="button"
+                  onClick={() => setShowPassword((s) => !s)}
+                  edge="end"
+                  aria-label={showPassword ? 'ocultar contraseña' : 'mostrar contraseña'}
+                  aria-pressed={showPassword}
+                >
                   {showPassword ? <VisibilityOff /> : <Visibility />}
                 </IconButton>
               </InputAdornment>
