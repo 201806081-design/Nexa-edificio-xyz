@@ -51,8 +51,17 @@ export default function LoginForm() {
     try {
       await login(form.usuario, form.password);
       navigate('/dashboard');
-    } catch {
-      setApiError('Usuario o contraseña incorrecto');
+    } catch (error) {
+      const status = error.response?.status;
+      if (status === 401) {
+        setApiError('Usuario o contraseña incorrectos');
+      } else if (status === 403) {
+        setApiError('La cuenta está inactiva. Contacta al administrador.');
+      } else if (!error.response) {
+        setApiError('No se pudo conectar con el servidor. Inténtalo de nuevo.');
+      } else {
+        setApiError(error.response.data?.error || 'No se pudo iniciar sesión. Inténtalo de nuevo.');
+      }
     } finally {
       setLoading(false);
     }
