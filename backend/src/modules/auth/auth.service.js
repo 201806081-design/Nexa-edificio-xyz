@@ -19,11 +19,12 @@ function serializarUsuario(u) {
 }
 
 async function login({ usuario, password }) {
-  if (!usuario || !password) throw new HttpError(400, 'usuario y password son obligatorios');
+  const identificador = String(usuario ?? '').trim();
+  if (!identificador || !password) throw new HttpError(400, 'usuario y password son obligatorios');
 
   // Acepta nombre de usuario o correo
   const u = await prisma.usuario.findFirst({
-    where: { OR: [{ username: String(usuario).trim() }, { email: String(usuario).trim().toLowerCase() }] },
+    where: { OR: [{ username: identificador }, { email: identificador.toLowerCase() }] },
   });
 
   const passwordOk = u ? await bcrypt.compare(String(password), u.passwordHash) : false;
