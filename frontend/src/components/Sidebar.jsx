@@ -55,10 +55,11 @@ function ContenidoMenu({ onNavegar }) {
       <List sx={{ flexGrow: 1 }}>
         {opciones.map((nombre) => {
           const opcion = OPCIONES[nombre];
-          const activo = location.pathname === opcion.ruta;
+          const activo = location.pathname === opcion.ruta || location.pathname.startsWith(`${opcion.ruta}/`);
           return (
             <ListItemButton
               key={nombre}
+              aria-current={activo ? 'page' : undefined}
               onClick={() => ir(opcion.ruta)}
               sx={{
                 borderRadius: 2,
