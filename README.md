@@ -61,6 +61,47 @@ lo que evita desincronización de migraciones entre repositorios separados.
 - **CI/CD**: **GitHub Actions**, con *path filters* para que cada pipeline
   (`backend-ci.yml`, `frontend-ci.yml`) corra solo cuando cambia su carpeta.
 
+## Ejecutar localmente
+
+### Con Docker Compose
+
+Requiere Docker Desktop con el motor iniciado. Desde la raíz del repositorio:
+
+```bash
+docker compose up --build
+docker compose exec backend npm run db:deploy
+docker compose exec backend npm run db:seed
+```
+
+La interfaz queda en `http://localhost:5173` y la API en
+`http://localhost:8000/api`. El Compose local usa una base PostgreSQL propia;
+no necesita credenciales de Neon ni archivos `.env`. Para detener los servicios,
+usa `docker compose down`. Los datos de PostgreSQL se conservan en el volumen
+`db_data`.
+
+### Sin Docker
+
+Instala Node.js 20 o posterior y ejecuta PostgreSQL localmente. Configura
+`backend/.env` a partir de `.env.example` con la URL de esa base y un `JWT_SECRET`;
+configura `frontend/.env` a partir de su plantilla. Luego, en dos terminales:
+
+```bash
+cd backend
+npm ci
+npm run db:deploy
+npm run db:seed
+npm run dev
+```
+
+```bash
+cd frontend
+npm ci
+npm run dev
+```
+
+El backend escucha en el puerto 8000 y la interfaz de Vite en el 5173. Las
+credenciales de prueba se documentan en [backend/README.md](./backend/README.md).
+
 ## Primeros pasos (setup del repositorio)
 
 1. Crear el repositorio en GitHub como privado: `nexa-edificio-xyz`.
