@@ -1,5 +1,5 @@
 import { createContext, useState } from 'react';
-import { USUARIOS_MOCK } from '../constants/usuariosMock';
+import { login as autenticar } from '../services/authService';
 
 // eslint-disable-next-line react-refresh/only-export-components
 export const AuthContext = createContext(null);
@@ -19,15 +19,10 @@ function leerSesionGuardada() {
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(leerSesionGuardada);
 
-  // MOCK: valida contra usuarios de prueba. Se reemplazara por la llamada al backend.
   const login = async (usuario, password) => {
-    const encontrado = USUARIOS_MOCK.find(
-      (u) => u.usuario === usuario && u.password === password
-    );
-    if (!encontrado) {
-      throw new Error('Credenciales incorrectas');
-    }
-    const datosUsuario = { usuario: encontrado.usuario, rol: encontrado.rol, nombre: encontrado.nombre };
+    const { token, user: datosUsuario } = await autenticar(usuario, password);
+    if (!token || !datosUsuario) throw new Error('Respuesta de autenticación inválida');
+    localStorage.setItem('token', token);
     localStorage.setItem('user', JSON.stringify(datosUsuario));
     setUser(datosUsuario);
     return datosUsuario;
