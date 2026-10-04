@@ -12,6 +12,8 @@ import RegistrarUnidad from '../pages/Unidades/RegistrarUnidad';
 import DetalleUnidad from '../pages/Unidades/DetalleUnidad';
 import EditarUnidad from '../pages/Unidades/EditarUnidad';
 import HistorialOcupantes from '../pages/Unidades/HistorialOcupantes';
+import GestionFinanciera from '../pages/Finanzas/GestionFinanciera';
+import DashboardFinanciero from '../pages/Finanzas/DashboardFinanciero';
 import ProtectedRoute from './ProtectedRoute';
 
 export default function AppRoutes() {
@@ -32,6 +34,9 @@ export default function AppRoutes() {
       <Route path="/unidades/historial" element={<ProtectedRoute><HistorialOcupantes /></ProtectedRoute>} />
       <Route path="/unidades/:id" element={<ProtectedRoute><DetalleUnidad /></ProtectedRoute>} />
       <Route path="/unidades/:id/editar" element={<ProtectedRoute><EditarUnidad /></ProtectedRoute>} />
+
+      <Route path="/finanzas" element={<ProtectedRoute><GestionFinanciera /></ProtectedRoute>} />
+      <Route path="/finanzas/dashboard" element={<ProtectedRoute><DashboardFinanciero /></ProtectedRoute>} />
 
       <Route path="*" element={<Navigate to="/login" replace />} />
     </Routes>

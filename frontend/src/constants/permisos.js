@@ -57,9 +57,9 @@ export const PERMISOS_POR_ROL = {
 };
 
 // Opciones del menu lateral que ve cada rol
-// Admin ve todas las opciones; Directorio y Consulta ven Inicio, Copropietarios y Unidades
+// Admin ve todas las opciones; Directorio y Consulta ven Inicio, Copropietarios, Unidades y Finanzas
 export const MENU_POR_ROL = {
-  [ROLES.ADMINISTRADOR]: ['Inicio', 'Usuarios y roles', 'Permisos por rol', 'Copropietarios', 'Unidades'],
-  [ROLES.DIRECTORIO]: ['Inicio', 'Copropietarios', 'Unidades'],
-  [ROLES.CONSULTA]: ['Inicio', 'Copropietarios', 'Unidades'],
+  [ROLES.ADMINISTRADOR]: ['Inicio', 'Usuarios y roles', 'Permisos por rol', 'Copropietarios', 'Unidades', 'Finanzas'],
+  [ROLES.DIRECTORIO]: ['Inicio', 'Copropietarios', 'Unidades', 'Finanzas'],
+  [ROLES.CONSULTA]: ['Inicio', 'Copropietarios', 'Unidades', 'Finanzas'],
 };
