@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import {
   Box, Typography, List, ListItemButton, ListItemIcon, ListItemText,
-  Divider, Drawer, IconButton, AppBar, Toolbar,
+  Divider, Drawer, IconButton, AppBar, Toolbar, Collapse,
 } from '@mui/material';
 import ApartmentIcon from '@mui/icons-material/Apartment';
 import HomeIcon from '@mui/icons-material/Home';
@@ -12,6 +12,9 @@ import LogoutIcon from '@mui/icons-material/Logout';
 import MenuIcon from '@mui/icons-material/Menu';
 import PeopleIcon from '@mui/icons-material/People';
 import DomainIcon from '@mui/icons-material/Domain';
+import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
+import ExpandLess from '@mui/icons-material/ExpandLess';
+import ExpandMore from '@mui/icons-material/ExpandMore';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { MENU_POR_ROL } from '../constants/permisos';
@@ -24,6 +27,14 @@ const OPCIONES = {
   'Permisos por rol': { icon: <ShieldIcon />, ruta: '/permisos' },
   Copropietarios: { icon: <PeopleIcon />, ruta: '/copropietarios' },
   Unidades: { icon: <DomainIcon />, ruta: '/unidades' },
+  // Opcion con submenu desplegable
+  Finanzas: {
+    icon: <AccountBalanceWalletIcon />,
+    subopciones: [
+      { nombre: 'Resumen', ruta: '/finanzas' },
+      { nombre: 'Dashboard', ruta: '/finanzas/dashboard' },
+    ],
+  },
 };
 
 // Contenido del menu (se usa tanto en escritorio como en el drawer movil)
@@ -35,10 +46,20 @@ function ContenidoMenu({ onNavegar }) {
   const rol = user?.rol ?? 'Consulta';
   const opciones = MENU_POR_ROL[rol] ?? ['Inicio'];
 
+  // Submenu de Finanzas abierto si estamos en alguna de sus rutas
+  const [finanzasAbierto, setFinanzasAbierto] = useState(location.pathname.startsWith('/finanzas'));
+
   const ir = (ruta) => {
     navigate(ruta);
     if (onNavegar) onNavegar();
   };
+
+  const estiloItem = (activo) => ({
+    borderRadius: 2,
+    mb: 0.5,
+    bgcolor: activo ? '#1F5F8B' : 'transparent',
+    '&:hover': { bgcolor: activo ? '#1F5F8B' : 'rgba(255,255,255,0.08)' },
+  });
 
   return (
     <Box sx={{ bgcolor: '#132B3E', color: '#fff', height: '100%', display: 'flex', flexDirection: 'column', p: 2 }}>
@@ -55,18 +76,42 @@ function ContenidoMenu({ onNavegar }) {
       <List sx={{ flexGrow: 1 }}>
         {opciones.map((nombre) => {
           const opcion = OPCIONES[nombre];
+          if (!opcion) return null;
+
+          // Opcion con submenu (Finanzas)
+          if (opcion.subopciones) {
+            const algunoActivo = location.pathname.startsWith('/finanzas');
+            return (
+              <Box key={nombre}>
+                <ListItemButton onClick={() => setFinanzasAbierto((o) => !o)} sx={estiloItem(algunoActivo && !finanzasAbierto)}>
+                  <ListItemIcon sx={{ color: '#fff', minWidth: 40 }}>{opcion.icon}</ListItemIcon>
+                  <ListItemText primary={nombre} />
+                  {finanzasAbierto ? <ExpandLess /> : <ExpandMore />}
+                </ListItemButton>
+                <Collapse in={finanzasAbierto} timeout="auto" unmountOnExit>
+                  <List disablePadding sx={{ pl: 2 }}>
+                    {opcion.subopciones.map((sub) => {
+                      const activo = location.pathname === sub.ruta;
+                      return (
+                        <ListItemButton key={sub.nombre} onClick={() => ir(sub.ruta)} sx={estiloItem(activo)}>
+                          <ListItemText primary={sub.nombre} />
+                        </ListItemButton>
+                      );
+                    })}
+                  </List>
+                </Collapse>
+              </Box>
+            );
+          }
+
+          // Opcion normal (un nivel)
           const activo = location.pathname === opcion.ruta || location.pathname.startsWith(`${opcion.ruta}/`);
           return (
             <ListItemButton
               key={nombre}
               aria-current={activo ? 'page' : undefined}
               onClick={() => ir(opcion.ruta)}
-              sx={{
-                borderRadius: 2,
-                mb: 0.5,
-                bgcolor: activo ? '#1F5F8B' : 'transparent',
-                '&:hover': { bgcolor: activo ? '#1F5F8B' : 'rgba(255,255,255,0.08)' },
-              }}
+              sx={estiloItem(activo)}
             >
               <ListItemIcon sx={{ color: '#fff', minWidth: 40 }}>{opcion.icon}</ListItemIcon>
               <ListItemText primary={nombre} />
