@@ -1,16 +1,18 @@
 import { useState } from 'react';
-import { Box, Typography, Select, MenuItem, Paper } from '@mui/material';
+import { Box, Typography, Select, MenuItem, Paper, Chip, Divider } from '@mui/material';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import TrendingDownIcon from '@mui/icons-material/TrendingDown';
 import DragHandleIcon from '@mui/icons-material/DragHandle';
 import DescriptionIcon from '@mui/icons-material/Description';
+import ApartmentIcon from '@mui/icons-material/Apartment';
 import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
     PieChart, Pie, Cell, ResponsiveContainer,
 } from 'recharts';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import {
-    PERIODO_ACTUAL, PERIODOS, RESUMEN_MOCK, INGRESOS_GASTOS_MOCK, ESTADO_EXPENSAS_MOCK, formatBs,
+    PERIODO_ACTUAL, PERIODOS, RESUMEN_MOCK, INGRESOS_GASTOS_MOCK, ESTADO_EXPENSAS_MOCK,
+    DEPARTAMENTOS_MORA_MOCK, MOVIMIENTOS_MOCK, formatBs, formatFechaCorta,
 } from '../../constants/finanzasMock';
 
 const KPIS = [
@@ -56,7 +58,7 @@ export default function DashboardFinanciero() {
             </Box>
 
             {/* Graficos: barras (ingresos vs gastos) + dona (estado de expensas) */}
-            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 2 }}>
+            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 2, mb: 3 }}>
                 <Paper sx={{ p: 3, borderRadius: 3 }}>
                     <Typography sx={{ fontWeight: 700, fontSize: '1.1rem', mb: 2 }}>Ingresos vs. gastos</Typography>
                     <Box sx={{ height: 280 }}>
@@ -79,14 +81,7 @@ export default function DashboardFinanciero() {
                     <Box sx={{ height: 280 }}>
                         <ResponsiveContainer width="100%" height="100%">
                             <PieChart>
-                                <Pie
-                                    data={ESTADO_EXPENSAS_MOCK}
-                                    dataKey="valor"
-                                    nameKey="estado"
-                                    innerRadius={70}
-                                    outerRadius={110}
-                                    paddingAngle={2}
-                                >
+                                <Pie data={ESTADO_EXPENSAS_MOCK} dataKey="valor" nameKey="estado" innerRadius={70} outerRadius={110} paddingAngle={2}>
                                     {ESTADO_EXPENSAS_MOCK.map((e) => <Cell key={e.estado} fill={e.color} />)}
                                 </Pie>
                                 <Tooltip formatter={(v) => `${v}%`} />
@@ -97,6 +92,53 @@ export default function DashboardFinanciero() {
                             </PieChart>
                         </ResponsiveContainer>
                     </Box>
+                </Paper>
+            </Box>
+
+            {/* Listas: departamentos con mora + ultimos movimientos */}
+            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 2 }}>
+                <Paper sx={{ p: 3, borderRadius: 3 }}>
+                    <Typography sx={{ fontWeight: 700, fontSize: '1.1rem', mb: 1.5 }}>Departamentos con mora</Typography>
+                    {DEPARTAMENTOS_MORA_MOCK.map((d, i) => (
+                        <Box key={d.id}>
+                            {i > 0 && <Divider />}
+                            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, py: 1.5 }}>
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                                    <ApartmentIcon sx={{ color: '#D64545' }} />
+                                    <Typography sx={{ fontWeight: 600 }}>{d.departamento}</Typography>
+                                    <Chip label={d.estado} size="small" sx={{ bgcolor: '#FCECEC', color: '#D64545', fontWeight: 600 }} />
+                                </Box>
+                                <Typography sx={{ fontWeight: 700, color: '#D64545' }}>{formatBs(d.monto)}</Typography>
+                            </Box>
+                        </Box>
+                    ))}
+                </Paper>
+
+                <Paper sx={{ p: 3, borderRadius: 3 }}>
+                    <Typography sx={{ fontWeight: 700, fontSize: '1.1rem', mb: 1.5 }}>Ultimos movimientos</Typography>
+                    {MOVIMIENTOS_MOCK.map((m, i) => {
+                        const esIngreso = m.tipo === 'ingreso';
+                        const color = esIngreso ? '#2E9D78' : '#D64545';
+                        return (
+                            <Box key={m.id}>
+                                {i > 0 && <Divider />}
+                                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, py: 1.5 }}>
+                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                                        <Box sx={{ width: 32, height: 32, borderRadius: '50%', bgcolor: esIngreso ? '#E6F6EF' : '#FCECEC', color, display: 'grid', placeItems: 'center' }}>
+                                            {esIngreso ? <TrendingUpIcon fontSize="small" /> : <TrendingDownIcon fontSize="small" />}
+                                        </Box>
+                                        <Box>
+                                            <Typography sx={{ fontWeight: 600, color }}>
+                                                {esIngreso ? '+' : '-'} {formatBs(m.monto)}
+                                            </Typography>
+                                            <Typography variant="body2" color="text.secondary">{m.descripcion}</Typography>
+                                        </Box>
+                                    </Box>
+                                    <Typography variant="body2" color="text.secondary">{formatFechaCorta(m.fecha)}</Typography>
+                                </Box>
+                            </Box>
+                        );
+                    })}
                 </Paper>
             </Box>
         </DashboardLayout>
