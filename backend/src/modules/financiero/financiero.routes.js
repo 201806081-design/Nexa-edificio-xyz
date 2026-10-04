@@ -9,11 +9,17 @@ const unidades = require('./controllers/unidades.controller');
 const pagos = require('./controllers/pagos.controller');
 const ie = require('./controllers/ingresosEgresos.controller');
 const contabilidad = require('./controllers/contabilidad.controller');
+const dashboard = require('./controllers/dashboard.controller');
 
 const router = Router();
 const soloAdmin = autorizar(ROLES.ADMINISTRADOR);
 
 router.use(autenticar);
+
+// Dashboard e indicadores (req. 5). Solo lectura.
+router.get('/dashboard', dashboard.dashboard);
+router.get('/dashboard/finanzas', dashboard.finanzas);   // ?periodo=YYYY-MM
+router.get('/morosos', dashboard.morosos);               // ?minDias=1
 
 // Expensas
 router.get('/expensas', expensas.listar);
