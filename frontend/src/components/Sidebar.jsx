@@ -13,6 +13,11 @@ import MenuIcon from '@mui/icons-material/Menu';
 import PeopleIcon from '@mui/icons-material/People';
 import DomainIcon from '@mui/icons-material/Domain';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
+import DescriptionIcon from '@mui/icons-material/Description';
+import PaymentIcon from '@mui/icons-material/Payment';
+import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
+import BarChartIcon from '@mui/icons-material/BarChart';
+import ScheduleIcon from '@mui/icons-material/Schedule';
 import ExpandLess from '@mui/icons-material/ExpandLess';
 import ExpandMore from '@mui/icons-material/ExpandMore';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -27,12 +32,17 @@ const OPCIONES = {
   'Permisos por rol': { icon: <ShieldIcon />, ruta: '/permisos' },
   Copropietarios: { icon: <PeopleIcon />, ruta: '/copropietarios' },
   Unidades: { icon: <DomainIcon />, ruta: '/unidades' },
-  // Opcion con submenu desplegable
+  // Opcion con submenu desplegable (fiel al mockup)
   Finanzas: {
     icon: <AccountBalanceWalletIcon />,
     subopciones: [
-      { nombre: 'Resumen', ruta: '/finanzas' },
-      { nombre: 'Dashboard', ruta: '/finanzas/dashboard' },
+      { nombre: 'Resumen', icon: <DescriptionIcon />, ruta: '/finanzas' },
+      { nombre: 'Dashboard', icon: <BarChartIcon />, ruta: '/finanzas/dashboard' },
+      { nombre: 'Expensas', icon: <DescriptionIcon />, ruta: '/finanzas/expensas' },
+      { nombre: 'Pagos', icon: <PaymentIcon />, ruta: '/finanzas/pagos' },
+      { nombre: 'Estado de cuenta', icon: <ReceiptLongIcon />, ruta: '/finanzas/estado-cuenta' },
+      { nombre: 'Ingresos y gastos', icon: <BarChartIcon />, ruta: '/finanzas/ingresos-gastos' },
+      { nombre: 'Mora y anticipos', icon: <ScheduleIcon />, ruta: '/finanzas/mora' },
     ],
   },
 };
@@ -46,7 +56,6 @@ function ContenidoMenu({ onNavegar }) {
   const rol = user?.rol ?? 'Consulta';
   const opciones = MENU_POR_ROL[rol] ?? ['Inicio'];
 
-  // Submenu de Finanzas abierto si estamos en alguna de sus rutas
   const [finanzasAbierto, setFinanzasAbierto] = useState(location.pathname.startsWith('/finanzas'));
 
   const ir = (ruta) => {
@@ -72,7 +81,7 @@ function ContenidoMenu({ onNavegar }) {
         </Box>
       </Box>
 
-      {/* Opciones (crecen para empujar el bloque de abajo al fondo) */}
+      {/* Opciones */}
       <List sx={{ flexGrow: 1 }}>
         {opciones.map((nombre) => {
           const opcion = OPCIONES[nombre];
@@ -89,12 +98,13 @@ function ContenidoMenu({ onNavegar }) {
                   {finanzasAbierto ? <ExpandLess /> : <ExpandMore />}
                 </ListItemButton>
                 <Collapse in={finanzasAbierto} timeout="auto" unmountOnExit>
-                  <List disablePadding sx={{ pl: 2 }}>
+                  <List disablePadding sx={{ pl: 1 }}>
                     {opcion.subopciones.map((sub) => {
                       const activo = location.pathname === sub.ruta;
                       return (
                         <ListItemButton key={sub.nombre} onClick={() => ir(sub.ruta)} sx={estiloItem(activo)}>
-                          <ListItemText primary={sub.nombre} />
+                          <ListItemIcon sx={{ color: '#fff', minWidth: 36 }}>{sub.icon}</ListItemIcon>
+                          <ListItemText primary={sub.nombre} primaryTypographyProps={{ fontSize: '0.9rem' }} />
                         </ListItemButton>
                       );
                     })}
@@ -120,7 +130,7 @@ function ContenidoMenu({ onNavegar }) {
         })}
       </List>
 
-      {/* Bloque de abajo: usuario + cerrar sesion, juntos */}
+      {/* Bloque de abajo: usuario + cerrar sesion */}
       <Box>
         <Divider sx={{ borderColor: 'rgba(255,255,255,0.15)', mb: 1 }} />
         <ListItemButton sx={{ borderRadius: 2 }}>
