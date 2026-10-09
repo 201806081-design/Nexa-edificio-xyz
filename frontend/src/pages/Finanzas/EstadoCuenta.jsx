@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import {
-    Box, Typography, Select, MenuItem, Paper, Button, Chip, Divider,
+    Box, Typography, Select, MenuItem, Paper, Button, Chip,
     Table, TableHead, TableBody, TableRow, TableCell,
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
