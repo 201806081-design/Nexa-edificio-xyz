@@ -19,6 +19,7 @@ import GenerarExpensas from '../pages/Finanzas/GenerarExpensas';
 import EstadoCuenta from '../pages/Finanzas/EstadoCuenta';
 import IngresosGastos from '../pages/Finanzas/IngresosGastos';
 import RegistrarMovimiento from '../pages/Finanzas/RegistrarMovimiento';
+import DetalleMovimiento from '../pages/Finanzas/DetalleMovimiento';
 import ProtectedRoute from './ProtectedRoute';
 
 export default function AppRoutes() {
@@ -47,6 +48,7 @@ export default function AppRoutes() {
       <Route path="/finanzas/estado-cuenta" element={<ProtectedRoute><EstadoCuenta /></ProtectedRoute>} />
       <Route path="/finanzas/ingresos-gastos" element={<ProtectedRoute><IngresosGastos /></ProtectedRoute>} />
       <Route path="/finanzas/ingresos-gastos/registrar" element={<ProtectedRoute><RegistrarMovimiento /></ProtectedRoute>} />
+      <Route path="/finanzas/ingresos-gastos/:id" element={<ProtectedRoute><DetalleMovimiento /></ProtectedRoute>} />
 
       <Route path="*" element={<Navigate to="/login" replace />} />
     </Routes>
