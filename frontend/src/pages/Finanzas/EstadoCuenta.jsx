@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import {
-    Box, Typography, Select, MenuItem, Paper, Button, Chip,
+    Box, Typography, Select, MenuItem, Paper, Button, Chip, Divider,
     Table, TableHead, TableBody, TableRow, TableCell,
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
@@ -8,7 +8,7 @@ import ApartmentIcon from '@mui/icons-material/Apartment';
 import PeopleAltIcon from '@mui/icons-material/PeopleAlt';
 import DescriptionOutlinedIcon from '@mui/icons-material/DescriptionOutlined';
 import ScheduleIcon from '@mui/icons-material/Schedule';
-import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
+import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircle';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import { DEPARTAMENTOS_CUENTA, ESTADO_CUENTA_MOCK } from '../../constants/estadoCuentaMock';
 import { formatBs } from '../../constants/finanzasMock';
