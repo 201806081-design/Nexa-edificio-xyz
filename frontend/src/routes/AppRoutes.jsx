@@ -16,6 +16,7 @@ import GestionFinanciera from '../pages/Finanzas/GestionFinanciera';
 import DashboardFinanciero from '../pages/Finanzas/DashboardFinanciero';
 import Expensas from '../pages/Finanzas/Expensas';
 import GenerarExpensas from '../pages/Finanzas/GenerarExpensas';
+import EstadoCuenta from '../pages/Finanzas/EstadoCuenta';
 import ProtectedRoute from './ProtectedRoute';
 
 export default function AppRoutes() {
@@ -41,6 +42,7 @@ export default function AppRoutes() {
       <Route path="/finanzas/dashboard" element={<ProtectedRoute><DashboardFinanciero /></ProtectedRoute>} />
       <Route path="/finanzas/expensas" element={<ProtectedRoute><Expensas /></ProtectedRoute>} />
       <Route path="/finanzas/expensas/generar" element={<ProtectedRoute><GenerarExpensas /></ProtectedRoute>} />
+      <Route path="/finanzas/estado-cuenta" element={<ProtectedRoute><EstadoCuenta /></ProtectedRoute>} />
 
       <Route path="*" element={<Navigate to="/login" replace />} />
     </Routes>
