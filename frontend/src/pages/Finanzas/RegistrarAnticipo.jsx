@@ -3,7 +3,7 @@ import {
     Box, Typography, Paper, Button, Select, MenuItem, TextField,
 } from '@mui/material';
 import PersonIcon from '@mui/icons-material/Person';
-import PieChartOutlineIcon from '@mui/icons-material/PieChartOutline';
+import PieChartOutlineIcon from '@mui/icons-material/DonutLarge';
 import { useNavigate } from 'react-router-dom';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import { DEPARTAMENTOS_ANTICIPO, MESES_APLICA } from '../../constants/moraMock';
