@@ -22,6 +22,7 @@ import RegistrarMovimiento from '../pages/Finanzas/RegistrarMovimiento';
 import DetalleMovimiento from '../pages/Finanzas/DetalleMovimiento';
 import Mora from '../pages/Finanzas/Mora';
 import ConfigurarInteres from '../pages/Finanzas/ConfigurarInteres';
+import RegistrarAnticipo from '../pages/Finanzas/RegistrarAnticipo';
 import ProtectedRoute from './ProtectedRoute';
 
 export default function AppRoutes() {
@@ -53,6 +54,7 @@ export default function AppRoutes() {
       <Route path="/finanzas/ingresos-gastos/:id" element={<ProtectedRoute><DetalleMovimiento /></ProtectedRoute>} />
       <Route path="/finanzas/mora" element={<ProtectedRoute><Mora /></ProtectedRoute>} />
       <Route path="/finanzas/mora/configuracion" element={<ProtectedRoute><ConfigurarInteres /></ProtectedRoute>} />
+      <Route path="/finanzas/mora/anticipo" element={<ProtectedRoute><RegistrarAnticipo /></ProtectedRoute>} />
 
       <Route path="*" element={<Navigate to="/login" replace />} />
     </Routes>
