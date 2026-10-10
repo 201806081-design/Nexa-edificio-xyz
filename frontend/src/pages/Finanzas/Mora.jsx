@@ -24,24 +24,22 @@ export default function Mora() {
 
     return (
         <DashboardLayout>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 2, mb: 2 }}>
-                <Box>
-                    <Typography variant="h1" color="primary.main" sx={{ mb: 0.5 }}>Mora y pagos anticipos</Typography>
-                    <Typography variant="body2" color="text.secondary">
-                        Gestiona deudas vencidas y saldos a favor
-                    </Typography>
-                </Box>
-                <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                    <Button variant="outlined" startIcon={<SettingsIcon />}
-                        onClick={() => navigate('/finanzas/mora/configuracion')}
-                        sx={{ color: '#1a2733', borderColor: '#cdd8e3' }}>
-                        Configuracion interes
-                    </Button>
-                    <Button variant="contained" startIcon={<AddIcon />}
-                        onClick={() => navigate('/finanzas/mora/anticipo')}>
-                        Registrar movimiento
-                    </Button>
-                </Box>
+            <Typography variant="h1" color="primary.main" sx={{ mb: 0.5 }}>Mora y pagos anticipos</Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                Gestiona deudas vencidas y saldos a favor
+            </Typography>
+
+            <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', justifyContent: { xs: 'stretch', md: 'flex-end' }, mb: 2 }}>
+                <Button variant="outlined" startIcon={<SettingsIcon />}
+                    onClick={() => navigate('/finanzas/mora/configuracion')}
+                    sx={{ color: '#1a2733', borderColor: '#cdd8e3', width: { xs: '100%', md: 'auto' } }}>
+                    Configuracion interes
+                </Button>
+                <Button variant="contained" startIcon={<AddIcon />}
+                    onClick={() => navigate('/finanzas/mora/anticipo')}
+                    sx={{ width: { xs: '100%', md: 'auto' } }}>
+                    Registrar movimiento
+                </Button>
             </Box>
 
             {/* Tarjetas de resumen */}
@@ -60,69 +58,73 @@ export default function Mora() {
             </Box>
 
             {/* Saldos vencidos */}
-            <Paper sx={{ p: 3, borderRadius: 2, mb: 3, overflowX: 'auto' }}>
+            <Paper sx={{ p: 3, borderRadius: 2, mb: 3 }}>
                 <Typography variant="body2" sx={{ fontWeight: 600, mb: 1 }}>Saldos vencidos</Typography>
-                <Table size="small">
-                    <TableHead>
-                        <TableRow>
-                            <TableCell><strong>Departamento</strong></TableCell>
-                            <TableCell><strong>Periodo</strong></TableCell>
-                            <TableCell><strong>Capital</strong></TableCell>
-                            <TableCell><strong>Interes</strong></TableCell>
-                            <TableCell><strong>Total pendiente</strong></TableCell>
-                            <TableCell><strong>Estado</strong></TableCell>
-                            <TableCell align="center"><strong>Acciones</strong></TableCell>
-                        </TableRow>
-                    </TableHead>
-                    <TableBody>
-                        {SALDOS_VENCIDOS.map((s) => (
-                            <TableRow key={s.id}>
-                                <TableCell sx={{ fontWeight: 600 }}>{s.departamento}</TableCell>
-                                <TableCell>{s.periodo}</TableCell>
-                                <TableCell>{formatBs(s.capital)}</TableCell>
-                                <TableCell>{formatBs(s.interes)}</TableCell>
-                                <TableCell sx={{ fontWeight: 600, color: '#D9534F' }}>{formatBs(s.totalPendiente)}</TableCell>
-                                <TableCell><Chip label={s.estado} size="small" sx={{ bgcolor: '#FBEAE9', color: '#D9534F' }} /></TableCell>
-                                <TableCell align="center"><IconButton color="primary"><VisibilityIcon /></IconButton></TableCell>
+                <Box sx={{ overflowX: 'auto' }}>
+                    <Table size="small" sx={{ minWidth: 680 }}>
+                        <TableHead>
+                            <TableRow>
+                                <TableCell><strong>Departamento</strong></TableCell>
+                                <TableCell><strong>Periodo</strong></TableCell>
+                                <TableCell><strong>Capital</strong></TableCell>
+                                <TableCell><strong>Interes</strong></TableCell>
+                                <TableCell><strong>Total pendiente</strong></TableCell>
+                                <TableCell><strong>Estado</strong></TableCell>
+                                <TableCell align="center"><strong>Acciones</strong></TableCell>
                             </TableRow>
-                        ))}
-                    </TableBody>
-                </Table>
+                        </TableHead>
+                        <TableBody>
+                            {SALDOS_VENCIDOS.map((s) => (
+                                <TableRow key={s.id}>
+                                    <TableCell sx={{ fontWeight: 600 }}>{s.departamento}</TableCell>
+                                    <TableCell>{s.periodo}</TableCell>
+                                    <TableCell>{formatBs(s.capital)}</TableCell>
+                                    <TableCell>{formatBs(s.interes)}</TableCell>
+                                    <TableCell sx={{ fontWeight: 600, color: '#D9534F' }}>{formatBs(s.totalPendiente)}</TableCell>
+                                    <TableCell><Chip label={s.estado} size="small" sx={{ bgcolor: '#FBEAE9', color: '#D9534F' }} /></TableCell>
+                                    <TableCell align="center"><IconButton color="primary"><VisibilityIcon /></IconButton></TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
+                </Box>
             </Paper>
 
             {/* Pagos anticipados */}
-            <Paper sx={{ p: 3, borderRadius: 2, overflowX: 'auto' }}>
+            <Paper sx={{ p: 3, borderRadius: 2 }}>
                 <Typography variant="body2" sx={{ fontWeight: 600, mb: 1 }}>Pagos anticipados</Typography>
-                <Table size="small">
-                    <TableHead>
-                        <TableRow>
-                            <TableCell><strong>Fecha</strong></TableCell>
-                            <TableCell><strong>Departamento</strong></TableCell>
-                            <TableCell><strong>Capital</strong></TableCell>
-                            <TableCell><strong>Periodos cubiertos</strong></TableCell>
-                            <TableCell><strong>Saldo a favor</strong></TableCell>
-                            <TableCell><strong>Estado</strong></TableCell>
-                            <TableCell align="center"><strong>Acciones</strong></TableCell>
-                        </TableRow>
-                    </TableHead>
-                    <TableBody>
-                        {PAGOS_ANTICIPADOS.map((p) => (
-                            <TableRow key={p.id}>
-                                <TableCell>{p.fecha}</TableCell>
-                                <TableCell sx={{ fontWeight: 600 }}>{p.departamento}</TableCell>
-                                <TableCell>{formatBs(p.capital)}</TableCell>
-                                <TableCell>{p.periodosCubiertos}</TableCell>
-                                <TableCell sx={{ fontWeight: 600, color: '#2E9D78' }}>{formatBs(p.saldoAFavor)}</TableCell>
-                                <TableCell><Chip label={p.estado} size="small" sx={{ bgcolor: '#E4F4EE', color: '#2E9D78' }} /></TableCell>
-                                <TableCell align="center">
-                                    <IconButton color="primary" onClick={() => navigate(`/finanzas/mora/anticipo/${p.id}`)}>
-                                        <VisibilityIcon />
-                                    </IconButton>
-                                </TableCell>
+                <Box sx={{ overflowX: 'auto' }}>
+                    <Table size="small" sx={{ minWidth: 680 }}>
+                        <TableHead>
+                            <TableRow>
+                                <TableCell><strong>Fecha</strong></TableCell>
+                                <TableCell><strong>Departamento</strong></TableCell>
+                                <TableCell><strong>Capital</strong></TableCell>
+                                <TableCell><strong>Periodos cubiertos</strong></TableCell>
+                                <TableCell><strong>Saldo a favor</strong></TableCell>
+                                <TableCell><strong>Estado</strong></TableCell>
+                                <TableCell align="center"><strong>Acciones</strong></TableCell>
                             </TableRow>
-                        ))}
-                    </TableBody>
-                </Table>
+                        </TableHead>
+                        <TableBody>
+                            {PAGOS_ANTICIPADOS.map((p) => (
+                                <TableRow key={p.id}>
+                                    <TableCell>{p.fecha}</TableCell>
+                                    <TableCell sx={{ fontWeight: 600 }}>{p.departamento}</TableCell>
+                                    <TableCell>{formatBs(p.capital)}</TableCell>
+                                    <TableCell>{p.periodosCubiertos}</TableCell>
+                                    <TableCell sx={{ fontWeight: 600, color: '#2E9D78' }}>{formatBs(p.saldoAFavor)}</TableCell>
+                                    <TableCell><Chip label={p.estado} size="small" sx={{ bgcolor: '#E4F4EE', color: '#2E9D78' }} /></TableCell>
+                                    <TableCell align="center">
+                                        <IconButton color="primary" onClick={() => navigate(`/finanzas/mora/anticipo/${p.id}`)}>
+                                            <VisibilityIcon />
+                                        </IconButton>
+                                    </TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
+                </Box>
             </Paper>
         </DashboardLayout>
     );

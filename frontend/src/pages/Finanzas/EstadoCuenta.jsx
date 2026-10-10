@@ -97,53 +97,57 @@ export default function EstadoCuenta() {
                     {/* Expensas generadas */}
                     <Paper sx={{ p: 3, borderRadius: 2, mb: 2 }}>
                         <Typography variant="body2" sx={{ fontWeight: 600, mb: 1 }}>Expensas generadas</Typography>
-                        <Table size="small">
-                            <TableHead>
-                                <TableRow>
-                                    <TableCell><strong>Periodo</strong></TableCell>
-                                    <TableCell><strong>Monto</strong></TableCell>
-                                    <TableCell><strong>Pagado</strong></TableCell>
-                                    <TableCell><strong>Saldo</strong></TableCell>
-                                    <TableCell><strong>Estado</strong></TableCell>
-                                </TableRow>
-                            </TableHead>
-                            <TableBody>
-                                {consultado.expensas.map((e, i) => (
-                                    <TableRow key={i}>
-                                        <TableCell>{e.periodo}</TableCell>
-                                        <TableCell>{formatBs(e.monto)}</TableCell>
-                                        <TableCell>{formatBs(e.pagado)}</TableCell>
-                                        <TableCell>{formatBs(e.saldo)}</TableCell>
-                                        <TableCell><Chip label={e.estado} size="small" sx={estadoChipSx(e.estado)} /></TableCell>
+                        <Box sx={{ overflowX: 'auto' }}>
+                            <Table size="small" sx={{ minWidth: 520 }}>
+                                <TableHead>
+                                    <TableRow>
+                                        <TableCell><strong>Periodo</strong></TableCell>
+                                        <TableCell><strong>Monto</strong></TableCell>
+                                        <TableCell><strong>Pagado</strong></TableCell>
+                                        <TableCell><strong>Saldo</strong></TableCell>
+                                        <TableCell><strong>Estado</strong></TableCell>
                                     </TableRow>
-                                ))}
-                            </TableBody>
-                        </Table>
+                                </TableHead>
+                                <TableBody>
+                                    {consultado.expensas.map((e, i) => (
+                                        <TableRow key={i}>
+                                            <TableCell>{e.periodo}</TableCell>
+                                            <TableCell>{formatBs(e.monto)}</TableCell>
+                                            <TableCell>{formatBs(e.pagado)}</TableCell>
+                                            <TableCell>{formatBs(e.saldo)}</TableCell>
+                                            <TableCell><Chip label={e.estado} size="small" sx={estadoChipSx(e.estado)} /></TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        </Box>
                     </Paper>
 
                     {/* Historial de pagos */}
                     <Paper sx={{ p: 3, borderRadius: 2 }}>
                         <Typography variant="body2" sx={{ fontWeight: 600, mb: 1 }}>Historial de pagos</Typography>
-                        <Table size="small">
-                            <TableHead>
-                                <TableRow>
-                                    <TableCell><strong>Fecha</strong></TableCell>
-                                    <TableCell><strong>Periodo</strong></TableCell>
-                                    <TableCell><strong>Monto pagado</strong></TableCell>
-                                    <TableCell><strong>Saldo restante</strong></TableCell>
-                                </TableRow>
-                            </TableHead>
-                            <TableBody>
-                                {consultado.pagos.map((p, i) => (
-                                    <TableRow key={i}>
-                                        <TableCell>{p.fecha}</TableCell>
-                                        <TableCell>{p.periodo}</TableCell>
-                                        <TableCell>{formatBs(p.montoPagado)}</TableCell>
-                                        <TableCell>{formatBs(p.saldoRestante)}</TableCell>
+                        <Box sx={{ overflowX: 'auto' }}>
+                            <Table size="small" sx={{ minWidth: 460 }}>
+                                <TableHead>
+                                    <TableRow>
+                                        <TableCell><strong>Fecha</strong></TableCell>
+                                        <TableCell><strong>Periodo</strong></TableCell>
+                                        <TableCell><strong>Monto pagado</strong></TableCell>
+                                        <TableCell><strong>Saldo restante</strong></TableCell>
                                     </TableRow>
-                                ))}
-                            </TableBody>
-                        </Table>
+                                </TableHead>
+                                <TableBody>
+                                    {consultado.pagos.map((p, i) => (
+                                        <TableRow key={i}>
+                                            <TableCell>{p.fecha}</TableCell>
+                                            <TableCell>{p.periodo}</TableCell>
+                                            <TableCell>{formatBs(p.montoPagado)}</TableCell>
+                                            <TableCell>{formatBs(p.saldoRestante)}</TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        </Box>
                     </Paper>
                 </Box>
             )}

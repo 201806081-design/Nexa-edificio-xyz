@@ -40,13 +40,12 @@ export default function Expensas() {
 
     return (
         <DashboardLayout>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 2, mb: 2 }}>
-                <Box>
-                    <Typography variant="h1" color="primary.main" sx={{ mb: 0.5 }}>Expensas mensuales</Typography>
-                    <Typography variant="body2" color="text.secondary">
-                        Consulta y gestiona las expensas de los departamentos
-                    </Typography>
-                </Box>
+            <Typography variant="h1" color="primary.main" sx={{ mb: 0.5 }}>Expensas mensuales</Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                Consulta y gestiona las expensas de los departamentos
+            </Typography>
+
+            <Box sx={{ display: 'flex', justifyContent: { xs: 'stretch', md: 'flex-end' }, mb: 2 }}>
                 <Button variant="contained" startIcon={<AddIcon />}
                     onClick={() => navigate('/finanzas/expensas/generar')}
                     sx={{ width: { xs: '100%', md: 'auto' } }}>
@@ -71,7 +70,7 @@ export default function Expensas() {
                 <Box sx={{ flex: 1, minWidth: 180, display: 'flex', alignItems: 'flex-end' }}>
                     <TextField fullWidth placeholder="Buscar departamento" value={busqueda}
                         onChange={(e) => setBusqueda(e.target.value)}
-                        InputProps={{ startAdornment: <InputAdornment position="start"><SearchIcon /></InputAdornment> }} />
+                        slotProps={{ input: { startAdornment: <InputAdornment position="start"><SearchIcon /></InputAdornment> } }} />
                 </Box>
             </Box>
 

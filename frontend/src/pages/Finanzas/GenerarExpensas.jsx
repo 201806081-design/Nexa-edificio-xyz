@@ -36,7 +36,7 @@ export default function GenerarExpensas() {
 
             <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '2fr 1fr' }, gap: 2 }}>
                 {/* Columna principal */}
-                <Box>
+                <Box sx={{ minWidth: 0 }}>
                     <Paper sx={{ p: 3, borderRadius: 2, mb: 2 }}>
                         <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Periodo mensual</Typography>
                         <Select fullWidth value={periodo} onChange={(e) => setPeriodo(e.target.value)} sx={{ mb: 2 }}>
@@ -68,26 +68,28 @@ export default function GenerarExpensas() {
                             <Typography variant="body2" sx={{ fontWeight: 600 }}>Vista previa de asignacion</Typography>
                             <Typography variant="body2" color="text.secondary">{deptos.length} departamentos activos</Typography>
                         </Box>
-                        <Table size="small">
-                            <TableHead>
-                                <TableRow>
-                                    <TableCell><strong>Departamento</strong></TableCell>
-                                    <TableCell><strong>Tipo</strong></TableCell>
-                                    <TableCell><strong>Estado</strong></TableCell>
-                                    <TableCell><strong>Expensas</strong></TableCell>
-                                </TableRow>
-                            </TableHead>
-                            <TableBody>
-                                {deptos.map((d) => (
-                                    <TableRow key={d.departamento}>
-                                        <TableCell>{d.departamento}</TableCell>
-                                        <TableCell>{d.tipo}</TableCell>
-                                        <TableCell><Chip label={d.estado} size="small" sx={{ bgcolor: '#FDF0D5', color: '#B6802A' }} /></TableCell>
-                                        <TableCell>{formatBs(d.expensa)}</TableCell>
+                        <Box sx={{ overflowX: 'auto' }}>
+                            <Table size="small" sx={{ minWidth: 420 }}>
+                                <TableHead>
+                                    <TableRow>
+                                        <TableCell><strong>Departamento</strong></TableCell>
+                                        <TableCell><strong>Tipo</strong></TableCell>
+                                        <TableCell><strong>Estado</strong></TableCell>
+                                        <TableCell><strong>Expensas</strong></TableCell>
                                     </TableRow>
-                                ))}
-                            </TableBody>
-                        </Table>
+                                </TableHead>
+                                <TableBody>
+                                    {deptos.map((d) => (
+                                        <TableRow key={d.departamento}>
+                                            <TableCell>{d.departamento}</TableCell>
+                                            <TableCell>{d.tipo}</TableCell>
+                                            <TableCell><Chip label={d.estado} size="small" sx={{ bgcolor: '#FDF0D5', color: '#B6802A' }} /></TableCell>
+                                            <TableCell>{formatBs(d.expensa)}</TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        </Box>
                     </Paper>
                 </Box>
 

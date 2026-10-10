@@ -16,11 +16,12 @@ export default function DashboardLayout({ children }) {
         {/* Espaciador para la barra superior en movil */}
         <Toolbar sx={{ display: { xs: 'block', md: 'none' } }} />
 
-        <Box sx={{ display: 'flex', justifyContent: 'flex-end', p: 3, pb: 0 }}>
+        {/* Fecha: alineada al mismo margen (px: 4) que el contenido */}
+        <Box sx={{ display: 'flex', justifyContent: 'flex-end', px: 4, pt: 3, pb: 0 }}>
           <Typography variant="body2" color="text.secondary">{fechaHoy()}</Typography>
         </Box>
 
-        <Box sx={{ px: 4, pb: 4, pt: 2, flexGrow: 1 }}>
+        <Box sx={{ px: 4, pb: 4, pt: 1.5, flexGrow: 1 }}>
           {children}
         </Box>
       </Box>
