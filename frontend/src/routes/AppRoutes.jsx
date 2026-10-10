@@ -14,6 +14,16 @@ import EditarUnidad from '../pages/Unidades/EditarUnidad';
 import HistorialOcupantes from '../pages/Unidades/HistorialOcupantes';
 import GestionFinanciera from '../pages/Finanzas/GestionFinanciera';
 import DashboardFinanciero from '../pages/Finanzas/DashboardFinanciero';
+import Expensas from '../pages/Finanzas/Expensas';
+import GenerarExpensas from '../pages/Finanzas/GenerarExpensas';
+import EstadoCuenta from '../pages/Finanzas/EstadoCuenta';
+import IngresosGastos from '../pages/Finanzas/IngresosGastos';
+import RegistrarMovimiento from '../pages/Finanzas/RegistrarMovimiento';
+import DetalleMovimiento from '../pages/Finanzas/DetalleMovimiento';
+import Mora from '../pages/Finanzas/Mora';
+import ConfigurarInteres from '../pages/Finanzas/ConfigurarInteres';
+import RegistrarAnticipo from '../pages/Finanzas/RegistrarAnticipo';
+import DetalleAnticipo from '../pages/Finanzas/DetalleAnticipo';
 import ProtectedRoute from './ProtectedRoute';
 
 export default function AppRoutes() {
@@ -37,6 +47,16 @@ export default function AppRoutes() {
 
       <Route path="/finanzas" element={<ProtectedRoute><GestionFinanciera /></ProtectedRoute>} />
       <Route path="/finanzas/dashboard" element={<ProtectedRoute><DashboardFinanciero /></ProtectedRoute>} />
+      <Route path="/finanzas/expensas" element={<ProtectedRoute><Expensas /></ProtectedRoute>} />
+      <Route path="/finanzas/expensas/generar" element={<ProtectedRoute><GenerarExpensas /></ProtectedRoute>} />
+      <Route path="/finanzas/estado-cuenta" element={<ProtectedRoute><EstadoCuenta /></ProtectedRoute>} />
+      <Route path="/finanzas/ingresos-gastos" element={<ProtectedRoute><IngresosGastos /></ProtectedRoute>} />
+      <Route path="/finanzas/ingresos-gastos/registrar" element={<ProtectedRoute><RegistrarMovimiento /></ProtectedRoute>} />
+      <Route path="/finanzas/ingresos-gastos/:id" element={<ProtectedRoute><DetalleMovimiento /></ProtectedRoute>} />
+      <Route path="/finanzas/mora" element={<ProtectedRoute><Mora /></ProtectedRoute>} />
+      <Route path="/finanzas/mora/configuracion" element={<ProtectedRoute><ConfigurarInteres /></ProtectedRoute>} />
+      <Route path="/finanzas/mora/anticipo" element={<ProtectedRoute><RegistrarAnticipo /></ProtectedRoute>} />
+      <Route path="/finanzas/mora/anticipo/:id" element={<ProtectedRoute><DetalleAnticipo /></ProtectedRoute>} />
 
       <Route path="*" element={<Navigate to="/login" replace />} />
     </Routes>
