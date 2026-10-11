@@ -7,14 +7,14 @@ function idValido(raw) {
 
 async function listar(req, res, next) {
   try {
-    const data = await service.listar(req.query);
-    res.json({ ok: true, total: data.length, data });
+    const { data, resumen } = await service.listar(req.query);
+    res.json({ ok: true, total: data.length, resumen, data });
   } catch (err) { next(err); }
 }
 
 async function resumen(req, res, next) {
   try {
-    res.json({ ok: true, data: await service.resumen() });
+    res.json({ ok: true, data: await service.resumen(req.query) });
   } catch (err) { next(err); }
 }
 
@@ -28,4 +28,12 @@ async function obtenerPorId(req, res, next) {
   } catch (err) { next(err); }
 }
 
-module.exports = { listar, resumen, obtenerPorId, idValido };
+/** Mantenimiento: marca VENCIDA lo que ya venció (también ocurre en cada lectura). */
+async function sincronizar(req, res, next) {
+  try {
+    const data = await service.sincronizarEstados();
+    res.json({ ok: true, mensaje: `${data.actualizadas} expensas marcadas como vencidas`, data });
+  } catch (err) { next(err); }
+}
+
+module.exports = { listar, resumen, obtenerPorId, sincronizar, idValido };

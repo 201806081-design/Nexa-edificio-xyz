@@ -9,6 +9,8 @@ const unidades = require('./controllers/unidades.controller');
 const pagos = require('./controllers/pagos.controller');
 const ie = require('./controllers/ingresosEgresos.controller');
 const contabilidad = require('./controllers/contabilidad.controller');
+const configuracion = require('./controllers/configuracion.controller');
+const mora = require('./controllers/mora.controller');
 const dashboard = require('./controllers/dashboard.controller');
 
 const router = Router();
@@ -25,10 +27,13 @@ router.get('/morosos', dashboard.morosos);               // ?minDias=1
 router.get('/expensas', expensas.listar);
 router.get('/expensas/resumen', expensas.resumen);
 router.get('/expensas/:id', expensas.obtenerPorId);
+router.post('/expensas/sincronizar', soloAdmin, expensas.sincronizar); // marca VENCIDA lo vencido (también ocurre al leer)
 
 // Periodos → generación automática de expensas (+ asiento de devengado)
 router.get('/periodos', periodos.listar);
 router.post('/periodos', soloAdmin, periodos.crear);
+router.post('/periodos/vista-previa', periodos.vistaPrevia);          // paso 2 del asistente: no escribe
+router.patch('/periodos/:id/cerrar', soloAdmin, periodos.cerrar);
 
 // Unidades → estado de cuenta
 router.get('/unidades', unidades.listar);
@@ -45,6 +50,16 @@ router.get('/ingresos', ie.listarIngresos);
 router.post('/ingresos', soloAdmin, ie.registrarIngreso);
 router.get('/egresos', ie.listarEgresos);
 router.post('/egresos', soloAdmin, ie.registrarEgreso);
+
+// Configuración de interés por mora (pantalla Configurar interés)
+router.get('/configuracion/mora', configuracion.obtener);
+router.get('/configuracion/mora/historial', configuracion.historial);
+router.put('/configuracion/mora', soloAdmin, configuracion.actualizar);
+
+// Mora y pagos anticipados (pantalla Mora, HU-FI-05)
+router.get('/mora', mora.resumen);
+router.get('/anticipos', mora.anticipos);
+router.get('/anticipos/:id', mora.anticipoPorId);
 
 // Caja y bancos
 router.get('/cuentas', cuentas.listar);
