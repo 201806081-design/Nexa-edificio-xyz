@@ -15,6 +15,7 @@ import HistorialOcupantes from '../pages/Unidades/HistorialOcupantes';
 import GestionFinanciera from '../pages/Finanzas/GestionFinanciera';
 import DashboardFinanciero from '../pages/Finanzas/DashboardFinanciero';
 import Expensas from '../pages/Finanzas/Expensas';
+import ConfiguracionFinanciera from '../pages/Finanzas/ConfiguracionFinanciera';
 import GenerarExpensas from '../pages/Finanzas/GenerarExpensas';
 import EstadoCuenta from '../pages/Finanzas/EstadoCuenta';
 import IngresosGastos from '../pages/Finanzas/IngresosGastos';
@@ -48,6 +49,7 @@ export default function AppRoutes() {
       <Route path="/finanzas" element={<ProtectedRoute><GestionFinanciera /></ProtectedRoute>} />
       <Route path="/finanzas/dashboard" element={<ProtectedRoute><DashboardFinanciero /></ProtectedRoute>} />
       <Route path="/finanzas/expensas" element={<ProtectedRoute><Expensas /></ProtectedRoute>} />
+      <Route path="/finanzas/configuracion" element={<ProtectedRoute><ConfiguracionFinanciera /></ProtectedRoute>} />
       <Route path="/finanzas/expensas/generar" element={<ProtectedRoute><GenerarExpensas /></ProtectedRoute>} />
       <Route path="/finanzas/estado-cuenta" element={<ProtectedRoute><EstadoCuenta /></ProtectedRoute>} />
       <Route path="/finanzas/ingresos-gastos" element={<ProtectedRoute><IngresosGastos /></ProtectedRoute>} />
