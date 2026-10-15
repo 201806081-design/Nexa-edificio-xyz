@@ -99,7 +99,7 @@ export default function EstadoCuenta() {
                     <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(4, 1fr)' }, gap: 2, mb: 3 }}>
                         {RESUMEN.map((r) => (
                             <Paper key={r.label} sx={{ p: 2.5, borderRadius: 2, bgcolor: r.bg, display: 'flex', alignItems: 'center', gap: 2 }}>
-                                <Box sx={{ flexShrink: 0, width: 48, height: 48, borderRadius: '50%', bgcolor: '#fff', color: r.color, display: 'grid', placeItems: 'center' }}>
+                                <Box sx={{ flexShrink: 0, width: 48, height: 48, color: r.color, display: 'grid', placeItems: 'center' }}>
                                     {r.icon}
                                 </Box>
                                 <Box sx={{ minWidth: 0 }}>
