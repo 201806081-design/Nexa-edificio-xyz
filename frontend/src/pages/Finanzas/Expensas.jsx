@@ -4,6 +4,7 @@ import {
     Table, TableHead, TableBody, TableRow, TableCell, InputAdornment, TextField, Divider,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
+import SettingsIcon from '@mui/icons-material/Settings';
 import SearchIcon from '@mui/icons-material/Search';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import DescriptionOutlinedIcon from '@mui/icons-material/DescriptionOutlined';
@@ -45,7 +46,12 @@ export default function Expensas() {
                 Consulta y gestiona las expensas de los departamentos
             </Typography>
 
-            <Box sx={{ display: 'flex', justifyContent: { xs: 'stretch', md: 'flex-end' }, mb: 2 }}>
+            <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', justifyContent: { xs: 'stretch', md: 'flex-end' }, mb: 2 }}>
+                <Button variant="outlined" startIcon={<SettingsIcon />}
+                    onClick={() => navigate('/finanzas/configuracion')}
+                    sx={{ color: '#1a2733', borderColor: '#cdd8e3', width: { xs: '100%', md: 'auto' } }}>
+                    Configuracion interes
+                </Button>
                 <Button variant="contained" startIcon={<AddIcon />}
                     onClick={() => navigate('/finanzas/expensas/generar')}
                     sx={{ width: { xs: '100%', md: 'auto' } }}>
@@ -93,7 +99,7 @@ export default function Expensas() {
             <Paper sx={{ p: 2, borderRadius: 2, display: { xs: 'none', md: 'block' } }}>
                 <Table>
                     <TableHead>
-                        <TableRow>
+                        <TableRow sx={{ bgcolor: '#F1F5FA' }}>
                             <TableCell><strong>Departamento</strong></TableCell>
                             <TableCell><strong>Periodo</strong></TableCell>
                             <TableCell><strong>Monto</strong></TableCell>

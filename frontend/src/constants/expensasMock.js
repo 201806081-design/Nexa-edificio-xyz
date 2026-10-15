@@ -2,11 +2,12 @@
 // Montos en bolivianos (Bs).
 
 import { PERIODOS } from './finanzasMock';
+import { EXPENSA_BASE } from './configuracionMock';
 
 export { PERIODOS };
 
-// Tarifa fija por tipo de departamento (para el monto automatico del asistente)
-export const TARIFAS = { A: 300, B: 350, C: 400 };
+// Tarifa fija por tipo de departamento (se toma de la configuracion financiera)
+export const TARIFAS = EXPENSA_BASE;
 
 // Resumen del periodo (tarjetas superiores de la lista)
 export const RESUMEN_EXPENSAS = {
@@ -22,14 +23,12 @@ export const EXPENSAS_MOCK = [
     { id: 3, departamento: 'Depto. 302', periodo: 'Octubre 2026', monto: 350, estado: 'Pendiente' },
 ];
 
-// Departamentos activos para la vista previa del asistente "Generar expensas"
+// Departamentos activos para "Generar expensas".
+// base = expensa fija del tipo; lecturaAnterior = ultima lectura del medidor de agua.
 export const DEPARTAMENTOS_ACTIVOS = [
-    { departamento: '101', tipo: 'A', estado: 'Pendiente', expensa: TARIFAS.A },
-    { departamento: '102', tipo: 'B', estado: 'Pendiente', expensa: TARIFAS.B },
-    { departamento: '103', tipo: 'C', estado: 'Pendiente', expensa: TARIFAS.C },
-    { departamento: '201', tipo: 'A', estado: 'Pendiente', expensa: TARIFAS.A },
-    { departamento: '202', tipo: 'B', estado: 'Pendiente', expensa: TARIFAS.B },
-    { departamento: '203', tipo: 'C', estado: 'Pendiente', expensa: TARIFAS.C },
+    { departamento: '101', tipo: 'A', estado: 'Pendiente', base: EXPENSA_BASE.A, lecturaAnterior: 3940 },
+    { departamento: '102', tipo: 'B', estado: 'Pendiente', base: EXPENSA_BASE.B, lecturaAnterior: 2180 },
+    { departamento: '103', tipo: 'C', estado: 'Pendiente', base: EXPENSA_BASE.C, lecturaAnterior: 1522 },
 ];
 
 export const ESTADOS_EXPENSA = ['Todos', 'Pendiente', 'Pagado'];

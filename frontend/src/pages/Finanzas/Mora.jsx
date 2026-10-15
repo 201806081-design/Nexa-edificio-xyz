@@ -1,131 +1,327 @@
+import { useState } from 'react';
 import {
-    Box, Typography, Paper, Button, Chip, IconButton,
-    Table, TableHead, TableBody, TableRow, TableCell,
+    Box, Typography, Paper, Button, IconButton, TextField, Select, MenuItem, Alert, Chip,
+    InputAdornment, Table, TableHead, TableBody, TableRow, TableCell, ToggleButton, ToggleButtonGroup,
+    Dialog, DialogTitle, DialogContent, Divider,
 } from '@mui/material';
-import AddIcon from '@mui/icons-material/Add';
-import SettingsIcon from '@mui/icons-material/Settings';
 import VisibilityIcon from '@mui/icons-material/Visibility';
-import NorthIcon from '@mui/icons-material/North';
-import PercentIcon from '@mui/icons-material/Percent';
-import SouthIcon from '@mui/icons-material/South';
-import { useNavigate } from 'react-router-dom';
+import CloseIcon from '@mui/icons-material/Close';
+import RefreshIcon from '@mui/icons-material/Refresh';
 import DashboardLayout from '../../layouts/DashboardLayout';
-import { RESUMEN_MORA, SALDOS_VENCIDOS, PAGOS_ANTICIPADOS } from '../../constants/moraMock';
+import {
+    TASA_MORA, CONFIG_MORA, APLICAR_DESPUES, TIPOS_CALCULO, REGLA_MORA, DEUDAS_VENCIDAS,
+    DEPARTAMENTOS_ANTICIPO, HISTORIAL_ANTICIPOS,
+} from '../../constants/moraMock';
 import { formatBs } from '../../constants/finanzasMock';
 
-const RESUMEN = [
-    { clave: 'deudasVencidas', label: 'Deudas vencidas', icon: <NorthIcon />, color: '#D9534F', bg: '#FBEAE9' },
-    { clave: 'interesAcumulado', label: 'Interes acumulado', icon: <PercentIcon />, color: '#B6802A', bg: '#FDF0D5' },
-    { clave: 'saldoAFavor', label: 'Saldo a favor', icon: <SouthIcon />, color: '#2E9D78', bg: '#E4F4EE' },
-];
+// Estilo de la barra segmentada (tabs) del design system
+const tabGroupSx = {
+    bgcolor: '#fff',
+    '& .MuiToggleButton-root': {
+        textTransform: 'none', fontWeight: 600, color: '#1F5F8B', borderColor: '#cdd8e3', px: 3, py: 1,
+    },
+    '& .MuiToggleButton-root.Mui-selected': {
+        bgcolor: '#1F5F8B', color: '#fff', '&:hover': { bgcolor: '#1C4E70' },
+    },
+};
+
+const ANTICIPO_VACIO = { departamento: '', fecha: '2026-10-13', monto: '', descripcion: '' };
 
 export default function Mora() {
-    const navigate = useNavigate();
+    const [tab, setTab] = useState('mora');
+    const [config, setConfig] = useState(CONFIG_MORA);
+    const [detalle, setDetalle] = useState(null); // deuda seleccionada para el modal
+
+    // Formulario de anticipo
+    const [form, setForm] = useState(ANTICIPO_VACIO);
+    const [errores, setErrores] = useState({});
+    const [exito, setExito] = useState(false);
+
+    const cambiarConfig = (campo, valor) => setConfig((c) => ({ ...c, [campo]: valor }));
+    const cambiarForm = (campo, valor) => {
+        setForm((f) => ({ ...f, [campo]: valor }));
+        setErrores((e) => ({ ...e, [campo]: '' }));
+        setExito(false);
+    };
+
+    // deuda actual = deuda original * (1 + tasa)^meses ; interes = diferencia.
+    // Los meses los calcula el sistema (vienen en los datos), no se editan.
+    const filas = DEUDAS_VENCIDAS.map((d) => {
+        const deudaActual = d.deudaOriginal * (1 + TASA_MORA) ** d.meses;
+        return { ...d, interes: deudaActual - d.deudaOriginal, deudaActual };
+    });
+    const totalVencido = filas.reduce((acc, f) => acc + f.deudaActual, 0);
+
+    // Resumen del anticipo
+    const deptoSel = DEPARTAMENTOS_ANTICIPO.find((d) => d.id === form.departamento);
+    const saldoActual = deptoSel ? deptoSel.saldoActual : 0;
+    const nuevoSaldo = saldoActual + (Number(form.monto) || 0);
+
+    const registrar = () => {
+        const err = {};
+        if (!form.departamento) err.departamento = 'Seleccione un departamento';
+        if (!form.fecha.trim()) err.fecha = 'Ingrese la fecha de pago';
+        if (!(Number(form.monto) > 0)) err.monto = 'Ingrese un monto valido';
+        setErrores(err);
+        if (Object.keys(err).length > 0) { setExito(false); return; }
+        // MOCK: aqui iria el POST al backend.
+        setExito(true);
+    };
+
+    const titulo = tab === 'mora' ? 'Mora e intereses' : 'Mora y pagos anticipados';
+    const subtitulo = tab === 'mora'
+        ? 'Configurar el porcentaje mensual y actualiza las deudas vencidas'
+        : 'Gestiona deudas vencidas y saldos a favor de los departamentos';
 
     return (
         <DashboardLayout>
-            <Typography variant="h1" color="primary.main" sx={{ mb: 0.5 }}>Mora y pagos anticipos</Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                Gestiona deudas vencidas y saldos a favor
-            </Typography>
+            <Typography variant="h1" color="primary.main" sx={{ mb: 0.5 }}>{titulo}</Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>{subtitulo}</Typography>
 
-            <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', justifyContent: { xs: 'stretch', md: 'flex-end' }, mb: 2 }}>
-                <Button variant="outlined" startIcon={<SettingsIcon />}
-                    onClick={() => navigate('/finanzas/mora/configuracion')}
-                    sx={{ color: '#1a2733', borderColor: '#cdd8e3', width: { xs: '100%', md: 'auto' } }}>
-                    Configuracion interes
-                </Button>
-                <Button variant="contained" startIcon={<AddIcon />}
-                    onClick={() => navigate('/finanzas/mora/anticipo')}
-                    sx={{ width: { xs: '100%', md: 'auto' } }}>
-                    Registrar movimiento
-                </Button>
-            </Box>
+            {/* Tabs dentro de un card blanco */}
+            <Paper sx={{ p: 1.5, borderRadius: 2, mb: 3 }}>
+                <ToggleButtonGroup exclusive value={tab} onChange={(e, v) => v && setTab(v)} sx={tabGroupSx}>
+                    <ToggleButton value="mora">Mora e intereses</ToggleButton>
+                    <ToggleButton value="anticipos">Pagos anticipados</ToggleButton>
+                </ToggleButtonGroup>
+            </Paper>
 
-            {/* Tarjetas de resumen */}
-            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, 1fr)' }, gap: 2, mb: 3 }}>
-                {RESUMEN.map((r) => (
-                    <Paper key={r.clave} sx={{ p: 2.5, borderRadius: 2, display: 'flex', alignItems: 'center', gap: 2 }}>
-                        <Box sx={{ width: 48, height: 48, borderRadius: '50%', bgcolor: r.bg, color: r.color, display: 'grid', placeItems: 'center' }}>
-                            {r.icon}
-                        </Box>
-                        <Box>
-                            <Typography variant="body2" color="text.secondary">{r.label}</Typography>
-                            <Typography variant="h3" sx={{ fontWeight: 700, color: r.color }}>{formatBs(RESUMEN_MORA[r.clave])}</Typography>
+            {/* TAB: Mora e intereses */}
+            {tab === 'mora' && (
+                <Box>
+                    <Paper sx={{ p: 3, borderRadius: 2, mb: 2 }}>
+                        <Typography variant="body2" sx={{ fontWeight: 600, mb: 1.5 }}>Configuracion de mora</Typography>
+                        <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', md: 'row' }, alignItems: { md: 'flex-end' } }}>
+                            <Box sx={{ flex: 1, minWidth: 0 }}>
+                                <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Interes mensual</Typography>
+                                <TextField fullWidth type="number" value={config.interesMensual}
+                                    onChange={(e) => cambiarConfig('interesMensual', e.target.value)}
+                                    slotProps={{ input: { endAdornment: <InputAdornment position="end">%</InputAdornment> } }} />
+                            </Box>
+                            <Box sx={{ flex: 1, minWidth: 0 }}>
+                                <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Aplicar despues de</Typography>
+                                <Select fullWidth value={config.aplicarDespuesDe} onChange={(e) => cambiarConfig('aplicarDespuesDe', e.target.value)}>
+                                    {APLICAR_DESPUES.map((a) => <MenuItem key={a} value={a}>{a}</MenuItem>)}
+                                </Select>
+                            </Box>
+                            <Box sx={{ flex: 1, minWidth: 0 }}>
+                                <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Tipo de calculo</Typography>
+                                <Select fullWidth value={config.tipoCalculo} onChange={(e) => cambiarConfig('tipoCalculo', e.target.value)}>
+                                    {TIPOS_CALCULO.map((t) => <MenuItem key={t} value={t}>{t}</MenuItem>)}
+                                </Select>
+                            </Box>
+                            <Button variant="contained" sx={{ width: { xs: '100%', md: 'auto' }, height: { md: 56 }, px: { md: 5 }, minWidth: { md: 150 } }}>Guardar</Button>
                         </Box>
                     </Paper>
-                ))}
-            </Box>
 
-            {/* Saldos vencidos */}
-            <Paper sx={{ p: 3, borderRadius: 2, mb: 3 }}>
-                <Typography variant="body2" sx={{ fontWeight: 600, mb: 1 }}>Saldos vencidos</Typography>
-                <Box sx={{ overflowX: 'auto' }}>
-                    <Table size="small" sx={{ minWidth: 680 }}>
-                        <TableHead>
-                            <TableRow>
-                                <TableCell><strong>Departamento</strong></TableCell>
-                                <TableCell><strong>Periodo</strong></TableCell>
-                                <TableCell><strong>Capital</strong></TableCell>
-                                <TableCell><strong>Interes</strong></TableCell>
-                                <TableCell><strong>Total pendiente</strong></TableCell>
-                                <TableCell><strong>Estado</strong></TableCell>
-                                <TableCell align="center"><strong>Acciones</strong></TableCell>
-                            </TableRow>
-                        </TableHead>
-                        <TableBody>
-                            {SALDOS_VENCIDOS.map((s) => (
-                                <TableRow key={s.id}>
-                                    <TableCell sx={{ fontWeight: 600 }}>{s.departamento}</TableCell>
-                                    <TableCell>{s.periodo}</TableCell>
-                                    <TableCell>{formatBs(s.capital)}</TableCell>
-                                    <TableCell>{formatBs(s.interes)}</TableCell>
-                                    <TableCell sx={{ fontWeight: 600, color: '#D9534F' }}>{formatBs(s.totalPendiente)}</TableCell>
-                                    <TableCell><Chip label={s.estado} size="small" sx={{ bgcolor: '#FBEAE9', color: '#D9534F' }} /></TableCell>
-                                    <TableCell align="center"><IconButton color="primary"><VisibilityIcon /></IconButton></TableCell>
-                                </TableRow>
-                            ))}
-                        </TableBody>
-                    </Table>
-                </Box>
-            </Paper>
+                    <Alert severity="warning" icon={false} sx={{ bgcolor: '#FDF0D5', color: '#8A5A00', mb: 2 }}>
+                        <Typography variant="body2" sx={{ fontWeight: 700, mb: 0.5 }}>Regla aplicada</Typography>
+                        <Typography variant="body2">{REGLA_MORA.texto}</Typography>
+                        <Typography variant="body2">{REGLA_MORA.ejemplo}</Typography>
+                    </Alert>
 
-            {/* Pagos anticipados */}
-            <Paper sx={{ p: 3, borderRadius: 2 }}>
-                <Typography variant="body2" sx={{ fontWeight: 600, mb: 1 }}>Pagos anticipados</Typography>
-                <Box sx={{ overflowX: 'auto' }}>
-                    <Table size="small" sx={{ minWidth: 680 }}>
-                        <TableHead>
-                            <TableRow>
-                                <TableCell><strong>Fecha</strong></TableCell>
-                                <TableCell><strong>Departamento</strong></TableCell>
-                                <TableCell><strong>Capital</strong></TableCell>
-                                <TableCell><strong>Periodos cubiertos</strong></TableCell>
-                                <TableCell><strong>Saldo a favor</strong></TableCell>
-                                <TableCell><strong>Estado</strong></TableCell>
-                                <TableCell align="center"><strong>Acciones</strong></TableCell>
-                            </TableRow>
-                        </TableHead>
-                        <TableBody>
-                            {PAGOS_ANTICIPADOS.map((p) => (
-                                <TableRow key={p.id}>
-                                    <TableCell>{p.fecha}</TableCell>
-                                    <TableCell sx={{ fontWeight: 600 }}>{p.departamento}</TableCell>
-                                    <TableCell>{formatBs(p.capital)}</TableCell>
-                                    <TableCell>{p.periodosCubiertos}</TableCell>
-                                    <TableCell sx={{ fontWeight: 600, color: '#2E9D78' }}>{formatBs(p.saldoAFavor)}</TableCell>
-                                    <TableCell><Chip label={p.estado} size="small" sx={{ bgcolor: '#E4F4EE', color: '#2E9D78' }} /></TableCell>
-                                    <TableCell align="center">
-                                        <IconButton color="primary" onClick={() => navigate(`/finanzas/mora/anticipo/${p.id}`)}>
-                                            <VisibilityIcon />
-                                        </IconButton>
-                                    </TableCell>
-                                </TableRow>
-                            ))}
-                        </TableBody>
-                    </Table>
+                    <Paper sx={{ p: 3, borderRadius: 2, mb: 2 }}>
+                        <Typography variant="body2" sx={{ fontWeight: 600, mb: 1 }}>Deudas vencidas</Typography>
+                        <Box sx={{ overflowX: 'auto' }}>
+                            <Table size="small" sx={{ minWidth: 780 }}>
+                                <TableHead>
+                                    <TableRow sx={{ bgcolor: '#F1F5FA' }}>
+                                        <TableCell><strong>Depto</strong></TableCell>
+                                        <TableCell><strong>Periodo</strong></TableCell>
+                                        <TableCell><strong>Deuda original</strong></TableCell>
+                                        <TableCell><strong>Meses</strong></TableCell>
+                                        <TableCell><strong>Tasa</strong></TableCell>
+                                        <TableCell><strong>Interes</strong></TableCell>
+                                        <TableCell><strong>Deuda actual</strong></TableCell>
+                                        <TableCell align="center"><strong>Accion</strong></TableCell>
+                                    </TableRow>
+                                </TableHead>
+                                <TableBody>
+                                    {filas.map((f) => (
+                                        <TableRow key={f.id}>
+                                            <TableCell>{f.depto}</TableCell>
+                                            <TableCell>{f.periodo}</TableCell>
+                                            <TableCell>{formatBs(f.deudaOriginal)}</TableCell>
+                                            <TableCell>{f.meses}</TableCell>
+                                            <TableCell>{(TASA_MORA * 100).toFixed(0)} %</TableCell>
+                                            <TableCell sx={{ color: '#D9534F', fontWeight: 600 }}>{formatBs(f.interes)}</TableCell>
+                                            <TableCell sx={{ color: '#D9534F', fontWeight: 700 }}>{formatBs(f.deudaActual)}</TableCell>
+                                            <TableCell align="center">
+                                                <IconButton color="primary" onClick={() => setDetalle(f)}><VisibilityIcon /></IconButton>
+                                            </TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        </Box>
+                    </Paper>
+
+                    <Paper sx={{ p: 2.5, borderRadius: 2, mb: 2, bgcolor: '#FBEAE9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <Typography sx={{ fontWeight: 700, color: '#D9534F' }}>Total de la deuda vencida</Typography>
+                        <Typography variant="h3" sx={{ fontWeight: 700, color: '#D9534F' }}>{formatBs(totalVencido)}</Typography>
+                    </Paper>
+
+                    <Box sx={{ display: 'flex', justifyContent: { xs: 'stretch', md: 'flex-end' } }}>
+                        <Button variant="contained" startIcon={<RefreshIcon />} sx={{ width: { xs: '100%', md: 'auto' } }}>
+                            Actualizar intereses
+                        </Button>
+                    </Box>
                 </Box>
-            </Paper>
+            )}
+
+            {/* TAB: Pagos anticipados */}
+            {tab === 'anticipos' && (
+                <Box>
+                    <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '2fr 1fr' }, gap: 2, mb: 2 }}>
+                        {/* Registrar pago anticipado */}
+                        <Paper sx={{ p: 3, borderRadius: 2, minWidth: 0 }}>
+                            <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Registrar pago anticipado</Typography>
+                            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                                El importe quedara como saldo a favor para futuras expensas.
+                            </Typography>
+
+                            <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Departamento *</Typography>
+                            <Select fullWidth displayEmpty value={form.departamento}
+                                onChange={(e) => cambiarForm('departamento', e.target.value)}
+                                error={!!errores.departamento} sx={{ mb: errores.departamento ? 0.5 : 2 }}>
+                                <MenuItem value=""><em>Seleccionar departamento</em></MenuItem>
+                                {DEPARTAMENTOS_ANTICIPO.map((d) => <MenuItem key={d.id} value={d.id}>{d.etiqueta}</MenuItem>)}
+                            </Select>
+                            {errores.departamento && <Typography variant="caption" color="error" sx={{ display: 'block', mb: 1.5 }}>{errores.departamento}</Typography>}
+
+                            <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', mb: 2 }}>
+                                <Box sx={{ flex: 1, minWidth: 160 }}>
+                                    <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Fecha de pago *</Typography>
+                                    <TextField fullWidth type="date" value={form.fecha} onChange={(e) => cambiarForm('fecha', e.target.value)}
+                                        error={!!errores.fecha} helperText={errores.fecha}
+                                        slotProps={{ inputLabel: { shrink: true } }} />
+                                </Box>
+                                <Box sx={{ flex: 1, minWidth: 160 }}>
+                                    <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Monto anticipado *</Typography>
+                                    <TextField fullWidth type="number" placeholder="Bs 720,00" value={form.monto}
+                                        onChange={(e) => cambiarForm('monto', e.target.value)}
+                                        error={!!errores.monto} helperText={errores.monto} />
+                                </Box>
+                            </Box>
+
+                            <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Descripcion</Typography>
+                            <TextField fullWidth placeholder="Pago adelantado para proximas expensas" value={form.descripcion}
+                                onChange={(e) => cambiarForm('descripcion', e.target.value)} sx={{ mb: 2 }} />
+
+                            {exito && <Alert severity="success" sx={{ mb: 2 }}>Pago anticipado registrado correctamente</Alert>}
+
+                            <Box sx={{ display: 'flex', justifyContent: { xs: 'stretch', md: 'flex-end' } }}>
+                                <Button variant="contained" onClick={registrar} sx={{ width: { xs: '100%', md: 'auto' } }}>
+                                    Registrar pago anticipado
+                                </Button>
+                            </Box>
+                        </Paper>
+
+                        {/* Resumen del departamento */}
+                        <Paper sx={{ p: 3, borderRadius: 2, minWidth: 0 }}>
+                            <Typography variant="body2" sx={{ fontWeight: 600, mb: 1.5 }}>Resumen del departamento</Typography>
+                            <Box sx={{ bgcolor: '#E4EEF5', borderRadius: 2, p: 2, mb: 1.5 }}>
+                                <Typography variant="body2" color="text.secondary">Saldo a favor</Typography>
+                                <Typography sx={{ fontWeight: 700 }}>{formatBs(saldoActual)}</Typography>
+                            </Box>
+                            <Box sx={{ bgcolor: '#E4F4EE', borderRadius: 2, p: 2, mb: 1.5 }}>
+                                <Typography variant="body2" color="text.secondary">Nuevo saldo a favor</Typography>
+                                <Typography sx={{ fontWeight: 700, color: '#2E9D78' }}>{formatBs(nuevoSaldo)}</Typography>
+                            </Box>
+                            <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Aplicacion automatica</Typography>
+                            <Typography variant="body2" color="text.secondary">
+                                El credito se descontara de las siguientes expensas generadas hasta agotarse
+                            </Typography>
+                        </Paper>
+                    </Box>
+
+                    {/* Historial de anticipos */}
+                    <Paper sx={{ p: 3, borderRadius: 2 }}>
+                        <Typography variant="body2" sx={{ fontWeight: 600, mb: 1 }}>Historial de anticipos</Typography>
+                        <Box sx={{ overflowX: 'auto' }}>
+                            <Table size="small" sx={{ minWidth: 620 }}>
+                                <TableHead>
+                                    <TableRow sx={{ bgcolor: '#F1F5FA' }}>
+                                        <TableCell><strong>Departamento</strong></TableCell>
+                                        <TableCell><strong>Fecha</strong></TableCell>
+                                        <TableCell><strong>Monto</strong></TableCell>
+                                        <TableCell><strong>Saldo disponible</strong></TableCell>
+                                        <TableCell><strong>Estado</strong></TableCell>
+                                    </TableRow>
+                                </TableHead>
+                                <TableBody>
+                                    {HISTORIAL_ANTICIPOS.map((a) => (
+                                        <TableRow key={a.id}>
+                                            <TableCell>{a.departamento}</TableCell>
+                                            <TableCell>{a.fecha}</TableCell>
+                                            <TableCell>{formatBs(a.monto)}</TableCell>
+                                            <TableCell>{formatBs(a.saldoDisponible)}</TableCell>
+                                            <TableCell><Chip label={a.estado} size="small" sx={{ bgcolor: '#E4F4EE', color: '#2E9D78' }} /></TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        </Box>
+                    </Paper>
+                </Box>
+            )}
+
+            {/* Modal: detalle de una deuda vencida */}
+            <Dialog open={!!detalle} onClose={() => setDetalle(null)} fullWidth maxWidth="sm">
+                {detalle && (
+                    <>
+                        <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontWeight: 700 }}>
+                            Detalle de la deuda
+                            <IconButton onClick={() => setDetalle(null)}><CloseIcon /></IconButton>
+                        </DialogTitle>
+                        <DialogContent dividers>
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', py: 0.5 }}>
+                                <Typography variant="body2" color="text.secondary">Departamento</Typography>
+                                <Typography variant="body2" sx={{ fontWeight: 600 }}>{detalle.depto}</Typography>
+                            </Box>
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', py: 0.5 }}>
+                                <Typography variant="body2" color="text.secondary">Periodo</Typography>
+                                <Typography variant="body2" sx={{ fontWeight: 600 }}>{detalle.periodo}</Typography>
+                            </Box>
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', py: 0.5 }}>
+                                <Typography variant="body2" color="text.secondary">Deuda original</Typography>
+                                <Typography variant="body2" sx={{ fontWeight: 600 }}>{formatBs(detalle.deudaOriginal)}</Typography>
+                            </Box>
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', py: 0.5 }}>
+                                <Typography variant="body2" color="text.secondary">Meses de atraso</Typography>
+                                <Typography variant="body2" sx={{ fontWeight: 600 }}>{detalle.meses}</Typography>
+                            </Box>
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', py: 0.5 }}>
+                                <Typography variant="body2" color="text.secondary">Tasa mensual</Typography>
+                                <Typography variant="body2" sx={{ fontWeight: 600 }}>{(TASA_MORA * 100).toFixed(0)} %</Typography>
+                            </Box>
+
+                            <Divider sx={{ my: 1.5 }} />
+                            <Typography variant="body2" sx={{ fontWeight: 700, mb: 0.5 }}>Interes acumulado mes a mes</Typography>
+                            {Array.from({ length: detalle.meses }).map((_, i) => {
+                                const prev = detalle.deudaOriginal * (1 + TASA_MORA) ** i;
+                                const actual = detalle.deudaOriginal * (1 + TASA_MORA) ** (i + 1);
+                                return (
+                                    <Box key={i} sx={{ display: 'flex', justifyContent: 'space-between', py: 0.5 }}>
+                                        <Typography variant="body2" color="text.secondary">Mes {i + 1}</Typography>
+                                        <Typography variant="body2">{formatBs(prev)} → <strong>{formatBs(actual)}</strong></Typography>
+                                    </Box>
+                                );
+                            })}
+
+                            <Divider sx={{ my: 1.5 }} />
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', py: 0.5 }}>
+                                <Typography variant="body2" sx={{ fontWeight: 600 }}>Interes acumulado</Typography>
+                                <Typography variant="body2" sx={{ fontWeight: 700, color: '#D9534F' }}>{formatBs(detalle.interes)}</Typography>
+                            </Box>
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', py: 0.5 }}>
+                                <Typography variant="body2" sx={{ fontWeight: 700 }}>Deuda actual</Typography>
+                                <Typography variant="h3" sx={{ fontWeight: 700, color: '#D9534F' }}>{formatBs(detalle.deudaActual)}</Typography>
+                            </Box>
+                        </DialogContent>
+                    </>
+                )}
+            </Dialog>
         </DashboardLayout>
     );
 }
