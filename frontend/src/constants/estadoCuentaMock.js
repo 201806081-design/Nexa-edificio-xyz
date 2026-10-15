@@ -6,32 +6,37 @@ export const DEPARTAMENTOS_CUENTA = [
     { id: '302', etiqueta: 'Depto. 302 -- 2 dormitorios -- piso 3' },
 ];
 
-// Estado de cuenta por departamento (indexado por id)
+// Opciones del selector de periodo
+export const PERIODOS_CUENTA = [
+    'Todos los periodos',
+    'Octubre 2026',
+    'Septiembre 2026',
+    'Agosto 2026',
+];
+
+// Estado de cuenta por departamento (indexado por id).
+// Cada fila del historial: base + agua + mora = total ; pagado ; saldo = total - pagado.
 export const ESTADO_CUENTA_MOCK = {
     203: {
         departamento: 'Depto. 203',
         responsable: 'Carlos Mendoza -- Propietario',
         periodoConsultado: 'Todo el historial',
-        resumen: { totalGenerado: 10500, saldoPendiente: 7000, totalPagado: 3500 },
-        expensas: [
-            { periodo: 'Septiembre 2026', monto: 350, pagado: 350, saldo: 0, estado: 'Pagado' },
-            { periodo: 'Octubre 2026', monto: 350, pagado: 200, saldo: 150, estado: 'Pendiente' },
+        resumen: { totalGenerado: 1080, totalPagado: 360, interesAcumulado: 36, saldoPendiente: 756 },
+        historial: [
+            { periodo: 'Agosto 2026', base: 300, agua: 60, mora: 36, total: 396, pagado: 0, saldo: 396, estado: 'Vencido' },
+            { periodo: 'Septiembre 2026', base: 300, agua: 45, mora: 0, total: 345, pagado: 0, saldo: 345, estado: 'Pendiente' },
+            { periodo: 'Octubre 2026', base: 300, agua: 39, mora: 0, total: 339, pagado: 339, saldo: 0, estado: 'Pagado' },
         ],
-        pagos: [
-            { fecha: '05/09/2026', periodo: 'Septiembre 2026', montoPagado: 350, saldoRestante: 0 },
-            { fecha: '04/10/2026', periodo: 'Octubre 2026', montoPagado: 200, saldoRestante: 150 },
-        ],
+        detalleMora: 'Agosto: Bs 360 vencido * 10% mensual = Bs 36 de interes acumulado.',
     },
     302: {
         departamento: 'Depto. 302',
         responsable: 'Ana Lopez -- Propietario',
         periodoConsultado: 'Todo el historial',
-        resumen: { totalGenerado: 1050, saldoPendiente: 0, totalPagado: 1050 },
-        expensas: [
-            { periodo: 'Octubre 2026', monto: 350, pagado: 350, saldo: 0, estado: 'Pagado' },
+        resumen: { totalGenerado: 415, totalPagado: 415, interesAcumulado: 0, saldoPendiente: 0 },
+        historial: [
+            { periodo: 'Octubre 2026', base: 400, agua: 15, mora: 0, total: 415, pagado: 415, saldo: 0, estado: 'Pagado' },
         ],
-        pagos: [
-            { fecha: '01/10/2026', periodo: 'Octubre 2026', montoPagado: 350, saldoRestante: 0 },
-        ],
+        detalleMora: 'Sin mora: el departamento no tiene periodos vencidos.',
     },
 };
