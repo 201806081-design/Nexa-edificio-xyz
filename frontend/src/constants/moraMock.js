@@ -9,7 +9,7 @@ export const TASA_MORA = 0.10;
 
 // Configuracion de mora (valores por defecto del formulario)
 export const CONFIG_MORA = {
-    interesMensual: '10%',
+    interesMensual: 10, // porcentaje (el simbolo % es fijo en el campo)
     aplicarDespuesDe: 'Fecha de vencimiento',
     tipoCalculo: 'Interes acumulado',
 };

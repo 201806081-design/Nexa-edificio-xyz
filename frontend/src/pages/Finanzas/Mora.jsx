@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import {
     Box, Typography, Paper, Button, IconButton, TextField, Select, MenuItem, Alert, Chip,
-    Table, TableHead, TableBody, TableRow, TableCell, ToggleButton, ToggleButtonGroup,
+    InputAdornment, Table, TableHead, TableBody, TableRow, TableCell, ToggleButton, ToggleButtonGroup,
 } from '@mui/material';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import RefreshIcon from '@mui/icons-material/Refresh';
@@ -91,7 +91,9 @@ export default function Mora() {
                         <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', md: 'row' }, alignItems: { md: 'flex-end' } }}>
                             <Box sx={{ flex: 1, minWidth: 0 }}>
                                 <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Interes mensual</Typography>
-                                <TextField fullWidth value={config.interesMensual} onChange={(e) => cambiarConfig('interesMensual', e.target.value)} />
+                                <TextField fullWidth type="number" value={config.interesMensual}
+                                    onChange={(e) => cambiarConfig('interesMensual', e.target.value)}
+                                    slotProps={{ input: { endAdornment: <InputAdornment position="end">%</InputAdornment> } }} />
                             </Box>
                             <Box sx={{ flex: 1, minWidth: 0 }}>
                                 <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Aplicar despues de</Typography>
