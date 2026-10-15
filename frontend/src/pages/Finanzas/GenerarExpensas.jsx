@@ -69,7 +69,7 @@ export default function GenerarExpensas() {
                 <Typography variant="body2" sx={{ fontWeight: 600, mb: 1.5 }}>Tarifas fijas vigentes</Typography>
                 <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, 1fr)' }, gap: 1.5, mb: 1.5 }}>
                     {Object.entries(EXPENSA_BASE).map(([tipo, monto]) => (
-                        <Box key={tipo} sx={{ display: 'flex', alignItems: 'center', gap: 1.5, border: '1px solid', borderColor: 'divider', borderRadius: 2, p: 1.5 }}>
+                        <Box key={tipo} sx={{ display: 'flex', alignItems: 'center', gap: 1.5, border: '1px solid #CFDCEA', boxShadow: '0 1px 3px rgba(19, 43, 62, 0.08), 0 4px 12px rgba(19, 43, 62, 0.08)', borderRadius: 2, p: 1.5 }}>
                             <Chip label={tipo} sx={{ bgcolor: '#E4EEF5', color: 'primary.main', fontWeight: 700 }} />
                             <Box>
                                 <Typography sx={{ fontWeight: 700 }}>{formatBs(monto)}</Typography>
@@ -79,11 +79,11 @@ export default function GenerarExpensas() {
                     ))}
                 </Box>
                 <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)' }, gap: 1.5 }}>
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid', borderColor: 'divider', borderRadius: 2, p: 1.5 }}>
-                        <Typography variant="body2" color="text.secondary">Agua / m3</Typography>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid #CFDCEA', boxShadow: '0 1px 3px rgba(19, 43, 62, 0.08), 0 4px 12px rgba(19, 43, 62, 0.08)', borderRadius: 2, p: 1.5 }}>
+                        <Typography variant="body2" color="text.secondary">Agua / m³</Typography>
                         <Typography sx={{ fontWeight: 700 }}>{formatBs(PRECIO_M3)}</Typography>
                     </Box>
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid', borderColor: 'divider', borderRadius: 2, p: 1.5 }}>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid #CFDCEA', boxShadow: '0 1px 3px rgba(19, 43, 62, 0.08), 0 4px 12px rgba(19, 43, 62, 0.08)', borderRadius: 2, p: 1.5 }}>
                         <Typography variant="body2" color="text.secondary">Tarifa minima agua</Typography>
                         <Typography sx={{ fontWeight: 700 }}>{formatBs(TARIFA_MIN)}</Typography>
                     </Box>
@@ -99,7 +99,7 @@ export default function GenerarExpensas() {
                 <Box sx={{ overflowX: 'auto' }}>
                     <Table size="small" sx={{ minWidth: 720 }}>
                         <TableHead>
-                            <TableRow>
+                            <TableRow sx={{ bgcolor: '#F1F5FA' }}>
                                 <TableCell><strong>Depto</strong></TableCell>
                                 <TableCell><strong>Tipo</strong></TableCell>
                                 <TableCell><strong>Base</strong></TableCell>
@@ -123,7 +123,7 @@ export default function GenerarExpensas() {
                                             onChange={(e) => cambiarLectura(f.departamento, e.target.value)}
                                             sx={{ width: 100 }} />
                                     </TableCell>
-                                    <TableCell>{f.consumo} m3</TableCell>
+                                    <TableCell>{f.consumo} m³</TableCell>
                                     <TableCell sx={{ color: '#2E9D78', fontWeight: 600 }}>{formatBs(f.agua)}</TableCell>
                                     <TableCell sx={{ fontWeight: 700 }}>{formatBs(f.total)}</TableCell>
                                     <TableCell><Chip label={f.estado} size="small" sx={{ bgcolor: '#FDF0D5', color: '#B6802A' }} /></TableCell>

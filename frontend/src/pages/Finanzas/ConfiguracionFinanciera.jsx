@@ -13,11 +13,11 @@ import {
 // Tarjeta de un tipo de departamento con su monto base editable
 function TarjetaTipo({ tipo, valor, onChange }) {
     return (
-        <Box sx={{ flex: 1, minWidth: 220, display: 'flex', alignItems: 'center', gap: 2, border: '1px solid', borderColor: 'divider', borderRadius: 2, p: 2 }}>
-            <Box sx={{ width: 40, height: 40, borderRadius: 1.5, bgcolor: '#E4EEF5', color: 'primary.main', display: 'grid', placeItems: 'center', fontWeight: 700 }}>
+        <Box sx={{ flex: 1, minWidth: { xs: '100%', md: 220 }, display: 'flex', alignItems: 'center', gap: 2, border: '1px solid #CFDCEA', boxShadow: '0 1px 3px rgba(19, 43, 62, 0.08), 0 4px 12px rgba(19, 43, 62, 0.08)', borderRadius: 2, p: 2 }}>
+            <Box sx={{ flexShrink: 0, width: 40, height: 40, borderRadius: 1.5, bgcolor: '#E4EEF5', color: 'primary.main', display: 'grid', placeItems: 'center', fontWeight: 700 }}>
                 {tipo}
             </Box>
-            <Box sx={{ flex: 1 }}>
+            <Box sx={{ flex: 1, minWidth: 0 }}>
                 <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Departamento tipo {tipo}</Typography>
                 <TextField fullWidth value={valor} onChange={(e) => onChange(e.target.value)}
                     slotProps={{ input: { startAdornment: <InputAdornment position="start">Bs</InputAdornment> } }} />
@@ -67,7 +67,7 @@ export default function ConfiguracionFinanciera() {
             {/* Agua + Reglas del periodo */}
             <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 3, mb: 3 }}>
                 {/* Configuracion del agua */}
-                <Paper sx={{ p: 3, borderRadius: 2 }}>
+                <Paper sx={{ p: 3, borderRadius: 2, minWidth: 0 }}>
                     <Typography variant="h3" sx={{ fontSize: '1.1rem', fontWeight: 600, mb: 0.5 }}>
                         Configuracion del agua
                     </Typography>
@@ -76,7 +76,7 @@ export default function ConfiguracionFinanciera() {
                     </Typography>
                     <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', mb: 2 }}>
                         <Box sx={{ flex: 1, minWidth: 160 }}>
-                            <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Precio por m3</Typography>
+                            <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Precio por m³</Typography>
                             <TextField fullWidth value={agua.precioM3} onChange={(e) => cambiarAgua('precioM3', e.target.value)}
                                 slotProps={{ input: { startAdornment: <InputAdornment position="start">Bs</InputAdornment> } }} />
                         </Box>
@@ -93,7 +93,7 @@ export default function ConfiguracionFinanciera() {
                 </Paper>
 
                 {/* Reglas del periodo */}
-                <Paper sx={{ p: 3, borderRadius: 2 }}>
+                <Paper sx={{ p: 3, borderRadius: 2, minWidth: 0 }}>
                     <Typography variant="h3" sx={{ fontSize: '1.1rem', fontWeight: 600, mb: 2 }}>
                         Reglas del periodo
                     </Typography>
