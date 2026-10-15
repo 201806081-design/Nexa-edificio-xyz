@@ -2,8 +2,10 @@ import { useState } from 'react';
 import {
     Box, Typography, Paper, Button, IconButton, TextField, Select, MenuItem, Alert, Chip,
     InputAdornment, Table, TableHead, TableBody, TableRow, TableCell, ToggleButton, ToggleButtonGroup,
+    Dialog, DialogTitle, DialogContent, Divider,
 } from '@mui/material';
 import VisibilityIcon from '@mui/icons-material/Visibility';
+import CloseIcon from '@mui/icons-material/Close';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import {
@@ -28,6 +30,7 @@ const ANTICIPO_VACIO = { departamento: '', fecha: '2026-10-13', monto: '', descr
 export default function Mora() {
     const [tab, setTab] = useState('mora');
     const [config, setConfig] = useState(CONFIG_MORA);
+    const [detalle, setDetalle] = useState(null); // deuda seleccionada para el modal
 
     // Formulario de anticipo
     const [form, setForm] = useState(ANTICIPO_VACIO);
@@ -144,7 +147,7 @@ export default function Mora() {
                                             <TableCell sx={{ color: '#D9534F', fontWeight: 600 }}>{formatBs(f.interes)}</TableCell>
                                             <TableCell sx={{ color: '#D9534F', fontWeight: 700 }}>{formatBs(f.deudaActual)}</TableCell>
                                             <TableCell align="center">
-                                                <IconButton color="primary"><VisibilityIcon /></IconButton>
+                                                <IconButton color="primary" onClick={() => setDetalle(f)}><VisibilityIcon /></IconButton>
                                             </TableCell>
                                         </TableRow>
                                     ))}
@@ -262,6 +265,63 @@ export default function Mora() {
                     </Paper>
                 </Box>
             )}
+
+            {/* Modal: detalle de una deuda vencida */}
+            <Dialog open={!!detalle} onClose={() => setDetalle(null)} fullWidth maxWidth="sm">
+                {detalle && (
+                    <>
+                        <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontWeight: 700 }}>
+                            Detalle de la deuda
+                            <IconButton onClick={() => setDetalle(null)}><CloseIcon /></IconButton>
+                        </DialogTitle>
+                        <DialogContent dividers>
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', py: 0.5 }}>
+                                <Typography variant="body2" color="text.secondary">Departamento</Typography>
+                                <Typography variant="body2" sx={{ fontWeight: 600 }}>{detalle.depto}</Typography>
+                            </Box>
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', py: 0.5 }}>
+                                <Typography variant="body2" color="text.secondary">Periodo</Typography>
+                                <Typography variant="body2" sx={{ fontWeight: 600 }}>{detalle.periodo}</Typography>
+                            </Box>
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', py: 0.5 }}>
+                                <Typography variant="body2" color="text.secondary">Deuda original</Typography>
+                                <Typography variant="body2" sx={{ fontWeight: 600 }}>{formatBs(detalle.deudaOriginal)}</Typography>
+                            </Box>
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', py: 0.5 }}>
+                                <Typography variant="body2" color="text.secondary">Meses de atraso</Typography>
+                                <Typography variant="body2" sx={{ fontWeight: 600 }}>{detalle.meses}</Typography>
+                            </Box>
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', py: 0.5 }}>
+                                <Typography variant="body2" color="text.secondary">Tasa mensual</Typography>
+                                <Typography variant="body2" sx={{ fontWeight: 600 }}>{(TASA_MORA * 100).toFixed(0)} %</Typography>
+                            </Box>
+
+                            <Divider sx={{ my: 1.5 }} />
+                            <Typography variant="body2" sx={{ fontWeight: 700, mb: 0.5 }}>Interes acumulado mes a mes</Typography>
+                            {Array.from({ length: detalle.meses }).map((_, i) => {
+                                const prev = detalle.deudaOriginal * (1 + TASA_MORA) ** i;
+                                const actual = detalle.deudaOriginal * (1 + TASA_MORA) ** (i + 1);
+                                return (
+                                    <Box key={i} sx={{ display: 'flex', justifyContent: 'space-between', py: 0.5 }}>
+                                        <Typography variant="body2" color="text.secondary">Mes {i + 1}</Typography>
+                                        <Typography variant="body2">{formatBs(prev)} → <strong>{formatBs(actual)}</strong></Typography>
+                                    </Box>
+                                );
+                            })}
+
+                            <Divider sx={{ my: 1.5 }} />
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', py: 0.5 }}>
+                                <Typography variant="body2" sx={{ fontWeight: 600 }}>Interes acumulado</Typography>
+                                <Typography variant="body2" sx={{ fontWeight: 700, color: '#D9534F' }}>{formatBs(detalle.interes)}</Typography>
+                            </Box>
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', py: 0.5 }}>
+                                <Typography variant="body2" sx={{ fontWeight: 700 }}>Deuda actual</Typography>
+                                <Typography variant="h3" sx={{ fontWeight: 700, color: '#D9534F' }}>{formatBs(detalle.deudaActual)}</Typography>
+                            </Box>
+                        </DialogContent>
+                    </>
+                )}
+            </Dialog>
         </DashboardLayout>
     );
 }
