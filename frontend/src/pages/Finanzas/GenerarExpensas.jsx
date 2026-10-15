@@ -1,21 +1,42 @@
 import { useState } from 'react';
 import {
-    Box, Typography, Select, MenuItem, Paper, Button, Chip, Stepper, Step, StepLabel,
+    Box, Typography, Select, MenuItem, Paper, Button, Chip, TextField,
     Table, TableHead, TableBody, TableRow, TableCell, Alert,
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import DashboardLayout from '../../layouts/DashboardLayout';
-import { PERIODOS, TARIFAS, DEPARTAMENTOS_ACTIVOS } from '../../constants/expensasMock';
+import { PERIODOS, DEPARTAMENTOS_ACTIVOS } from '../../constants/expensasMock';
+import { EXPENSA_BASE, CONFIG_AGUA } from '../../constants/configuracionMock';
 import { formatBs } from '../../constants/finanzasMock';
 
-const PASOS = ['Periodo', 'Vista previa', 'Confirmar'];
+const PRECIO_M3 = Number(CONFIG_AGUA.precioM3);
+const TARIFA_MIN = Number(CONFIG_AGUA.tarifaMinima);
+
+// Calcula consumo, cargo de agua (con tarifa minima) y total de un departamento
+function calcular(depto, lecturaActual) {
+    const actual = Number(lecturaActual);
+    const consumo = Math.max(0, actual - depto.lecturaAnterior);
+    const cargo = consumo * PRECIO_M3;
+    const agua = cargo < TARIFA_MIN ? TARIFA_MIN : cargo; // se aplica el minimo
+    const total = depto.base + agua;
+    return { consumo, agua, total };
+}
 
 export default function GenerarExpensas() {
     const navigate = useNavigate();
     const [periodo, setPeriodo] = useState(PERIODOS[0]);
+    // Lectura actual por departamento (arranca igual a la anterior)
+    const [lecturas, setLecturas] = useState(
+        Object.fromEntries(DEPARTAMENTOS_ACTIVOS.map((d) => [d.departamento, d.lecturaAnterior])),
+    );
 
-    const deptos = DEPARTAMENTOS_ACTIVOS;
-    const totalGeneral = deptos.reduce((acc, d) => acc + d.expensa, 0);
+    const cambiarLectura = (dep, valor) => setLecturas((l) => ({ ...l, [dep]: valor }));
+
+    // Filas calculadas + totales del periodo
+    const filas = DEPARTAMENTOS_ACTIVOS.map((d) => ({ ...d, ...calcular(d, lecturas[d.departamento]) }));
+    const totalBase = filas.reduce((acc, f) => acc + f.base, 0);
+    const totalAgua = filas.reduce((acc, f) => acc + f.agua, 0);
+    const totalGeneral = totalBase + totalAgua;
 
     const generar = () => {
         // MOCK: aqui se llamaria al backend. Por ahora vuelve a la lista con aviso.
@@ -26,89 +47,114 @@ export default function GenerarExpensas() {
         <DashboardLayout>
             <Typography variant="h1" color="primary.main" sx={{ mb: 0.5 }}>Generar expensas mensuales</Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                Asigna automaticamente la tarifa fija segun el tipo de departamento
+                Combina la expensa fija del tipo de departamento con el consumo de agua
             </Typography>
 
-            {/* Pasos */}
-            <Stepper activeStep={1} alternativeLabel sx={{ mb: 3 }}>
-                {PASOS.map((p) => <Step key={p}><StepLabel>{p}</StepLabel></Step>)}
-            </Stepper>
+            {/* Periodo + calculo automatico */}
+            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 2, mb: 2 }}>
+                <Paper sx={{ p: 3, borderRadius: 2 }}>
+                    <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Periodo mensual</Typography>
+                    <Select fullWidth value={periodo} onChange={(e) => setPeriodo(e.target.value)}>
+                        {PERIODOS.map((p) => <MenuItem key={p} value={p}>{p}</MenuItem>)}
+                    </Select>
+                </Paper>
+                <Alert severity="info" icon={false} sx={{ bgcolor: '#E4EEF5', color: 'text.primary', alignItems: 'center' }}>
+                    <strong>Calculo automatico</strong><br />
+                    Expensa base + cargo de agua = total del periodo
+                </Alert>
+            </Box>
 
-            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '2fr 1fr' }, gap: 2 }}>
-                {/* Columna principal */}
-                <Box sx={{ minWidth: 0 }}>
-                    <Paper sx={{ p: 3, borderRadius: 2, mb: 2 }}>
-                        <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Periodo mensual</Typography>
-                        <Select fullWidth value={periodo} onChange={(e) => setPeriodo(e.target.value)} sx={{ mb: 2 }}>
-                            {PERIODOS.map((p) => <MenuItem key={p} value={p}>{p}</MenuItem>)}
-                        </Select>
-                        <Alert severity="info" icon={false} sx={{ bgcolor: '#E4EEF5', color: 'text.primary' }}>
-                            <strong>Monto automatico.</strong> No se escribe un monto por departamento.
-                            El sistema usa la tarifa fija de su tipo: A, B o C.
-                        </Alert>
-                    </Paper>
+            {/* Tarifas fijas vigentes */}
+            <Paper sx={{ p: 3, borderRadius: 2, mb: 2 }}>
+                <Typography variant="body2" sx={{ fontWeight: 600, mb: 1.5 }}>Tarifas fijas vigentes</Typography>
+                <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, 1fr)' }, gap: 1.5, mb: 1.5 }}>
+                    {Object.entries(EXPENSA_BASE).map(([tipo, monto]) => (
+                        <Box key={tipo} sx={{ display: 'flex', alignItems: 'center', gap: 1.5, border: '1px solid', borderColor: 'divider', borderRadius: 2, p: 1.5 }}>
+                            <Chip label={tipo} sx={{ bgcolor: '#E4EEF5', color: 'primary.main', fontWeight: 700 }} />
+                            <Box>
+                                <Typography sx={{ fontWeight: 700 }}>{formatBs(monto)}</Typography>
+                                <Typography variant="body2" color="text.secondary">Por departamento</Typography>
+                            </Box>
+                        </Box>
+                    ))}
+                </Box>
+                <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)' }, gap: 1.5 }}>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid', borderColor: 'divider', borderRadius: 2, p: 1.5 }}>
+                        <Typography variant="body2" color="text.secondary">Agua / m3</Typography>
+                        <Typography sx={{ fontWeight: 700 }}>{formatBs(PRECIO_M3)}</Typography>
+                    </Box>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid', borderColor: 'divider', borderRadius: 2, p: 1.5 }}>
+                        <Typography variant="body2" color="text.secondary">Tarifa minima agua</Typography>
+                        <Typography sx={{ fontWeight: 700 }}>{formatBs(TARIFA_MIN)}</Typography>
+                    </Box>
+                </Box>
+            </Paper>
 
-                    <Paper sx={{ p: 3, borderRadius: 2, mb: 2 }}>
-                        <Typography variant="body2" sx={{ fontWeight: 600, mb: 1.5 }}>Tarifas fijas vigentes</Typography>
-                        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, 1fr)' }, gap: 1.5 }}>
-                            {Object.entries(TARIFAS).map(([tipo, monto]) => (
-                                <Box key={tipo} sx={{ display: 'flex', alignItems: 'center', gap: 1.5, border: '1px solid', borderColor: 'divider', borderRadius: 2, p: 1.5 }}>
-                                    <Chip label={tipo} sx={{ bgcolor: '#E4EEF5', color: 'primary.main', fontWeight: 700 }} />
-                                    <Box>
-                                        <Typography sx={{ fontWeight: 700 }}>{formatBs(monto)}</Typography>
-                                        <Typography variant="body2" color="text.secondary">Por departamento</Typography>
-                                    </Box>
-                                </Box>
+            {/* Lecturas y vista previa */}
+            <Paper sx={{ p: 3, borderRadius: 2, mb: 2 }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                    <Typography variant="body2" sx={{ fontWeight: 600 }}>Lecturas y vista previa</Typography>
+                    <Typography variant="body2" color="text.secondary">{filas.length} departamentos activos</Typography>
+                </Box>
+                <Box sx={{ overflowX: 'auto' }}>
+                    <Table size="small" sx={{ minWidth: 720 }}>
+                        <TableHead>
+                            <TableRow>
+                                <TableCell><strong>Depto</strong></TableCell>
+                                <TableCell><strong>Tipo</strong></TableCell>
+                                <TableCell><strong>Base</strong></TableCell>
+                                <TableCell><strong>Anterior</strong></TableCell>
+                                <TableCell><strong>Actual</strong></TableCell>
+                                <TableCell><strong>Consumo</strong></TableCell>
+                                <TableCell><strong>Agua</strong></TableCell>
+                                <TableCell><strong>Total</strong></TableCell>
+                                <TableCell><strong>Estado</strong></TableCell>
+                            </TableRow>
+                        </TableHead>
+                        <TableBody>
+                            {filas.map((f) => (
+                                <TableRow key={f.departamento}>
+                                    <TableCell>{f.departamento}</TableCell>
+                                    <TableCell>{f.tipo}</TableCell>
+                                    <TableCell>{formatBs(f.base)}</TableCell>
+                                    <TableCell>{f.lecturaAnterior.toLocaleString('es-BO')}</TableCell>
+                                    <TableCell>
+                                        <TextField size="small" type="number" value={lecturas[f.departamento]}
+                                            onChange={(e) => cambiarLectura(f.departamento, e.target.value)}
+                                            sx={{ width: 100 }} />
+                                    </TableCell>
+                                    <TableCell>{f.consumo} m3</TableCell>
+                                    <TableCell sx={{ color: '#2E9D78', fontWeight: 600 }}>{formatBs(f.agua)}</TableCell>
+                                    <TableCell sx={{ fontWeight: 700 }}>{formatBs(f.total)}</TableCell>
+                                    <TableCell><Chip label={f.estado} size="small" sx={{ bgcolor: '#FDF0D5', color: '#B6802A' }} /></TableCell>
+                                </TableRow>
                             ))}
-                        </Box>
-                    </Paper>
-
-                    <Paper sx={{ p: 3, borderRadius: 2 }}>
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-                            <Typography variant="body2" sx={{ fontWeight: 600 }}>Vista previa de asignacion</Typography>
-                            <Typography variant="body2" color="text.secondary">{deptos.length} departamentos activos</Typography>
-                        </Box>
-                        <Box sx={{ overflowX: 'auto' }}>
-                            <Table size="small" sx={{ minWidth: 420 }}>
-                                <TableHead>
-                                    <TableRow>
-                                        <TableCell><strong>Departamento</strong></TableCell>
-                                        <TableCell><strong>Tipo</strong></TableCell>
-                                        <TableCell><strong>Estado</strong></TableCell>
-                                        <TableCell><strong>Expensas</strong></TableCell>
-                                    </TableRow>
-                                </TableHead>
-                                <TableBody>
-                                    {deptos.map((d) => (
-                                        <TableRow key={d.departamento}>
-                                            <TableCell>{d.departamento}</TableCell>
-                                            <TableCell>{d.tipo}</TableCell>
-                                            <TableCell><Chip label={d.estado} size="small" sx={{ bgcolor: '#FDF0D5', color: '#B6802A' }} /></TableCell>
-                                            <TableCell>{formatBs(d.expensa)}</TableCell>
-                                        </TableRow>
-                                    ))}
-                                </TableBody>
-                            </Table>
-                        </Box>
-                    </Paper>
+                        </TableBody>
+                    </Table>
                 </Box>
+            </Paper>
 
-                {/* Columna resumen */}
-                <Box>
-                    <Paper sx={{ p: 3, borderRadius: 2 }}>
-                        <Typography variant="body2" sx={{ fontWeight: 600, mb: 1.5 }}>Resumen</Typography>
-                        <Typography variant="body2" color="text.secondary">Departamentos</Typography>
-                        <Typography variant="h3" sx={{ fontWeight: 700, mb: 1.5 }}>{deptos.length}</Typography>
-                        <Typography variant="body2" color="text.secondary">Total de general</Typography>
-                        <Typography variant="h3" color="primary.main" sx={{ fontWeight: 700, mb: 1.5 }}>{formatBs(totalGeneral)}</Typography>
-                        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                            No incluye agua, luz ni gas individuales. Esos cobros corresponden a cada empresa.
-                        </Typography>
-                        <Button fullWidth variant="contained" onClick={generar} sx={{ mb: 1 }}>Generar expensas</Button>
-                        <Button fullWidth variant="outlined" onClick={() => navigate('/finanzas/expensas')} sx={{ mb: 1 }}>Cancelar</Button>
-                        <Button fullWidth variant="text" onClick={() => navigate('/finanzas/expensas')}>Volver a expensas</Button>
-                    </Paper>
+            {/* Resumen del periodo */}
+            <Paper sx={{ p: 3, borderRadius: 2, mb: 2, bgcolor: '#E4EEF5' }}>
+                <Typography variant="body2" sx={{ fontWeight: 600, mb: 1 }}>Resumen del periodo</Typography>
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Typography variant="body2">Expensas base: <strong>{formatBs(totalBase)}</strong></Typography>
+                    <Typography variant="body2">Agua: <strong>{formatBs(totalAgua)}</strong></Typography>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <Typography variant="body2" color="text.secondary">Total a generar:</Typography>
+                        <Typography variant="h3" color="primary.main" sx={{ fontWeight: 700 }}>{formatBs(totalGeneral)}</Typography>
+                    </Box>
                 </Box>
+            </Paper>
+
+            {/* Botones */}
+            <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column-reverse', md: 'row' }, justifyContent: { md: 'flex-end' } }}>
+                <Button variant="outlined" onClick={() => navigate('/finanzas/expensas')} sx={{ width: { xs: '100%', md: 'auto' } }}>
+                    Cancelar
+                </Button>
+                <Button variant="contained" onClick={generar} sx={{ width: { xs: '100%', md: 'auto' } }}>
+                    Generar expensas
+                </Button>
             </Box>
         </DashboardLayout>
     );
