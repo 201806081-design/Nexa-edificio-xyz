@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import {
-    Box, Typography, Select, MenuItem, Paper, Button, Chip, TextField, Alert,
+    Box, Typography, Select, MenuItem, Paper, Button, Chip, Alert,
     Table, TableHead, TableBody, TableRow, TableCell,
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
@@ -28,18 +28,12 @@ export default function EstadoCuenta() {
     const [seleccion, setSeleccion] = useState('');
     const [periodo, setPeriodo] = useState(PERIODOS_CUENTA[0]);
     const [consultado, setConsultado] = useState(null);
-    // Mora editable por periodo (arranca con la del mock)
-    const [mora, setMora] = useState({});
 
     const consultar = () => {
-        if (!seleccion) return;
-        const data = ESTADO_CUENTA_MOCK[seleccion];
-        setConsultado(data);
-        setMora(Object.fromEntries(data.historial.map((h) => [h.periodo, h.mora])));
+        if (seleccion) setConsultado(ESTADO_CUENTA_MOCK[seleccion]);
     };
 
-    const cambiarMora = (per, valor) => setMora((m) => ({ ...m, [per]: valor }));
-
+    // Tarjetas de resumen (4). bg = fondo de la tarjeta; color = icono y monto.
     const RESUMEN = consultado ? [
         { label: 'Expensas generados', valor: consultado.resumen.totalGenerado, icon: <DescriptionOutlinedIcon />, color: 'primary.main', bg: '#E4EEF5' },
         { label: 'Pagos realizados', valor: consultado.resumen.totalPagado, icon: <CheckCircleIcon />, color: '#2E9D78', bg: '#E4F4EE' },
@@ -101,11 +95,11 @@ export default function EstadoCuenta() {
                         </Box>
                     </Paper>
 
-                    {/* Tarjetas de resumen (4) */}
+                    {/* Tarjetas de resumen (4) con fondo de color */}
                     <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(4, 1fr)' }, gap: 2, mb: 3 }}>
                         {RESUMEN.map((r) => (
-                            <Paper key={r.label} sx={{ p: 2.5, borderRadius: 2, display: 'flex', alignItems: 'center', gap: 2 }}>
-                                <Box sx={{ flexShrink: 0, width: 48, height: 48, borderRadius: '50%', bgcolor: r.bg, color: r.color, display: 'grid', placeItems: 'center' }}>
+                            <Paper key={r.label} sx={{ p: 2.5, borderRadius: 2, bgcolor: r.bg, display: 'flex', alignItems: 'center', gap: 2 }}>
+                                <Box sx={{ flexShrink: 0, width: 48, height: 48, borderRadius: '50%', bgcolor: '#fff', color: r.color, display: 'grid', placeItems: 'center' }}>
                                     {r.icon}
                                 </Box>
                                 <Box sx={{ minWidth: 0 }}>
@@ -123,7 +117,7 @@ export default function EstadoCuenta() {
                             <Typography variant="body2" color="text.secondary">{consultado.historial.length} periodos</Typography>
                         </Box>
                         <Box sx={{ overflowX: 'auto' }}>
-                            <Table size="small" sx={{ minWidth: 760 }}>
+                            <Table size="small" sx={{ minWidth: 720 }}>
                                 <TableHead>
                                     <TableRow sx={{ bgcolor: '#F1F5FA' }}>
                                         <TableCell><strong>Periodo</strong></TableCell>
@@ -138,18 +132,15 @@ export default function EstadoCuenta() {
                                 </TableHead>
                                 <TableBody>
                                     {consultado.historial.map((h) => {
-                                        const moraVal = Number(mora[h.periodo] ?? h.mora);
-                                        const total = h.base + h.agua + moraVal;
+                                        const total = h.base + h.agua + h.mora;
                                         const saldo = total - h.pagado;
                                         return (
                                             <TableRow key={h.periodo}>
                                                 <TableCell>{h.periodo}</TableCell>
                                                 <TableCell>{formatBs(h.base)}</TableCell>
                                                 <TableCell>{formatBs(h.agua)}</TableCell>
-                                                <TableCell>
-                                                    <TextField size="small" type="number" value={mora[h.periodo] ?? h.mora}
-                                                        onChange={(e) => cambiarMora(h.periodo, e.target.value)}
-                                                        sx={{ width: 90 }} />
+                                                <TableCell sx={{ color: h.mora > 0 ? '#D9534F' : 'text.primary', fontWeight: h.mora > 0 ? 600 : 400 }}>
+                                                    {formatBs(h.mora)}
                                                 </TableCell>
                                                 <TableCell sx={{ fontWeight: 700 }}>{formatBs(total)}</TableCell>
                                                 <TableCell>{formatBs(h.pagado)}</TableCell>
