@@ -99,7 +99,7 @@ export default function Expensas() {
             <Paper sx={{ p: 2, borderRadius: 2, display: { xs: 'none', md: 'block' } }}>
                 <Table>
                     <TableHead>
-                        <TableRow>
+                        <TableRow sx={{ bgcolor: '#F1F5FA' }}>
                             <TableCell><strong>Departamento</strong></TableCell>
                             <TableCell><strong>Periodo</strong></TableCell>
                             <TableCell><strong>Monto</strong></TableCell>
