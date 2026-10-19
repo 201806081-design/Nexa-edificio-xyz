@@ -1,14 +1,24 @@
 import { useState } from 'react';
 import {
-    Box, Typography, Select, MenuItem, Paper, Button, TextField, Alert, ToggleButton, ToggleButtonGroup,
+    Box, Typography, Select, MenuItem, Paper, Button, TextField, Alert, Chip,
+    ToggleButton, ToggleButtonGroup,
 } from '@mui/material';
 import NorthIcon from '@mui/icons-material/North';
 import SouthIcon from '@mui/icons-material/South';
 import UploadFileIcon from '@mui/icons-material/UploadFile';
+import PhotoCameraIcon from '@mui/icons-material/PhotoCamera';
+import InsertDriveFileOutlinedIcon from '@mui/icons-material/InsertDriveFileOutlined';
 import { useNavigate } from 'react-router-dom';
 import DashboardLayout from '../../layouts/DashboardLayout';
-import { CATEGORIAS } from '../../constants/movimientosMock';
+import { CATEGORIAS, MOVIMIENTOS_LISTA, RESUMEN_MOVIMIENTOS } from '../../constants/movimientosMock';
 import { formatBs } from '../../constants/finanzasMock';
+
+// '2026-10-19' -> '19/10/2026'
+const fechaBonita = (iso) => {
+    if (!iso) return '';
+    const [y, m, d] = iso.split('-');
+    return `${d}/${m}/${y}`;
+};
 
 const VACIO = { tipo: 'Ingreso', categoria: '', fecha: '', monto: '', descripcion: '', comprobante: '' };
 
@@ -23,6 +33,13 @@ export default function RegistrarMovimiento() {
         setErrores((e) => ({ ...e, [campo]: false }));
     };
 
+    // Selecciona el comprobante (mock: solo guardamos el nombre del archivo)
+    const elegirArchivo = (e) => {
+        const file = e.target.files && e.target.files[0];
+        if (file) cambiar('comprobante', file.name);
+        e.target.value = ''; // permite volver a elegir el mismo archivo
+    };
+
     const validar = () => {
         const err = {};
         if (!form.categoria) err.categoria = true;
@@ -35,7 +52,24 @@ export default function RegistrarMovimiento() {
 
     const guardar = () => {
         if (!validar()) { setMostrarAviso(true); return; }
-        // MOCK: aqui iria el POST al backend.
+        // MOCK: se agrega a la lista en memoria. Con backend, aqui iria el POST (con el archivo real).
+        const monto = Number(form.monto);
+        const nuevo = {
+            id: Date.now(),
+            fecha: fechaBonita(form.fecha),
+            tipo: form.tipo,
+            categoria: form.categoria,
+            descripcion: form.descripcion.trim(),
+            monto,
+            comprobante: form.comprobante || 'Sin comprobante',
+            codigo: `MOV-2026-10-${String(MOVIMIENTOS_LISTA.length + 1).padStart(3, '0')}`,
+        };
+        MOVIMIENTOS_LISTA.unshift(nuevo); // aparece primero en la lista
+        // Actualiza los totales del resumen
+        if (form.tipo === 'Ingreso') RESUMEN_MOVIMIENTOS.totalIngresos += monto;
+        else RESUMEN_MOVIMIENTOS.totalGastos += monto;
+        RESUMEN_MOVIMIENTOS.balance = RESUMEN_MOVIMIENTOS.totalIngresos - RESUMEN_MOVIMIENTOS.totalGastos;
+
         navigate('/finanzas/ingresos-gastos', { state: { mensaje: 'Movimiento registrado correctamente' } });
     };
 
@@ -78,7 +112,8 @@ export default function RegistrarMovimiento() {
                     <Box sx={{ flex: 1, minWidth: 220 }}>
                         <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Fecha</Typography>
                         <TextField fullWidth type="date" value={form.fecha} onChange={(e) => cambiar('fecha', e.target.value)}
-                            error={!!errores.fecha} helperText={errores.fecha && 'Seleccione una fecha'} InputLabelProps={{ shrink: true }} />
+                            error={!!errores.fecha} helperText={errores.fecha && 'Seleccione una fecha'}
+                            slotProps={{ inputLabel: { shrink: true } }} />
                     </Box>
                 </Box>
 
@@ -99,10 +134,28 @@ export default function RegistrarMovimiento() {
                 {/* Comprobante */}
                 <Box sx={{ mb: 2 }}>
                     <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Comprobante</Typography>
-                    <Button variant="outlined" startIcon={<UploadFileIcon />} sx={{ color: '#1a2733', borderColor: '#cdd8e3' }}>
-                        Adjuntar archivo
-                    </Button>
-                    <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>Adjunte un archivo PDF, JPG o PNG</Typography>
+                    <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                        <Button component="label" variant="outlined" startIcon={<UploadFileIcon />}
+                            sx={{ color: '#1a2733', borderColor: '#cdd8e3' }}>
+                            Adjuntar archivo
+                            <input hidden type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={elegirArchivo} />
+                        </Button>
+                        <Button component="label" variant="outlined" startIcon={<PhotoCameraIcon />}
+                            sx={{ color: '#1a2733', borderColor: '#cdd8e3' }}>
+                            Tomar foto
+                            <input hidden type="file" accept="image/*" capture="environment" onChange={elegirArchivo} />
+                        </Button>
+                    </Box>
+
+                    {form.comprobante ? (
+                        <Box sx={{ mt: 1 }}>
+                            <Chip icon={<InsertDriveFileOutlinedIcon />} label={form.comprobante}
+                                onDelete={() => cambiar('comprobante', '')}
+                                sx={{ bgcolor: '#E4EEF5', color: '#1F5F8B', fontWeight: 600 }} />
+                        </Box>
+                    ) : (
+                        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>Adjunte un archivo PDF, JPG o PNG</Typography>
+                    )}
                 </Box>
 
                 {/* Aviso del monto a registrar */}
