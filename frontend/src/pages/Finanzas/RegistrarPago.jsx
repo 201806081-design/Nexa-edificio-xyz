@@ -5,7 +5,7 @@ import {
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import DashboardLayout from '../../layouts/DashboardLayout';
-import { DEPARTAMENTOS_DEUDA, MEDIOS_PAGO } from '../../constants/pagosMock';
+import { DEPARTAMENTOS_DEUDA, MEDIOS_PAGO, PAGOS_MOCK } from '../../constants/pagosMock';
 import { formatBs } from '../../constants/finanzasMock';
 
 // Distribuye un monto entre las deudas, de la mas antigua a la mas nueva
@@ -17,6 +17,20 @@ function distribuir(deudas, monto) {
         return { periodo: d.periodo, aplicar };
     });
 }
+
+// Genera el siguiente codigo de pago (PG-00XX)
+function siguienteCodigo() {
+    const nums = PAGOS_MOCK.map((p) => Number(String(p.id).replace(/\D/g, '')) || 0);
+    const next = (nums.length ? Math.max(...nums) : 42) + 1;
+    return `PG-${String(next).padStart(4, '0')}`;
+}
+
+// '2026-10-19' -> '19/10/2026'
+const fechaBonita = (iso) => {
+    if (!iso) return '';
+    const [y, m, d] = iso.split('-');
+    return `${d}/${m}/${y}`;
+};
 
 const PASOS = ['1. Selecciona el departamento', '2. Distribuye el monto', '3. Confirma el pago'];
 
@@ -49,8 +63,43 @@ export default function RegistrarPago() {
 
     const confirmar = () => {
         if (!distribuidoOk) return;
-        // MOCK: aqui iria el POST. La confirmacion/registro se conecta en el commit 3.
-        navigate('/finanzas/pagos', { state: { mensaje: 'Pago registrado correctamente' } });
+        const codigo = siguienteCodigo();
+        const estado = nuevoSaldo > 0 ? 'Parcial' : 'Completo';
+
+        // Distribucion con saldo restante por periodo (para la confirmacion)
+        const distribucion = depto.deudas.map((d) => {
+            const ap = Number((aplicaciones.find((a) => a.periodo === d.periodo) || {}).aplicar) || 0;
+            return { periodo: d.periodo, aplicado: ap, saldoRestante: d.pendiente - ap };
+        }).filter((x) => x.aplicado > 0 || x.saldoRestante > 0);
+
+        const periodos = distribucion.filter((x) => x.aplicado > 0).map((x) => x.periodo).join(' / ');
+
+        // MOCK: se guarda en el historial y se actualiza el saldo del departamento.
+        PAGOS_MOCK.unshift({
+            id: codigo,
+            fecha: fechaBonita(fecha),
+            depto: depto.id,
+            responsable: depto.responsable.split(' · ')[0],
+            periodoAplicado: periodos,
+            monto: montoNum,
+            saldoPosterior: nuevoSaldo,
+            estado,
+        });
+        depto.deudas.forEach((d) => {
+            const ap = Number((aplicaciones.find((a) => a.periodo === d.periodo) || {}).aplicar) || 0;
+            d.pagado += ap;
+            d.pendiente -= ap;
+        });
+        depto.saldoPendiente = nuevoSaldo;
+
+        navigate('/finanzas/pagos/registrado', {
+            state: {
+                detalle: {
+                    codigo, departamento: depto.id, fecha: fechaBonita(fecha),
+                    monto: montoNum, estado, nuevoSaldo, distribucion,
+                },
+            },
+        });
     };
 
     return (
