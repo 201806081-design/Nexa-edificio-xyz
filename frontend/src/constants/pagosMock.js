@@ -14,6 +14,28 @@ export const RESUMEN_PAGOS = {
 export const ESTADOS_PAGO = ['Todos', 'Completo', 'Parcial'];
 export const DEPARTAMENTOS_PAGO = ['Todos', '101', '102', '201', '203', '302'];
 
+// Medios de pago para el formulario de registro
+export const MEDIOS_PAGO = ['Transferencia', 'Efectivo', 'QR', 'Cheque'];
+
+// Departamentos con deudas pendientes (para "Registrar pago").
+// pendiente por periodo = totalDeuda - pagado
+export const DEPARTAMENTOS_DEUDA = [
+    {
+        id: '203', etiqueta: '203 — Carlos Mendoza', responsable: 'Carlos Mendoza · Propietario', saldoPendiente: 599,
+        deudas: [
+            { periodo: 'Agosto 2026', totalDeuda: 366, pagado: 100, pendiente: 266 },
+            { periodo: 'Septiembre 2026', totalDeuda: 333, pagado: 0, pendiente: 333 },
+        ],
+    },
+    {
+        id: '102', etiqueta: '102 — Luis Garcia', responsable: 'Luis Garcia · Inquilino', saldoPendiente: 365,
+        deudas: [
+            { periodo: 'Octubre 2026', totalDeuda: 365, pagado: 200, pendiente: 165 },
+            { periodo: 'Septiembre 2026', totalDeuda: 350, pagado: 150, pendiente: 200 },
+        ],
+    },
+];
+
 // Historial de pagos. estado: 'Completo' | 'Parcial'
 export const PAGOS_MOCK = [
     { id: 'PG-0042', fecha: '19/10/2026', depto: '203', responsable: 'Carlos Mendoza', periodoAplicado: 'Ago. / Sep. 2026', monto: 450, saldoPosterior: 149, estado: 'Parcial' },
