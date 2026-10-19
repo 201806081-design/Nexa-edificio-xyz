@@ -12,8 +12,13 @@ import { useNavigate } from 'react-router-dom';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import {
     PERIODOS, RESUMEN_PAGOS, ESTADOS_PAGO, DEPARTAMENTOS_PAGO, PAGOS_MOCK,
+    RESUMEN_ANTICIPOS, HISTORIAL_ANTICIPOS,
 } from '../../constants/pagosMock';
 import { formatBs } from '../../constants/finanzasMock';
+
+const anticipoChipSx = (estado) => (estado === 'Disponible'
+    ? { bgcolor: '#E4F4EE', color: '#2E9D78' }
+    : { bgcolor: '#FDF0D5', color: '#B6802A' });
 
 const tabGroupSx = {
     bgcolor: '#fff',
@@ -175,11 +180,75 @@ export default function Pagos() {
                 </Box>
             )}
 
-            {/* Tab Pagos anticipados: se implementa en el commit 5 (traido desde Mora) */}
+            {/* Tab Pagos anticipados (movido desde Mora) */}
             {tab === 'anticipados' && (
-                <Paper sx={{ p: 4, borderRadius: 2, textAlign: 'center', color: 'text.secondary' }}>
-                    <Typography variant="body2">Pagos anticipados (en construccion)</Typography>
-                </Paper>
+                <Box>
+                    {/* Resumen (3 tarjetas) + Registrar anticipo */}
+                    <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(3, 1fr) auto' }, gap: 2, mb: 2, alignItems: 'stretch' }}>
+                        {[
+                            { label: 'Anticipos recibidos', valor: RESUMEN_ANTICIPOS.recibidos, nota: 'Octubre 2026' },
+                            { label: 'Credito aplicado', valor: RESUMEN_ANTICIPOS.aplicado, nota: 'A expensas generadas' },
+                            { label: 'Credito disponible', valor: RESUMEN_ANTICIPOS.disponible, nota: 'Saldo a favor total' },
+                        ].map((r) => (
+                            <Paper key={r.label} sx={{ p: 2.5, borderRadius: 2, display: 'flex', alignItems: 'center', gap: 2 }}>
+                                <Box sx={{ flexShrink: 0, width: 44, height: 44, borderRadius: '50%', bgcolor: '#E4F4EE', color: '#2E9D78', display: 'grid', placeItems: 'center' }}>
+                                    <PaidOutlinedIcon />
+                                </Box>
+                                <Box sx={{ minWidth: 0 }}>
+                                    <Typography variant="body2" color="text.secondary">{r.label}</Typography>
+                                    <Typography variant="h3" sx={{ fontWeight: 700 }}>{formatBs(r.valor)}</Typography>
+                                    <Typography variant="caption" sx={{ color: '#2E9D78' }}>{r.nota}</Typography>
+                                </Box>
+                            </Paper>
+                        ))}
+                        <Button variant="contained" startIcon={<AddIcon />}
+                            onClick={() => navigate('/finanzas/pagos/anticipo')}
+                            sx={{ width: { xs: '100%', md: 'auto' }, px: 3 }}>
+                            Registrar anticipo
+                        </Button>
+                    </Box>
+
+                    {/* Historial de anticipos */}
+                    <Paper sx={{ p: 3, borderRadius: 2 }}>
+                        <Typography variant="body2" sx={{ fontWeight: 600, mb: 1 }}>Historial de anticipos</Typography>
+                        <Box sx={{ overflowX: 'auto' }}>
+                            <Table size="small" sx={{ minWidth: 820 }}>
+                                <TableHead>
+                                    <TableRow sx={{ bgcolor: '#F1F5FA' }}>
+                                        <TableCell><strong>N.º</strong></TableCell>
+                                        <TableCell><strong>Fecha</strong></TableCell>
+                                        <TableCell><strong>Depto.</strong></TableCell>
+                                        <TableCell><strong>Responsable</strong></TableCell>
+                                        <TableCell><strong>Recibido</strong></TableCell>
+                                        <TableCell><strong>Aplicado</strong></TableCell>
+                                        <TableCell><strong>Credito</strong></TableCell>
+                                        <TableCell><strong>Estado</strong></TableCell>
+                                    </TableRow>
+                                </TableHead>
+                                <TableBody>
+                                    {HISTORIAL_ANTICIPOS.map((a) => (
+                                        <TableRow key={a.id}>
+                                            <TableCell sx={{ color: 'primary.main', fontWeight: 600 }}>{a.id}</TableCell>
+                                            <TableCell>{a.fecha}</TableCell>
+                                            <TableCell>{a.depto}</TableCell>
+                                            <TableCell>{a.responsable}</TableCell>
+                                            <TableCell sx={{ color: '#2E9D78', fontWeight: 600 }}>{formatBs(a.recibido)}</TableCell>
+                                            <TableCell>{formatBs(a.aplicado)}</TableCell>
+                                            <TableCell sx={{ color: '#2E9D78', fontWeight: 600 }}>{formatBs(a.credito)}</TableCell>
+                                            <TableCell><Chip label={a.estado} size="small" sx={anticipoChipSx(a.estado)} /></TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        </Box>
+                        <Box sx={{ bgcolor: '#E4EEF5', borderRadius: 2, p: 1.5, mt: 2 }}>
+                            <Typography variant="body2" sx={{ fontWeight: 600 }}>Integracion con flujo de caja</Typography>
+                            <Typography variant="body2" color="text.secondary">
+                                El anticipo cuenta como ingreso al recibirse. Aplicarlo luego no duplica el ingreso.
+                            </Typography>
+                        </Box>
+                    </Paper>
+                </Box>
             )}
         </DashboardLayout>
     );

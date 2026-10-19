@@ -44,3 +44,29 @@ export const PAGOS_MOCK = [
     { id: 'PG-0039', fecha: '16/10/2026', depto: '102', responsable: 'Luis Garcia', periodoAplicado: 'Octubre 2026', monto: 200, saldoPosterior: 165, estado: 'Parcial' },
     { id: 'PG-0038', fecha: '15/10/2026', depto: '201', responsable: 'Sofia Flores', periodoAplicado: 'Septiembre 2026', monto: 350, saldoPosterior: 0, estado: 'Completo' },
 ];
+
+// ============================================================
+//  PAGOS ANTICIPADOS (movido desde Mora - HU-FI-05)
+// ============================================================
+
+export const RESUMEN_ANTICIPOS = {
+    recibidos: 2700,   // anticipos recibidos (octubre)
+    aplicado: 1200,    // credito ya aplicado a expensas
+    disponible: 1500,  // credito disponible (saldo a favor)
+};
+
+export const ESTADOS_ANTICIPO = ['Todos', 'Disponible', 'Parcial'];
+
+// Departamentos para registrar un anticipo. creditoAnterior = credito a favor ya existente.
+export const DEPARTAMENTOS_ANTICIPO = [
+    { id: '303', etiqueta: '303 — Maria Rojas', saldoPendiente: 0, creditoAnterior: 0 },
+    { id: '101', etiqueta: '101 — Ana Lopez', saldoPendiente: 0, creditoAnterior: 350 },
+    { id: '202', etiqueta: '202 — Luis Perez', saldoPendiente: 0, creditoAnterior: 300 },
+];
+
+// Historial de anticipos. estado: 'Disponible' | 'Parcial'
+export const HISTORIAL_ANTICIPOS = [
+    { id: 'PA-0012', fecha: '19/10/2026', depto: '303', responsable: 'Maria Rojas', recibido: 500, aplicado: 0, credito: 500, estado: 'Disponible' },
+    { id: 'PA-0011', fecha: '12/10/2026', depto: '101', responsable: 'Ana Lopez', recibido: 700, aplicado: 350, credito: 350, estado: 'Parcial' },
+    { id: 'PA-0010', fecha: '03/10/2026', depto: '202', responsable: 'Luis Perez', recibido: 1500, aplicado: 1200, credito: 300, estado: 'Parcial' },
+];
