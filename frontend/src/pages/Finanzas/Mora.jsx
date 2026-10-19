@@ -2,19 +2,19 @@ import { useState } from 'react';
 import {
     Box, Typography, Paper, Button, IconButton, TextField, Select, MenuItem, Alert, Chip,
     InputAdornment, Table, TableHead, TableBody, TableRow, TableCell, ToggleButton, ToggleButtonGroup,
-    Dialog, DialogTitle, DialogContent, Divider,
+    Dialog, DialogTitle, DialogContent, DialogActions, Divider, CircularProgress, Snackbar,
 } from '@mui/material';
+import SettingsIcon from '@mui/icons-material/Settings';
 import VisibilityIcon from '@mui/icons-material/Visibility';
+import PercentIcon from '@mui/icons-material/Percent';
 import CloseIcon from '@mui/icons-material/Close';
-import RefreshIcon from '@mui/icons-material/Refresh';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import {
-    TASA_MORA, CONFIG_MORA, APLICAR_DESPUES, TIPOS_CALCULO, REGLA_MORA, DEUDAS_VENCIDAS,
-    DEPARTAMENTOS_ANTICIPO, HISTORIAL_ANTICIPOS,
+    CONFIG_MORA, APLICAR_MORA_DESDE, TIPOS_CALCULO, VIGENTE_DESDE, PERIODO_ACTUAL_MORA,
+    REGLA_MORA, DEUDAS_VENCIDAS, DEPARTAMENTOS_ANTICIPO, HISTORIAL_ANTICIPOS,
 } from '../../constants/moraMock';
 import { formatBs } from '../../constants/finanzasMock';
 
-// Estilo de la barra segmentada (tabs) del design system
 const tabGroupSx = {
     bgcolor: '#fff',
     '& .MuiToggleButton-root': {
@@ -27,50 +27,81 @@ const tabGroupSx = {
 
 const ANTICIPO_VACIO = { departamento: '', fecha: '2026-10-13', monto: '', descripcion: '' };
 
+// Dato de la regla vigente (solo lectura, en recuadro)
+function DatoRegla({ etiqueta, valor }) {
+    return (
+        <Box sx={{ minWidth: 0, border: '1px solid #CFDCEA', boxShadow: '0 1px 3px rgba(19, 43, 62, 0.06)', borderRadius: 2, p: 1.5, bgcolor: '#fff' }}>
+            <Typography variant="body2" color="text.secondary">{etiqueta}</Typography>
+            <Typography variant="body2" sx={{ fontWeight: 700 }}>{valor}</Typography>
+        </Box>
+    );
+}
+
 export default function Mora() {
     const [tab, setTab] = useState('mora');
     const [config, setConfig] = useState(CONFIG_MORA);
-    const [detalle, setDetalle] = useState(null); // deuda seleccionada para el modal
+
+    // Modales
+    const [detalle, setDetalle] = useState(null);       // ver detalle de una deuda
+    const [openConfig, setOpenConfig] = useState(false); // configurar mora
+    const [cfgDraft, setCfgDraft] = useState(CONFIG_MORA);
+    const [openActualizar, setOpenActualizar] = useState(false);
+    const [actualizando, setActualizando] = useState(false);
+    const [exitoMsg, setExitoMsg] = useState('');
 
     // Formulario de anticipo
     const [form, setForm] = useState(ANTICIPO_VACIO);
     const [errores, setErrores] = useState({});
-    const [exito, setExito] = useState(false);
+    const [exitoAnticipo, setExitoAnticipo] = useState(false);
 
-    const cambiarConfig = (campo, valor) => setConfig((c) => ({ ...c, [campo]: valor }));
     const cambiarForm = (campo, valor) => {
         setForm((f) => ({ ...f, [campo]: valor }));
         setErrores((e) => ({ ...e, [campo]: '' }));
-        setExito(false);
+        setExitoAnticipo(false);
     };
 
-    // deuda actual = deuda original * (1 + tasa)^meses ; interes = diferencia.
-    // Los meses los calcula el sistema (vienen en los datos), no se editan.
+    // Calculo de la deuda segun la configuracion vigente
+    const tasa = (Number(config.interesMensual) || 0) / 100;
     const filas = DEUDAS_VENCIDAS.map((d) => {
-        const deudaActual = d.deudaOriginal * (1 + TASA_MORA) ** d.meses;
+        const deudaActual = config.tipoCalculo === 'Simple'
+            ? d.deudaOriginal * (1 + tasa * d.meses)       // interes simple
+            : d.deudaOriginal * (1 + tasa) ** d.meses;     // acumulativo (compuesto)
         return { ...d, interes: deudaActual - d.deudaOriginal, deudaActual };
     });
     const totalVencido = filas.reduce((acc, f) => acc + f.deudaActual, 0);
 
-    // Resumen del anticipo
+    // Configurar mora
+    const abrirConfig = () => { setCfgDraft(config); setOpenConfig(true); };
+    const guardarConfig = () => { setConfig(cfgDraft); setOpenConfig(false); setExitoMsg('Configuracion de mora guardada'); };
+    const cambiarDraft = (campo, valor) => setCfgDraft((c) => ({ ...c, [campo]: valor }));
+
+    // Actualizar intereses (simulado)
+    const confirmarActualizacion = () => {
+        setActualizando(true);
+        setTimeout(() => {
+            setActualizando(false);
+            setOpenActualizar(false);
+            setExitoMsg('Intereses actualizados correctamente');
+        }, 1200);
+    };
+
+    // Registrar anticipo
     const deptoSel = DEPARTAMENTOS_ANTICIPO.find((d) => d.id === form.departamento);
     const saldoActual = deptoSel ? deptoSel.saldoActual : 0;
     const nuevoSaldo = saldoActual + (Number(form.monto) || 0);
-
     const registrar = () => {
         const err = {};
         if (!form.departamento) err.departamento = 'Seleccione un departamento';
-        if (!form.fecha.trim()) err.fecha = 'Ingrese la fecha de pago';
+        if (!form.fecha) err.fecha = 'Ingrese la fecha de pago';
         if (!(Number(form.monto) > 0)) err.monto = 'Ingrese un monto valido';
         setErrores(err);
-        if (Object.keys(err).length > 0) { setExito(false); return; }
-        // MOCK: aqui iria el POST al backend.
-        setExito(true);
+        if (Object.keys(err).length > 0) { setExitoAnticipo(false); return; }
+        setExitoAnticipo(true);
     };
 
     const titulo = tab === 'mora' ? 'Mora e intereses' : 'Mora y pagos anticipados';
     const subtitulo = tab === 'mora'
-        ? 'Configurar el porcentaje mensual y actualiza las deudas vencidas'
+        ? 'Configura el porcentaje mensual y actualiza las deudas vencidas'
         : 'Gestiona deudas vencidas y saldos a favor de los departamentos';
 
     return (
@@ -86,47 +117,40 @@ export default function Mora() {
                 </ToggleButtonGroup>
             </Paper>
 
-            {/* TAB: Mora e intereses */}
+            {/* ===================== TAB: MORA ===================== */}
             {tab === 'mora' && (
                 <Box>
+                    {/* Regla de mora vigente (solo lectura) */}
                     <Paper sx={{ p: 3, borderRadius: 2, mb: 2 }}>
-                        <Typography variant="body2" sx={{ fontWeight: 600, mb: 1.5 }}>Configuracion de mora</Typography>
-                        <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', md: 'row' }, alignItems: { md: 'flex-end' } }}>
-                            <Box sx={{ flex: 1, minWidth: 0 }}>
-                                <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Interes mensual</Typography>
-                                <TextField fullWidth type="number" value={config.interesMensual}
-                                    onChange={(e) => cambiarConfig('interesMensual', e.target.value)}
-                                    slotProps={{ input: { endAdornment: <InputAdornment position="end">%</InputAdornment> } }} />
+                        <Typography variant="body2" sx={{ fontWeight: 600, mb: 1.5 }}>Regla de mora vigente</Typography>
+                        <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+                            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, 1fr)' }, gap: 2, flex: 1, minWidth: 0 }}>
+                                <DatoRegla etiqueta="Interes mensual" valor={`${config.interesMensual} %`} />
+                                <DatoRegla etiqueta="Aplicar desde" valor={config.aplicarMoraDesde} />
+                                <DatoRegla etiqueta="Tipo de calculo" valor={config.tipoCalculo} />
                             </Box>
-                            <Box sx={{ flex: 1, minWidth: 0 }}>
-                                <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Aplicar despues de</Typography>
-                                <Select fullWidth value={config.aplicarDespuesDe} onChange={(e) => cambiarConfig('aplicarDespuesDe', e.target.value)}>
-                                    {APLICAR_DESPUES.map((a) => <MenuItem key={a} value={a}>{a}</MenuItem>)}
-                                </Select>
-                            </Box>
-                            <Box sx={{ flex: 1, minWidth: 0 }}>
-                                <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Tipo de calculo</Typography>
-                                <Select fullWidth value={config.tipoCalculo} onChange={(e) => cambiarConfig('tipoCalculo', e.target.value)}>
-                                    {TIPOS_CALCULO.map((t) => <MenuItem key={t} value={t}>{t}</MenuItem>)}
-                                </Select>
-                            </Box>
-                            <Button variant="contained" sx={{ width: { xs: '100%', md: 'auto' }, height: { md: 56 }, px: { md: 5 }, minWidth: { md: 150 } }}>Guardar</Button>
+                            <Button variant="outlined" startIcon={<SettingsIcon />} onClick={abrirConfig}
+                                sx={{ color: '#1a2733', borderColor: '#cdd8e3', width: { xs: '100%', md: 'auto' }, flexShrink: 0 }}>
+                                Configurar mora
+                            </Button>
                         </Box>
                     </Paper>
 
+                    {/* Regla aplicada */}
                     <Alert severity="warning" icon={false} sx={{ bgcolor: '#FDF0D5', color: '#8A5A00', mb: 2 }}>
                         <Typography variant="body2" sx={{ fontWeight: 700, mb: 0.5 }}>Regla aplicada</Typography>
                         <Typography variant="body2">{REGLA_MORA.texto}</Typography>
                         <Typography variant="body2">{REGLA_MORA.ejemplo}</Typography>
                     </Alert>
 
+                    {/* Deudas vencidas */}
                     <Paper sx={{ p: 3, borderRadius: 2, mb: 2 }}>
                         <Typography variant="body2" sx={{ fontWeight: 600, mb: 1 }}>Deudas vencidas</Typography>
                         <Box sx={{ overflowX: 'auto' }}>
-                            <Table size="small" sx={{ minWidth: 780 }}>
+                            <Table size="small" sx={{ minWidth: 820 }}>
                                 <TableHead>
                                     <TableRow sx={{ bgcolor: '#F1F5FA' }}>
-                                        <TableCell><strong>Depto</strong></TableCell>
+                                        <TableCell><strong>Dpto.</strong></TableCell>
                                         <TableCell><strong>Periodo</strong></TableCell>
                                         <TableCell><strong>Deuda original</strong></TableCell>
                                         <TableCell><strong>Meses</strong></TableCell>
@@ -143,7 +167,7 @@ export default function Mora() {
                                             <TableCell>{f.periodo}</TableCell>
                                             <TableCell>{formatBs(f.deudaOriginal)}</TableCell>
                                             <TableCell>{f.meses}</TableCell>
-                                            <TableCell>{(TASA_MORA * 100).toFixed(0)} %</TableCell>
+                                            <TableCell>{config.interesMensual} %</TableCell>
                                             <TableCell sx={{ color: '#D9534F', fontWeight: 600 }}>{formatBs(f.interes)}</TableCell>
                                             <TableCell sx={{ color: '#D9534F', fontWeight: 700 }}>{formatBs(f.deudaActual)}</TableCell>
                                             <TableCell align="center">
@@ -156,24 +180,25 @@ export default function Mora() {
                         </Box>
                     </Paper>
 
+                    {/* Total de la deuda vencida */}
                     <Paper sx={{ p: 2.5, borderRadius: 2, mb: 2, bgcolor: '#FBEAE9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <Typography sx={{ fontWeight: 700, color: '#D9534F' }}>Total de la deuda vencida</Typography>
+                        <Typography sx={{ fontWeight: 700, color: '#D9534F' }}>Total de deuda vencida</Typography>
                         <Typography variant="h3" sx={{ fontWeight: 700, color: '#D9534F' }}>{formatBs(totalVencido)}</Typography>
                     </Paper>
 
+                    {/* Actualizar intereses */}
                     <Box sx={{ display: 'flex', justifyContent: { xs: 'stretch', md: 'flex-end' } }}>
-                        <Button variant="contained" startIcon={<RefreshIcon />} sx={{ width: { xs: '100%', md: 'auto' } }}>
+                        <Button variant="contained" onClick={() => setOpenActualizar(true)} sx={{ width: { xs: '100%', md: 'auto' } }}>
                             Actualizar intereses
                         </Button>
                     </Box>
                 </Box>
             )}
 
-            {/* TAB: Pagos anticipados */}
+            {/* ===================== TAB: ANTICIPOS ===================== */}
             {tab === 'anticipos' && (
                 <Box>
                     <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '2fr 1fr' }, gap: 2, mb: 2 }}>
-                        {/* Registrar pago anticipado */}
                         <Paper sx={{ p: 3, borderRadius: 2, minWidth: 0 }}>
                             <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Registrar pago anticipado</Typography>
                             <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
@@ -193,8 +218,7 @@ export default function Mora() {
                                 <Box sx={{ flex: 1, minWidth: 160 }}>
                                     <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Fecha de pago *</Typography>
                                     <TextField fullWidth type="date" value={form.fecha} onChange={(e) => cambiarForm('fecha', e.target.value)}
-                                        error={!!errores.fecha} helperText={errores.fecha}
-                                        slotProps={{ inputLabel: { shrink: true } }} />
+                                        error={!!errores.fecha} helperText={errores.fecha} slotProps={{ inputLabel: { shrink: true } }} />
                                 </Box>
                                 <Box sx={{ flex: 1, minWidth: 160 }}>
                                     <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Monto anticipado *</Typography>
@@ -208,7 +232,7 @@ export default function Mora() {
                             <TextField fullWidth placeholder="Pago adelantado para proximas expensas" value={form.descripcion}
                                 onChange={(e) => cambiarForm('descripcion', e.target.value)} sx={{ mb: 2 }} />
 
-                            {exito && <Alert severity="success" sx={{ mb: 2 }}>Pago anticipado registrado correctamente</Alert>}
+                            {exitoAnticipo && <Alert severity="success" sx={{ mb: 2 }}>Pago anticipado registrado correctamente</Alert>}
 
                             <Box sx={{ display: 'flex', justifyContent: { xs: 'stretch', md: 'flex-end' } }}>
                                 <Button variant="contained" onClick={registrar} sx={{ width: { xs: '100%', md: 'auto' } }}>
@@ -217,7 +241,6 @@ export default function Mora() {
                             </Box>
                         </Paper>
 
-                        {/* Resumen del departamento */}
                         <Paper sx={{ p: 3, borderRadius: 2, minWidth: 0 }}>
                             <Typography variant="body2" sx={{ fontWeight: 600, mb: 1.5 }}>Resumen del departamento</Typography>
                             <Box sx={{ bgcolor: '#E4EEF5', borderRadius: 2, p: 2, mb: 1.5 }}>
@@ -235,7 +258,6 @@ export default function Mora() {
                         </Paper>
                     </Box>
 
-                    {/* Historial de anticipos */}
                     <Paper sx={{ p: 3, borderRadius: 2 }}>
                         <Typography variant="body2" sx={{ fontWeight: 600, mb: 1 }}>Historial de anticipos</Typography>
                         <Box sx={{ overflowX: 'auto' }}>
@@ -266,13 +288,94 @@ export default function Mora() {
                 </Box>
             )}
 
-            {/* Modal: detalle de una deuda vencida */}
+            {/* ===================== MODAL: CONFIGURAR MORA ===================== */}
+            <Dialog open={openConfig} onClose={() => setOpenConfig(false)} fullWidth maxWidth="sm">
+                <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1.5, fontWeight: 700 }}>
+                    <Box sx={{ width: 36, height: 36, borderRadius: '50%', bgcolor: '#E4EEF5', color: 'primary.main', display: 'grid', placeItems: 'center' }}>
+                        <SettingsIcon fontSize="small" />
+                    </Box>
+                    Configurar mora
+                </DialogTitle>
+                <DialogContent dividers>
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                        Define la regla que se aplicara a las deudas vencidas.
+                    </Typography>
+
+                    <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Interes mensual (%)</Typography>
+                    <TextField fullWidth type="number" value={cfgDraft.interesMensual}
+                        onChange={(e) => cambiarDraft('interesMensual', e.target.value)} sx={{ mb: 2 }}
+                        slotProps={{ input: { endAdornment: <InputAdornment position="end">%</InputAdornment> } }} />
+
+                    <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Aplicar mora desde</Typography>
+                    <Select fullWidth value={cfgDraft.aplicarMoraDesde} onChange={(e) => cambiarDraft('aplicarMoraDesde', e.target.value)} sx={{ mb: 2 }}>
+                        {APLICAR_MORA_DESDE.map((a) => <MenuItem key={a} value={a}>{a}</MenuItem>)}
+                    </Select>
+
+                    <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Tipo de calculo</Typography>
+                    <Select fullWidth value={cfgDraft.tipoCalculo} onChange={(e) => cambiarDraft('tipoCalculo', e.target.value)} sx={{ mb: 2 }}>
+                        {TIPOS_CALCULO.map((t) => <MenuItem key={t} value={t}>{t}</MenuItem>)}
+                    </Select>
+
+                    <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Vigente desde</Typography>
+                    <Select fullWidth value={cfgDraft.vigenteDesde} onChange={(e) => cambiarDraft('vigenteDesde', e.target.value)} sx={{ mb: 1 }}>
+                        {VIGENTE_DESDE.map((v) => <MenuItem key={v} value={v}>{v}</MenuItem>)}
+                    </Select>
+                    <Typography variant="caption" color="text.secondary">Los intereses ya aplicados conservaran la tasa anterior.</Typography>
+                </DialogContent>
+                <DialogActions sx={{ p: 2 }}>
+                    <Button variant="outlined" onClick={() => setOpenConfig(false)}>Cancelar</Button>
+                    <Button variant="contained" onClick={guardarConfig}>Guardar configuracion</Button>
+                </DialogActions>
+            </Dialog>
+
+            {/* ===================== MODAL: ACTUALIZAR INTERESES ===================== */}
+            <Dialog open={openActualizar} onClose={() => !actualizando && setOpenActualizar(false)} fullWidth maxWidth="sm">
+                <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1.5, fontWeight: 700 }}>
+                    <Box sx={{ width: 36, height: 36, borderRadius: '50%', bgcolor: '#FBEAE9', color: '#D9534F', display: 'grid', placeItems: 'center' }}>
+                        <PercentIcon fontSize="small" />
+                    </Box>
+                    Confirmar actualizacion de intereses
+                </DialogTitle>
+                <DialogContent dividers>
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                        Se calculara la mora pendiente del periodo actual.
+                    </Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 600, mb: 1 }}>Resumen de la actualizacion</Typography>
+                    <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, 1fr)' }, gap: 1.5, mb: 2 }}>
+                        <Box sx={{ bgcolor: '#E4EEF5', borderRadius: 2, p: 1.5 }}>
+                            <Typography variant="body2" color="text.secondary">Periodo</Typography>
+                            <Typography variant="body2" sx={{ fontWeight: 700, color: 'primary.main' }}>{PERIODO_ACTUAL_MORA}</Typography>
+                        </Box>
+                        <Box sx={{ bgcolor: '#E4EEF5', borderRadius: 2, p: 1.5 }}>
+                            <Typography variant="body2" color="text.secondary">Deudas por actualizar</Typography>
+                            <Typography variant="body2" sx={{ fontWeight: 700, color: 'primary.main' }}>{filas.length}</Typography>
+                        </Box>
+                        <Box sx={{ bgcolor: '#E4EEF5', borderRadius: 2, p: 1.5 }}>
+                            <Typography variant="body2" color="text.secondary">Interes mensual</Typography>
+                            <Typography variant="body2" sx={{ fontWeight: 700, color: 'primary.main' }}>{config.interesMensual} %</Typography>
+                        </Box>
+                    </Box>
+                    <Alert severity="warning" icon={false} sx={{ bgcolor: '#FDF0D5', color: '#8A5A00' }}>
+                        <Typography variant="body2" sx={{ fontWeight: 700, mb: 0.5 }}>Calculo {config.tipoCalculo.toLowerCase()}</Typography>
+                        <Typography variant="body2">Solo se aplicara el interes que aun no fue registrado. Presionar nuevamente no duplicara el cobro del mismo mes.</Typography>
+                    </Alert>
+                </DialogContent>
+                <DialogActions sx={{ p: 2 }}>
+                    <Button variant="outlined" onClick={() => setOpenActualizar(false)} disabled={actualizando}>Cancelar</Button>
+                    <Button variant="contained" onClick={confirmarActualizacion} disabled={actualizando}
+                        startIcon={actualizando ? <CircularProgress size={16} color="inherit" /> : null}>
+                        {actualizando ? 'Actualizando...' : 'Confirmar actualizacion'}
+                    </Button>
+                </DialogActions>
+            </Dialog>
+
+            {/* ===================== MODAL: VER DETALLE DE DEUDA ===================== */}
             <Dialog open={!!detalle} onClose={() => setDetalle(null)} fullWidth maxWidth="sm">
                 {detalle && (
                     <>
                         <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontWeight: 700 }}>
                             Detalle de la deuda
-                            <IconButton onClick={() => setDetalle(null)}><CloseIcon /></IconButton>
+                            <Button onClick={() => setDetalle(null)} sx={{ minWidth: 0, p: 0.5, color: 'text.secondary' }}><CloseIcon /></Button>
                         </DialogTitle>
                         <DialogContent dividers>
                             <Box sx={{ display: 'flex', justifyContent: 'space-between', py: 0.5 }}>
@@ -293,14 +396,18 @@ export default function Mora() {
                             </Box>
                             <Box sx={{ display: 'flex', justifyContent: 'space-between', py: 0.5 }}>
                                 <Typography variant="body2" color="text.secondary">Tasa mensual</Typography>
-                                <Typography variant="body2" sx={{ fontWeight: 600 }}>{(TASA_MORA * 100).toFixed(0)} %</Typography>
+                                <Typography variant="body2" sx={{ fontWeight: 600 }}>{config.interesMensual} %</Typography>
                             </Box>
 
                             <Divider sx={{ my: 1.5 }} />
-                            <Typography variant="body2" sx={{ fontWeight: 700, mb: 0.5 }}>Interes acumulado mes a mes</Typography>
+                            <Typography variant="body2" sx={{ fontWeight: 700, mb: 0.5 }}>Interes mes a mes</Typography>
                             {Array.from({ length: detalle.meses }).map((_, i) => {
-                                const prev = detalle.deudaOriginal * (1 + TASA_MORA) ** i;
-                                const actual = detalle.deudaOriginal * (1 + TASA_MORA) ** (i + 1);
+                                const prev = config.tipoCalculo === 'Simple'
+                                    ? detalle.deudaOriginal * (1 + tasa * i)
+                                    : detalle.deudaOriginal * (1 + tasa) ** i;
+                                const actual = config.tipoCalculo === 'Simple'
+                                    ? detalle.deudaOriginal * (1 + tasa * (i + 1))
+                                    : detalle.deudaOriginal * (1 + tasa) ** (i + 1);
                                 return (
                                     <Box key={i} sx={{ display: 'flex', justifyContent: 'space-between', py: 0.5 }}>
                                         <Typography variant="body2" color="text.secondary">Mes {i + 1}</Typography>
@@ -322,6 +429,12 @@ export default function Mora() {
                     </>
                 )}
             </Dialog>
+
+            {/* Aviso de exito (guardar config / actualizar intereses) */}
+            <Snackbar open={!!exitoMsg} autoHideDuration={3000} onClose={() => setExitoMsg('')}
+                anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}>
+                <Alert severity="success" onClose={() => setExitoMsg('')} sx={{ width: '100%' }}>{exitoMsg}</Alert>
+            </Snackbar>
         </DashboardLayout>
     );
 }
