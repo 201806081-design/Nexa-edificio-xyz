@@ -1,5 +1,7 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import Login from '../pages/Login/Login';
+import RecuperarContrasena from '../pages/Auth/RecuperarContrasena';
+import RevisaCorreo from '../pages/Auth/RevisaCorreo';
 import Dashboard from '../pages/Dashboard/Dashboard';
 import Usuarios from '../pages/Usuarios/Usuarios';
 import Permisos from '../pages/Permisos/Permisos';
@@ -31,6 +33,10 @@ export default function AppRoutes() {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
+      {/* Recuperacion de contrasena (HU-SE-03) - rutas publicas */}
+      <Route path="/recuperar-contrasena" element={<RecuperarContrasena />} />
+      <Route path="/recuperar-contrasena/enviado" element={<RevisaCorreo />} />
+
       <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
       <Route path="/usuarios" element={<ProtectedRoute rolesPermitidos={['Administrador']}><Usuarios /></ProtectedRoute>} />
       <Route path="/permisos" element={<ProtectedRoute rolesPermitidos={['Administrador']}><Permisos /></ProtectedRoute>} />
