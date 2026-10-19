@@ -2,7 +2,7 @@ import { useState } from 'react';
 import {
     Box, Typography, TextField, Button, Link, Alert, InputAdornment,
 } from '@mui/material';
-import MailOutlineIcon from '@mui/icons-material/MailOutline';
+import MailOutlineIcon from '@mui/icons-material/Email';
 import { useNavigate } from 'react-router-dom';
 import AuthLayout from '../../layouts/AuthLayout';
 
