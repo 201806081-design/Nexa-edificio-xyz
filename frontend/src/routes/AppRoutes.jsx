@@ -2,6 +2,9 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import Login from '../pages/Login/Login';
 import RecuperarContrasena from '../pages/Auth/RecuperarContrasena';
 import RevisaCorreo from '../pages/Auth/RevisaCorreo';
+import CrearNuevaContrasena from '../pages/Auth/CrearNuevaContrasena';
+import ContrasenaActualizada from '../pages/Auth/ContrasenaActualizada';
+import EnlaceVencido from '../pages/Auth/EnlaceVencido';
 import Dashboard from '../pages/Dashboard/Dashboard';
 import Usuarios from '../pages/Usuarios/Usuarios';
 import Permisos from '../pages/Permisos/Permisos';
@@ -36,6 +39,9 @@ export default function AppRoutes() {
       {/* Recuperacion de contrasena (HU-SE-03) - rutas publicas */}
       <Route path="/recuperar-contrasena" element={<RecuperarContrasena />} />
       <Route path="/recuperar-contrasena/enviado" element={<RevisaCorreo />} />
+      <Route path="/restablecer-contrasena" element={<CrearNuevaContrasena />} />
+      <Route path="/restablecer-contrasena/listo" element={<ContrasenaActualizada />} />
+      <Route path="/enlace-vencido" element={<EnlaceVencido />} />
 
       <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
       <Route path="/usuarios" element={<ProtectedRoute rolesPermitidos={['Administrador']}><Usuarios /></ProtectedRoute>} />
