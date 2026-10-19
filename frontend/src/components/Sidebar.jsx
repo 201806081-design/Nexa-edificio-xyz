@@ -42,7 +42,7 @@ const OPCIONES = {
       { nombre: 'Pagos', icon: <PaymentIcon />, ruta: '/finanzas/pagos' },
       { nombre: 'Estado de cuenta', icon: <ReceiptLongIcon />, ruta: '/finanzas/estado-cuenta' },
       { nombre: 'Ingresos y gastos', icon: <BarChartIcon />, ruta: '/finanzas/ingresos-gastos' },
-      { nombre: 'Mora y anticipos', icon: <ScheduleIcon />, ruta: '/finanzas/mora' },
+      { nombre: 'Mora e intereses', icon: <ScheduleIcon />, ruta: '/finanzas/mora' },
     ],
   },
 };
