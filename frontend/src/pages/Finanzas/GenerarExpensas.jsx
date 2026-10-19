@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import {
-    Box, Typography, Select, MenuItem, Paper, Button, Chip, TextField,
+    Box, Typography, Select, MenuItem, Paper, Button, Chip, TextField, InputAdornment,
     Table, TableHead, TableBody, TableRow, TableCell, Alert,
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
@@ -12,14 +12,10 @@ import { formatBs } from '../../constants/finanzasMock';
 const PRECIO_M3 = Number(CONFIG_AGUA.precioM3);
 const TARIFA_MIN = Number(CONFIG_AGUA.tarifaMinima);
 
-// Calcula consumo, cargo de agua (con tarifa minima) y total de un departamento
-function calcular(depto, lecturaActual) {
-    const actual = Number(lecturaActual);
-    const consumo = Math.max(0, actual - depto.lecturaAnterior);
+// Cargo de agua automatico: consumo x precio, aplicando la tarifa minima
+function aguaAutomatica(consumo) {
     const cargo = consumo * PRECIO_M3;
-    const agua = cargo < TARIFA_MIN ? TARIFA_MIN : cargo; // se aplica el minimo
-    const total = depto.base + agua;
-    return { consumo, agua, total };
+    return cargo < TARIFA_MIN ? TARIFA_MIN : cargo;
 }
 
 export default function GenerarExpensas() {
@@ -29,13 +25,28 @@ export default function GenerarExpensas() {
     const [lecturas, setLecturas] = useState(
         Object.fromEntries(DEPARTAMENTOS_ACTIVOS.map((d) => [d.departamento, d.lecturaAnterior])),
     );
+    // Agua editada manualmente por departamento (si no hay, se usa la automatica)
+    const [aguaManual, setAguaManual] = useState({});
 
-    const cambiarLectura = (dep, valor) => setLecturas((l) => ({ ...l, [dep]: valor }));
+    const cambiarLectura = (dep, valor) => {
+        setLecturas((l) => ({ ...l, [dep]: valor }));
+        // al cambiar la lectura, el agua vuelve a calcularse automaticamente
+        setAguaManual((a) => ({ ...a, [dep]: undefined }));
+    };
+    const cambiarAgua = (dep, valor) => setAguaManual((a) => ({ ...a, [dep]: valor }));
 
-    // Filas calculadas + totales del periodo
-    const filas = DEPARTAMENTOS_ACTIVOS.map((d) => ({ ...d, ...calcular(d, lecturas[d.departamento]) }));
+    // Filas calculadas. agua = valor editado si existe, si no el automatico.
+    const filas = DEPARTAMENTOS_ACTIVOS.map((d) => {
+        const actual = Number(lecturas[d.departamento]);
+        const consumo = Math.max(0, actual - d.lecturaAnterior);
+        const auto = aguaAutomatica(consumo);
+        const override = aguaManual[d.departamento];
+        const aguaVal = (override !== undefined && override !== '') ? Number(override) : auto;
+        const aguaInput = override !== undefined ? override : auto; // lo que se muestra en el campo
+        return { ...d, consumo, aguaVal, aguaInput, total: d.base + aguaVal };
+    });
     const totalBase = filas.reduce((acc, f) => acc + f.base, 0);
-    const totalAgua = filas.reduce((acc, f) => acc + f.agua, 0);
+    const totalAgua = filas.reduce((acc, f) => acc + f.aguaVal, 0);
     const totalGeneral = totalBase + totalAgua;
 
     const generar = () => {
@@ -79,11 +90,11 @@ export default function GenerarExpensas() {
                     ))}
                 </Box>
                 <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)' }, gap: 1.5 }}>
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid #CFDCEA', boxShadow: '0 1px 3px rgba(19, 43, 62, 0.08), 0 4px 12px rgba(19, 43, 62, 0.08)', borderRadius: 2, p: 1.5 }}>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid #CFDCEA', boxShadow: '0 1px 4px rgba(19, 43, 62, 0.06)', borderRadius: 2, p: 1.5 }}>
                         <Typography variant="body2" color="text.secondary">Agua / m³</Typography>
                         <Typography sx={{ fontWeight: 700 }}>{formatBs(PRECIO_M3)}</Typography>
                     </Box>
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid #CFDCEA', boxShadow: '0 1px 3px rgba(19, 43, 62, 0.08), 0 4px 12px rgba(19, 43, 62, 0.08)', borderRadius: 2, p: 1.5 }}>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid #CFDCEA', boxShadow: '0 1px 4px rgba(19, 43, 62, 0.06)', borderRadius: 2, p: 1.5 }}>
                         <Typography variant="body2" color="text.secondary">Tarifa minima agua</Typography>
                         <Typography sx={{ fontWeight: 700 }}>{formatBs(TARIFA_MIN)}</Typography>
                     </Box>
@@ -97,7 +108,7 @@ export default function GenerarExpensas() {
                     <Typography variant="body2" color="text.secondary">{filas.length} departamentos activos</Typography>
                 </Box>
                 <Box sx={{ overflowX: 'auto' }}>
-                    <Table size="small" sx={{ minWidth: 720 }}>
+                    <Table size="small" sx={{ minWidth: 760 }}>
                         <TableHead>
                             <TableRow sx={{ bgcolor: '#F1F5FA' }}>
                                 <TableCell><strong>Depto</strong></TableCell>
@@ -124,7 +135,12 @@ export default function GenerarExpensas() {
                                             sx={{ width: 100 }} />
                                     </TableCell>
                                     <TableCell>{f.consumo} m³</TableCell>
-                                    <TableCell sx={{ color: '#2E9D78', fontWeight: 600 }}>{formatBs(f.agua)}</TableCell>
+                                    <TableCell>
+                                        <TextField size="small" type="number" value={f.aguaInput}
+                                            onChange={(e) => cambiarAgua(f.departamento, e.target.value)}
+                                            sx={{ width: 110 }}
+                                            slotProps={{ input: { startAdornment: <InputAdornment position="start">Bs</InputAdornment> } }} />
+                                    </TableCell>
                                     <TableCell sx={{ fontWeight: 700 }}>{formatBs(f.total)}</TableCell>
                                     <TableCell><Chip label={f.estado} size="small" sx={{ bgcolor: '#FDF0D5', color: '#B6802A' }} /></TableCell>
                                 </TableRow>

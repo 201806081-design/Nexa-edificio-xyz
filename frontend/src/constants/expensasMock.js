@@ -16,11 +16,11 @@ export const RESUMEN_EXPENSAS = {
     pagado: 3500,
 };
 
-// Expensas ya generadas (listado). estado: 'Pendiente' | 'Pagado'
+// Expensas ya generadas (listado). monto = base + agua. estado: 'Pendiente' | 'Pagado'
 export const EXPENSAS_MOCK = [
-    { id: 1, departamento: 'Depto. 101', periodo: 'Octubre 2026', monto: 350, estado: 'Pendiente' },
-    { id: 2, departamento: 'Depto. 203', periodo: 'Octubre 2026', monto: 350, estado: 'Pagado' },
-    { id: 3, departamento: 'Depto. 302', periodo: 'Octubre 2026', monto: 350, estado: 'Pendiente' },
+    { id: 1, departamento: 'Depto. 101', tipo: 'A', periodo: 'Octubre 2026', base: 300, agua: 15, monto: 315, estado: 'Pendiente' },
+    { id: 2, departamento: 'Depto. 203', tipo: 'B', periodo: 'Octubre 2026', base: 350, agua: 15, monto: 365, estado: 'Pagado' },
+    { id: 3, departamento: 'Depto. 302', tipo: 'C', periodo: 'Octubre 2026', base: 400, agua: 15, monto: 415, estado: 'Pendiente' },
 ];
 
 // Departamentos activos para "Generar expensas".

@@ -2,7 +2,9 @@ import { useState } from 'react';
 import {
     Box, Typography, Select, MenuItem, Paper, Button, Chip, IconButton,
     Table, TableHead, TableBody, TableRow, TableCell, InputAdornment, TextField, Divider,
+    Dialog, DialogTitle, DialogContent,
 } from '@mui/material';
+import CloseIcon from '@mui/icons-material/Close';
 import AddIcon from '@mui/icons-material/Add';
 import SettingsIcon from '@mui/icons-material/Settings';
 import SearchIcon from '@mui/icons-material/Search';
@@ -34,6 +36,7 @@ export default function Expensas() {
     const [periodo, setPeriodo] = useState(PERIODOS[0]);
     const [estado, setEstado] = useState('Todos');
     const [busqueda, setBusqueda] = useState('');
+    const [detalle, setDetalle] = useState(null); // expensa seleccionada para el modal
 
     const expensas = EXPENSAS_MOCK.filter((e) =>
         (estado === 'Todos' || e.estado === estado) &&
@@ -115,7 +118,7 @@ export default function Expensas() {
                                 <TableCell>{formatBs(e.monto)}</TableCell>
                                 <TableCell><Chip label={e.estado} size="small" sx={estadoChipSx(e.estado)} /></TableCell>
                                 <TableCell align="center">
-                                    <IconButton color="primary"><VisibilityIcon /></IconButton>
+                                    <IconButton color="primary" onClick={() => setDetalle(e)}><VisibilityIcon /></IconButton>
                                 </TableCell>
                             </TableRow>
                         ))}
@@ -135,11 +138,51 @@ export default function Expensas() {
                         <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>{formatBs(e.monto)}</Typography>
                         <Divider sx={{ mb: 1 }} />
                         <Box sx={{ display: 'flex', justifyContent: 'center' }}>
-                            <IconButton color="primary"><VisibilityIcon /></IconButton>
+                            <IconButton color="primary" onClick={() => setDetalle(e)}><VisibilityIcon /></IconButton>
                         </Box>
                     </Paper>
                 ))}
             </Box>
+
+            {/* Modal: detalle de la expensa */}
+            <Dialog open={!!detalle} onClose={() => setDetalle(null)} fullWidth maxWidth="sm">
+                {detalle && (
+                    <>
+                        <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontWeight: 700 }}>
+                            Detalle de la expensa
+                            <IconButton onClick={() => setDetalle(null)}><CloseIcon /></IconButton>
+                        </DialogTitle>
+                        <DialogContent dividers>
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5 }}>
+                                <Typography sx={{ fontWeight: 700 }}>{detalle.departamento}</Typography>
+                                <Chip label={detalle.estado} size="small" sx={estadoChipSx(detalle.estado)} />
+                            </Box>
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', py: 0.5 }}>
+                                <Typography variant="body2" color="text.secondary">Periodo</Typography>
+                                <Typography variant="body2" sx={{ fontWeight: 600 }}>{detalle.periodo}</Typography>
+                            </Box>
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', py: 0.5 }}>
+                                <Typography variant="body2" color="text.secondary">Tipo de departamento</Typography>
+                                <Typography variant="body2" sx={{ fontWeight: 600 }}>{detalle.tipo}</Typography>
+                            </Box>
+                            <Divider sx={{ my: 1.5 }} />
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', py: 0.5 }}>
+                                <Typography variant="body2" color="text.secondary">Expensa base</Typography>
+                                <Typography variant="body2" sx={{ fontWeight: 600 }}>{formatBs(detalle.base)}</Typography>
+                            </Box>
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', py: 0.5 }}>
+                                <Typography variant="body2" color="text.secondary">Agua</Typography>
+                                <Typography variant="body2" sx={{ fontWeight: 600, color: '#2E9D78' }}>{formatBs(detalle.agua)}</Typography>
+                            </Box>
+                            <Divider sx={{ my: 1.5 }} />
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', py: 0.5 }}>
+                                <Typography variant="body2" sx={{ fontWeight: 700 }}>Total</Typography>
+                                <Typography variant="h3" color="primary.main" sx={{ fontWeight: 700 }}>{formatBs(detalle.monto)}</Typography>
+                            </Box>
+                        </DialogContent>
+                    </>
+                )}
+            </Dialog>
         </DashboardLayout>
     );
 }
