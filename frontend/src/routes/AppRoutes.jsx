@@ -24,6 +24,7 @@ import ConfiguracionFinanciera from '../pages/Finanzas/ConfiguracionFinanciera';
 import Pagos from '../pages/Finanzas/Pagos';
 import RegistrarPago from '../pages/Finanzas/RegistrarPago';
 import PagoRegistrado from '../pages/Finanzas/PagoRegistrado';
+import ConciliacionBancaria from '../pages/Finanzas/ConciliacionBancaria';
 import GenerarExpensas from '../pages/Finanzas/GenerarExpensas';
 import EstadoCuenta from '../pages/Finanzas/EstadoCuenta';
 import IngresosGastos from '../pages/Finanzas/IngresosGastos';
@@ -67,6 +68,7 @@ export default function AppRoutes() {
       <Route path="/finanzas/pagos" element={<ProtectedRoute><Pagos /></ProtectedRoute>} />
       <Route path="/finanzas/pagos/registrar" element={<ProtectedRoute><RegistrarPago /></ProtectedRoute>} />
       <Route path="/finanzas/pagos/registrado" element={<ProtectedRoute><PagoRegistrado /></ProtectedRoute>} />
+      <Route path="/finanzas/pagos/conciliacion" element={<ProtectedRoute><ConciliacionBancaria /></ProtectedRoute>} />
       <Route path="/finanzas/configuracion" element={<ProtectedRoute><ConfiguracionFinanciera /></ProtectedRoute>} />
       <Route path="/finanzas/expensas/generar" element={<ProtectedRoute><GenerarExpensas /></ProtectedRoute>} />
       <Route path="/finanzas/estado-cuenta" element={<ProtectedRoute><EstadoCuenta /></ProtectedRoute>} />
