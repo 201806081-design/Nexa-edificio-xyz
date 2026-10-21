@@ -58,7 +58,9 @@ function ContenidoMenu({ onNavegar }) {
 
   const [finanzasAbierto, setFinanzasAbierto] = useState(location.pathname.startsWith('/finanzas'));
 
-  const ir = (ruta) => {
+  const ir = (e, ruta) => {
+    // Soltar el focus para evitar que el estilo "activo" quede pegado en movil
+    if (e?.currentTarget?.blur) e.currentTarget.blur();
     navigate(ruta);
     if (onNavegar) onNavegar();
   };
@@ -67,11 +69,14 @@ function ContenidoMenu({ onNavegar }) {
     borderRadius: 2,
     mb: 0.5,
     bgcolor: activo ? '#1F5F8B' : 'transparent',
-    '&:hover': { bgcolor: activo ? '#1F5F8B' : 'rgba(255,255,255,0.08)' },
+    // Hover solo en dispositivos con cursor real (no en celular — evita que quede pegado)
+    '@media (hover: hover)': {
+      '&:hover': { bgcolor: activo ? '#1F5F8B' : 'rgba(255,255,255,0.08)' },
+    },
   });
 
   return (
-    <Box sx={{ bgcolor: '#132B3E', color: '#fff', height: '100%', display: 'flex', flexDirection: 'column', p: 2 }}>
+    <Box sx={{ bgcolor: '#132B3E', color: '#fff', minHeight: '100%', height: '100%', display: 'flex', flexDirection: 'column', p: 2, overflowY: 'auto' }}>
       {/* Logo */}
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, p: 1, mb: 2 }}>
         <ApartmentIcon sx={{ fontSize: 36 }} />
@@ -102,7 +107,7 @@ function ContenidoMenu({ onNavegar }) {
                     {opcion.subopciones.map((sub) => {
                       const activo = location.pathname === sub.ruta;
                       return (
-                        <ListItemButton key={sub.nombre} onClick={() => ir(sub.ruta)} sx={estiloItem(activo)}>
+                        <ListItemButton key={sub.nombre} onClick={(e) => ir(e, sub.ruta)} sx={estiloItem(activo)}>
                           <ListItemIcon sx={{ color: '#fff', minWidth: 36 }}>{sub.icon}</ListItemIcon>
                           <ListItemText primary={sub.nombre} primaryTypographyProps={{ fontSize: '0.9rem' }} />
                         </ListItemButton>
@@ -120,7 +125,7 @@ function ContenidoMenu({ onNavegar }) {
             <ListItemButton
               key={nombre}
               aria-current={activo ? 'page' : undefined}
-              onClick={() => ir(opcion.ruta)}
+              onClick={(e) => ir(e, opcion.ruta)}
               sx={estiloItem(activo)}
             >
               <ListItemIcon sx={{ color: '#fff', minWidth: 40 }}>{opcion.icon}</ListItemIcon>
@@ -164,7 +169,7 @@ export default function Sidebar() {
             <Typography sx={{ fontWeight: 700, lineHeight: 1, fontSize: '0.95rem' }}>EDIFICIO XYZ</Typography>
             <Typography sx={{ opacity: 0.8, fontSize: '0.7rem' }}>Sistema de Gestion</Typography>
           </Box>
-          <IconButton color="inherit" onClick={() => setAbierto(true)}>
+          <IconButton color="inherit" onClick={(e) => { e.currentTarget.blur(); setAbierto(true); }}>
             <MenuIcon />
           </IconButton>
         </Toolbar>
@@ -176,7 +181,7 @@ export default function Sidebar() {
         open={abierto}
         onClose={() => setAbierto(false)}
         sx={{ display: { xs: 'block', md: 'none' } }}
-        slotProps={{ paper: { sx: { width: ANCHO } } }}
+        slotProps={{ paper: { sx: { width: ANCHO, bgcolor: '#132B3E', color: '#fff' } } }}
       >
         <ContenidoMenu onNavegar={() => setAbierto(false)} />
       </Drawer>

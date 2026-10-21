@@ -8,6 +8,9 @@ import SettingsIcon from '@mui/icons-material/Settings';
 import PercentIcon from '@mui/icons-material/Percent';
 import CloseIcon from '@mui/icons-material/Close';
 import VisibilityIcon from '@mui/icons-material/Visibility';
+import EventIcon from '@mui/icons-material/Event';
+import CalculateIcon from '@mui/icons-material/Calculate';
+import CalendarMonthIcon from '@mui/icons-material/CalendarMonth';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import {
     CONFIG_MORA, APLICAR_MORA_DESDE, TIPOS_CALCULO, VIGENTE_DESDE, PERIODO_ACTUAL_MORA,
@@ -16,12 +19,23 @@ import {
 import { REGLAS_PERIODO, DIAS_VENCIMIENTO } from '../../constants/configuracionMock';
 import { formatBs } from '../../constants/finanzasMock';
 
-// Dato de la regla vigente (solo lectura, en recuadro)
-function DatoRegla({ etiqueta, valor }) {
+// Dato de la regla vigente (solo lectura, en recuadro con icono y color semantico)
+function DatoRegla({ etiqueta, valor, icon, color, bg }) {
     return (
-        <Box sx={{ minWidth: 0, border: '1px solid #CFDCEA', boxShadow: '0 1px 3px rgba(19, 43, 62, 0.06)', borderRadius: 2, p: 1.5, bgcolor: '#fff' }}>
-            <Typography variant="body2" color="text.secondary">{etiqueta}</Typography>
-            <Typography variant="body2" sx={{ fontWeight: 700 }}>{valor}</Typography>
+        <Box sx={{
+            minWidth: 0,
+            border: '1px solid #B8CDE0',
+            boxShadow: '0 1px 3px rgba(19, 43, 62, 0.1), 0 4px 10px rgba(19, 43, 62, 0.08)',
+            borderRadius: 2, p: 1.5, bgcolor: '#fff',
+            display: 'flex', alignItems: 'center', gap: 1.5,
+        }}>
+            <Box sx={{ flexShrink: 0, width: 40, height: 40, borderRadius: '50%', bgcolor: bg, color, display: 'grid', placeItems: 'center' }}>
+                {icon}
+            </Box>
+            <Box sx={{ minWidth: 0 }}>
+                <Typography variant="body2" color="text.secondary">{etiqueta}</Typography>
+                <Typography variant="body2" sx={{ fontWeight: 700, color }}>{valor}</Typography>
+            </Box>
         </Box>
     );
 }
@@ -86,10 +100,14 @@ export default function Mora() {
                 <Typography variant="body2" sx={{ fontWeight: 600, mb: 1.5 }}>Regla de mora vigente</Typography>
                 <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'flex-start', justifyContent: 'space-between' }}>
                     <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(4, 1fr)' }, gap: 2, flex: 1, minWidth: 0 }}>
-                        <DatoRegla etiqueta="Interes mensual" valor={`${config.interesMensual} %`} />
-                        <DatoRegla etiqueta="Aplicar desde" valor={config.aplicarMoraDesde} />
-                        <DatoRegla etiqueta="Tipo de calculo" valor={config.tipoCalculo} />
-                        <DatoRegla etiqueta="Dia de vencimiento" valor={`Dia ${diaVencimiento}`} />
+                        <DatoRegla etiqueta="Interes mensual" valor={`${config.interesMensual} %`}
+                            icon={<PercentIcon />} color="#E5A33B" bg="#FDF0D5" />
+                        <DatoRegla etiqueta="Aplicar desde" valor={config.aplicarMoraDesde}
+                            icon={<EventIcon />} color="#1F5F8B" bg="#E4EEF5" />
+                        <DatoRegla etiqueta="Tipo de calculo" valor={config.tipoCalculo}
+                            icon={<CalculateIcon />} color="#8E6DD1" bg="#EFEAF8" />
+                        <DatoRegla etiqueta="Dia de vencimiento" valor={`Dia ${diaVencimiento}`}
+                            icon={<CalendarMonthIcon />} color="#2E9D78" bg="#E4F4EE" />
                     </Box>
                     <Button variant="outlined" startIcon={<SettingsIcon />} onClick={abrirConfig}
                         sx={{ color: '#1a2733', borderColor: '#cdd8e3', width: { xs: '100%', md: 'auto' }, flexShrink: 0 }}>

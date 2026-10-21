@@ -262,7 +262,21 @@ export default function FlujoCaja() {
                                                 <ResponsiveContainer width="100%" height="100%">
                                                     <PieChart>
                                                         <Pie data={flujo.ingresosList} dataKey="value" nameKey="name"
-                                                            innerRadius={55} outerRadius={85} paddingAngle={2}>
+                                                            innerRadius={55} outerRadius={85} paddingAngle={2}
+                                                            labelLine={false}
+                                                            label={({ cx, cy, midAngle, innerRadius, outerRadius, percent }) => {
+                                                                if (percent < 0.05) return null; // no mostrar % en porciones muy chicas
+                                                                const RAD = Math.PI / 180;
+                                                                const r = innerRadius + (outerRadius - innerRadius) / 2;
+                                                                const x = cx + r * Math.cos(-midAngle * RAD);
+                                                                const y = cy + r * Math.sin(-midAngle * RAD);
+                                                                return (
+                                                                    <text x={x} y={y} fill="#fff" fontSize={12} fontWeight={700}
+                                                                        textAnchor="middle" dominantBaseline="central">
+                                                                        {(percent * 100).toFixed(0)}%
+                                                                    </text>
+                                                                );
+                                                            }}>
                                                             {flujo.ingresosList.map((e) => <Cell key={e.name} fill={e.color} />)}
                                                         </Pie>
                                                         <Tooltip formatter={(v) => formatBs(v)} />
@@ -289,7 +303,21 @@ export default function FlujoCaja() {
                                                 <ResponsiveContainer width="100%" height="100%">
                                                     <PieChart>
                                                         <Pie data={flujo.egresosList} dataKey="value" nameKey="name"
-                                                            innerRadius={55} outerRadius={85} paddingAngle={2}>
+                                                            innerRadius={55} outerRadius={85} paddingAngle={2}
+                                                            labelLine={false}
+                                                            label={({ cx, cy, midAngle, innerRadius, outerRadius, percent }) => {
+                                                                if (percent < 0.05) return null; // no mostrar % en porciones muy chicas
+                                                                const RAD = Math.PI / 180;
+                                                                const r = innerRadius + (outerRadius - innerRadius) / 2;
+                                                                const x = cx + r * Math.cos(-midAngle * RAD);
+                                                                const y = cy + r * Math.sin(-midAngle * RAD);
+                                                                return (
+                                                                    <text x={x} y={y} fill="#fff" fontSize={12} fontWeight={700}
+                                                                        textAnchor="middle" dominantBaseline="central">
+                                                                        {(percent * 100).toFixed(0)}%
+                                                                    </text>
+                                                                );
+                                                            }}>
                                                             {flujo.egresosList.map((e) => <Cell key={e.name} fill={e.color} />)}
                                                         </Pie>
                                                         <Tooltip formatter={(v) => formatBs(v)} />
