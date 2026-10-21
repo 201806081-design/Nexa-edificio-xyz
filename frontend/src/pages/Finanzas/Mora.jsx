@@ -13,6 +13,7 @@ import {
     CONFIG_MORA, APLICAR_MORA_DESDE, TIPOS_CALCULO, VIGENTE_DESDE, PERIODO_ACTUAL_MORA,
     REGLA_MORA, DEUDAS_VENCIDAS,
 } from '../../constants/moraMock';
+import { REGLAS_PERIODO, DIAS_VENCIMIENTO } from '../../constants/configuracionMock';
 import { formatBs } from '../../constants/finanzasMock';
 
 // Dato de la regla vigente (solo lectura, en recuadro)
@@ -27,10 +28,12 @@ function DatoRegla({ etiqueta, valor }) {
 
 export default function Mora() {
     const [config, setConfig] = useState(CONFIG_MORA);
+    // El dia de vencimiento es compartido con Configuracion financiera de Expensas.
+    const [diaVencimiento, setDiaVencimiento] = useState(REGLAS_PERIODO.diaVencimiento);
 
     const [detalle, setDetalle] = useState(null);
     const [openConfig, setOpenConfig] = useState(false);
-    const [cfgDraft, setCfgDraft] = useState(CONFIG_MORA);
+    const [cfgDraft, setCfgDraft] = useState({ ...CONFIG_MORA, diaVencimiento: REGLAS_PERIODO.diaVencimiento });
     const [openActualizar, setOpenActualizar] = useState(false);
     const [actualizando, setActualizando] = useState(false);
     const [exitoMsg, setExitoMsg] = useState('');
@@ -45,8 +48,21 @@ export default function Mora() {
     });
     const totalVencido = filas.reduce((acc, f) => acc + f.deudaActual, 0);
 
-    const abrirConfig = () => { setCfgDraft(config); setOpenConfig(true); };
-    const guardarConfig = () => { setConfig(cfgDraft); setOpenConfig(false); setExitoMsg('Configuracion de mora guardada'); };
+    const abrirConfig = () => {
+        // Siempre leer el ultimo valor compartido (por si lo cambiaron en ConfiguracionFinanciera)
+        setCfgDraft({ ...config, diaVencimiento: REGLAS_PERIODO.diaVencimiento });
+        setDiaVencimiento(REGLAS_PERIODO.diaVencimiento);
+        setOpenConfig(true);
+    };
+    const guardarConfig = () => {
+        const { diaVencimiento: nuevoDia, ...resto } = cfgDraft;
+        setConfig(resto);
+        // Sincroniza con la configuracion financiera (mutacion mock compartida)
+        REGLAS_PERIODO.diaVencimiento = nuevoDia;
+        setDiaVencimiento(nuevoDia);
+        setOpenConfig(false);
+        setExitoMsg('Configuracion de mora guardada');
+    };
     const cambiarDraft = (campo, valor) => setCfgDraft((c) => ({ ...c, [campo]: valor }));
 
     const confirmarActualizacion = () => {
@@ -69,10 +85,11 @@ export default function Mora() {
             <Paper sx={{ p: 3, borderRadius: 2, mb: 2 }}>
                 <Typography variant="body2" sx={{ fontWeight: 600, mb: 1.5 }}>Regla de mora vigente</Typography>
                 <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'flex-start', justifyContent: 'space-between' }}>
-                    <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, 1fr)' }, gap: 2, flex: 1, minWidth: 0 }}>
+                    <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(4, 1fr)' }, gap: 2, flex: 1, minWidth: 0 }}>
                         <DatoRegla etiqueta="Interes mensual" valor={`${config.interesMensual} %`} />
                         <DatoRegla etiqueta="Aplicar desde" valor={config.aplicarMoraDesde} />
                         <DatoRegla etiqueta="Tipo de calculo" valor={config.tipoCalculo} />
+                        <DatoRegla etiqueta="Dia de vencimiento" valor={`Dia ${diaVencimiento}`} />
                     </Box>
                     <Button variant="outlined" startIcon={<SettingsIcon />} onClick={abrirConfig}
                         sx={{ color: '#1a2733', borderColor: '#cdd8e3', width: { xs: '100%', md: 'auto' }, flexShrink: 0 }}>
@@ -161,6 +178,14 @@ export default function Mora() {
                         {APLICAR_MORA_DESDE.map((a) => <MenuItem key={a} value={a}>{a}</MenuItem>)}
                     </Select>
 
+                    <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Dia de vencimiento</Typography>
+                    <Select fullWidth value={cfgDraft.diaVencimiento} onChange={(e) => cambiarDraft('diaVencimiento', e.target.value)} sx={{ mb: 0.5 }}>
+                        {DIAS_VENCIMIENTO.map((d) => <MenuItem key={d} value={d}>{`Dia ${d}`}</MenuItem>)}
+                    </Select>
+                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 2 }}>
+                        Compartido con la configuracion financiera de expensas. Al cambiarlo aqui, tambien cambia alla.
+                    </Typography>
+
                     <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Tipo de calculo</Typography>
                     <Select fullWidth value={cfgDraft.tipoCalculo} onChange={(e) => cambiarDraft('tipoCalculo', e.target.value)} sx={{ mb: 2 }}>
                         {TIPOS_CALCULO.map((t) => <MenuItem key={t} value={t}>{t}</MenuItem>)}
@@ -230,16 +255,30 @@ export default function Mora() {
                         <DialogContent dividers>
                             <Box sx={{ display: 'flex', justifyContent: 'space-between', py: 0.5 }}>
                                 <Typography variant="body2" color="text.secondary">Departamento</Typography>
-                                <Typography variant="body2" sx={{ fontWeight: 600 }}>{detalle.depto}</Typography>
+                                <Typography variant="body2" sx={{ fontWeight: 600 }}>{detalle.depto}{detalle.tipo ? ` — Tipo ${detalle.tipo}` : ''}</Typography>
                             </Box>
                             <Box sx={{ display: 'flex', justifyContent: 'space-between', py: 0.5 }}>
                                 <Typography variant="body2" color="text.secondary">Periodo</Typography>
                                 <Typography variant="body2" sx={{ fontWeight: 600 }}>{detalle.periodo}</Typography>
                             </Box>
+
+                            {/* Desglose: expensa base + agua = deuda original */}
+                            <Divider sx={{ my: 1 }} />
+                            <Typography variant="body2" sx={{ fontWeight: 700, mb: 0.5 }}>Composicion de la deuda</Typography>
                             <Box sx={{ display: 'flex', justifyContent: 'space-between', py: 0.5 }}>
-                                <Typography variant="body2" color="text.secondary">Deuda original</Typography>
-                                <Typography variant="body2" sx={{ fontWeight: 600 }}>{formatBs(detalle.deudaOriginal)}</Typography>
+                                <Typography variant="body2" color="text.secondary">Expensa base {detalle.tipo ? `(Tipo ${detalle.tipo})` : ''}</Typography>
+                                <Typography variant="body2" sx={{ fontWeight: 600 }}>{formatBs(detalle.expensaBase ?? 0)}</Typography>
                             </Box>
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', py: 0.5 }}>
+                                <Typography variant="body2" color="text.secondary">Agua</Typography>
+                                <Typography variant="body2" sx={{ fontWeight: 600, color: '#2E9D78' }}>{formatBs(detalle.agua ?? 0)}</Typography>
+                            </Box>
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', py: 0.5, borderTop: '1px dashed #CFDCEA', mt: 0.5, pt: 0.75 }}>
+                                <Typography variant="body2" sx={{ fontWeight: 700 }}>Deuda original</Typography>
+                                <Typography variant="body2" sx={{ fontWeight: 700 }}>{formatBs(detalle.deudaOriginal)}</Typography>
+                            </Box>
+
+                            <Divider sx={{ my: 1.5 }} />
                             <Box sx={{ display: 'flex', justifyContent: 'space-between', py: 0.5 }}>
                                 <Typography variant="body2" color="text.secondary">Meses de atraso</Typography>
                                 <Typography variant="body2" sx={{ fontWeight: 600 }}>{detalle.meses}</Typography>

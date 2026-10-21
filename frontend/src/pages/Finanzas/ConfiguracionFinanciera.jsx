@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import {
-    Box, Typography, Paper, Button, Select, MenuItem, TextField, Alert, InputAdornment,
+    Box, Typography, Paper, Button, Select, MenuItem, TextField, Alert, InputAdornment, Snackbar,
 } from '@mui/material';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import { useNavigate } from 'react-router-dom';
@@ -28,13 +28,35 @@ function TarjetaTipo({ tipo, valor, onChange }) {
 
 export default function ConfiguracionFinanciera() {
     const navigate = useNavigate();
-    const [base, setBase] = useState(EXPENSA_BASE);
-    const [agua, setAgua] = useState(CONFIG_AGUA);
-    const [reglas, setReglas] = useState(REGLAS_PERIODO);
+    const [base, setBase] = useState({ ...EXPENSA_BASE });
+    const [agua, setAgua] = useState({ ...CONFIG_AGUA });
+    const [reglas, setReglas] = useState({ ...REGLAS_PERIODO });
+    const [guardado, setGuardado] = useState(false);
 
     const cambiarBase = (tipo, valor) => setBase((b) => ({ ...b, [tipo]: valor }));
     const cambiarAgua = (campo, valor) => setAgua((a) => ({ ...a, [campo]: valor }));
     const cambiarReglas = (campo, valor) => setReglas((r) => ({ ...r, [campo]: valor }));
+
+    // Guarda los cambios mutando los mocks compartidos (sincroniza con Mora e intereses y con el resto del sistema).
+    // Es la forma de persistir en mock mientras no haya backend.
+    const guardarConfiguracion = () => {
+        // Expensa base por tipo (A/B/C)
+        EXPENSA_BASE.A = base.A;
+        EXPENSA_BASE.B = base.B;
+        EXPENSA_BASE.C = base.C;
+
+        // Configuracion de agua
+        CONFIG_AGUA.precioM3 = agua.precioM3;
+        CONFIG_AGUA.tarifaMinima = agua.tarifaMinima;
+        CONFIG_AGUA.aplicarMinimo = agua.aplicarMinimo;
+
+        // Reglas del periodo (dia de vencimiento + moneda) — compartidas con Mora e intereses
+        REGLAS_PERIODO.diaVencimiento = reglas.diaVencimiento;
+        REGLAS_PERIODO.moneda = reglas.moneda;
+
+        setGuardado(true);
+        setTimeout(() => navigate('/finanzas/expensas'), 1200);
+    };
 
     return (
         <DashboardLayout>
@@ -97,7 +119,7 @@ export default function ConfiguracionFinanciera() {
                     <Typography variant="h3" sx={{ fontSize: '1.1rem', fontWeight: 600, mb: 2 }}>
                         Reglas del periodo
                     </Typography>
-                    <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', mb: 2 }}>
+                    <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', mb: 1 }}>
                         <Box sx={{ flex: 1, minWidth: 160 }}>
                             <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Dia de vencimiento</Typography>
                             <Select fullWidth value={reglas.diaVencimiento} onChange={(e) => cambiarReglas('diaVencimiento', e.target.value)}>
@@ -111,6 +133,9 @@ export default function ConfiguracionFinanciera() {
                             </Select>
                         </Box>
                     </Box>
+                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 2 }}>
+                        El dia de vencimiento se sincroniza con Mora e intereses.
+                    </Typography>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, bgcolor: '#E4F4EE', borderRadius: 2, p: 2 }}>
                         <CheckCircleIcon sx={{ color: '#2E9D78' }} />
                         <Box>
@@ -126,10 +151,14 @@ export default function ConfiguracionFinanciera() {
                 <Button variant="outlined" onClick={() => navigate('/finanzas/expensas')} sx={{ width: { xs: '100%', md: 'auto' } }}>
                     Cancelar
                 </Button>
-                <Button variant="contained" onClick={() => navigate('/finanzas/expensas')} sx={{ width: { xs: '100%', md: 'auto' } }}>
-                    Guardar configuracion
+                <Button variant="contained" onClick={guardarConfiguracion} disabled={guardado} sx={{ width: { xs: '100%', md: 'auto' } }}>
+                    {guardado ? 'Guardado' : 'Guardar configuracion'}
                 </Button>
             </Box>
+
+            <Snackbar open={guardado} autoHideDuration={1500} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}>
+                <Alert severity="success" sx={{ width: '100%' }}>Configuracion guardada</Alert>
+            </Snackbar>
         </DashboardLayout>
     );
 }
