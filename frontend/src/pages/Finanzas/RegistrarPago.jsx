@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import {
-    Box, Typography, Paper, Button, Select, MenuItem, TextField, Alert,
+    Box, Typography, Paper, Button, Select, MenuItem, TextField, Alert, Chip,
     Table, TableHead, TableBody, TableRow, TableCell,
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
@@ -34,6 +34,31 @@ const fechaBonita = (iso) => {
 
 const PASOS = ['1. Selecciona el departamento', '2. Distribuye el monto', '3. Confirma el pago'];
 
+// Config dinamica del campo "Referencia" segun el medio de pago
+const REF_CONFIG = {
+    'Transferencia': {
+        label: 'N.º de transferencia',
+        placeholder: '1234567890',
+        ayuda: 'Es el N.º de operacion que da el banco emisor en el comprobante de quien paga. (Ejemplo: "Operacion 20261019-0045721"). No es el numero de cuenta del edificio.',
+    },
+    'QR': {
+        label: 'N.º de operacion QR',
+        placeholder: '1234567890',
+        ayuda: 'Es el N.º de operacion que da la app bancaria al escanear el QR del edificio. Aparece en el comprobante del residente.',
+    },
+    'Cheque': {
+        label: 'N.º de cheque',
+        placeholder: '000123',
+        ayuda: 'Cheque entregado al administrador. Registre el N.º impreso en el cheque.',
+    },
+    'Efectivo': {
+        label: 'N.º de recibo (opcional)',
+        placeholder: 'REC-00000',
+        ayuda: 'Pago en efectivo recibido por el administrador. El N.º de recibo interno es opcional.',
+        opcional: true,
+    },
+};
+
 export default function RegistrarPago() {
     const navigate = useNavigate();
     const [deptoId, setDeptoId] = useState('');
@@ -41,19 +66,57 @@ export default function RegistrarPago() {
     const [monto, setMonto] = useState('');
     const [medio, setMedio] = useState('Transferencia');
     const [referencia, setReferencia] = useState('');
+    const [pagadoPor, setPagadoPor] = useState('');
     const [aplicaciones, setAplicaciones] = useState([]); // [{periodo, aplicar}]
 
     const depto = DEPARTAMENTOS_DEUDA.find((d) => d.id === deptoId);
     const saldoPendiente = depto ? depto.saldoPendiente : 0;
+    const refCfg = REF_CONFIG[medio] || REF_CONFIG['Transferencia'];
 
-    // Al cambiar depto o monto, redistribuye automaticamente (editable despues)
-    useEffect(() => {
-        if (depto) setAplicaciones(distribuir(depto.deudas, monto));
-        else setAplicaciones([]);
-    }, [deptoId, monto]); // eslint-disable-line react-hooks/exhaustive-deps
+    // Suma de las aplicaciones (helper)
+    const sumarAplicaciones = (arr) => arr.reduce((s, a) => s + (Number(a.aplicar) || 0), 0);
 
-    const cambiarAplicar = (periodo, valor) =>
-        setAplicaciones((arr) => arr.map((a) => (a.periodo === periodo ? { ...a, aplicar: valor } : a)));
+    // Cambiar depto: reinicia aplicaciones a 0, precarga "Pagado por" con el responsable
+    const cambiarDepto = (id) => {
+        setDeptoId(id);
+        const d = DEPARTAMENTOS_DEUDA.find((x) => x.id === id);
+        if (d) {
+            setAplicaciones(d.deudas.map((x) => ({ periodo: x.periodo, aplicar: 0 })));
+            setPagadoPor(d.responsable.split(' · ')[0]);
+        } else {
+            setAplicaciones([]);
+            setPagadoPor('');
+        }
+        setMonto('');
+    };
+
+    // Monto -> auto-distribuye en aplicaciones (deuda mas antigua primero)
+    const cambiarMonto = (valor) => {
+        setMonto(valor);
+        if (depto) setAplicaciones(distribuir(depto.deudas, valor));
+    };
+
+    // Editar manualmente una casilla "Aplicar" -> sincroniza "Monto pagado" al total
+    const cambiarAplicar = (periodo, valor) => {
+        const nuevas = aplicaciones.map((a) => (a.periodo === periodo ? { ...a, aplicar: valor } : a));
+        setAplicaciones(nuevas);
+        setMonto(String(sumarAplicaciones(nuevas)));
+    };
+
+    // Clic en el chip "pendiente" -> auto-rellena "Aplicar" + sincroniza "Monto pagado"
+    const aplicarPendiente = (periodo, pendiente) => {
+        const nuevas = aplicaciones.map((a) => (a.periodo === periodo ? { ...a, aplicar: pendiente } : a));
+        setAplicaciones(nuevas);
+        setMonto(String(sumarAplicaciones(nuevas)));
+    };
+
+    // Pagar todos los pendientes de un solo clic
+    const pagarSaldoCompleto = () => {
+        if (!depto) return;
+        const nuevas = depto.deudas.map((d) => ({ periodo: d.periodo, aplicar: d.pendiente }));
+        setAplicaciones(nuevas);
+        setMonto(String(sumarAplicaciones(nuevas)));
+    };
 
     const montoNum = Number(monto) || 0;
     const totalAplicado = aplicaciones.reduce((acc, a) => acc + (Number(a.aplicar) || 0), 0);
@@ -66,7 +129,6 @@ export default function RegistrarPago() {
         const codigo = siguienteCodigo();
         const estado = nuevoSaldo > 0 ? 'Parcial' : 'Completo';
 
-        // Distribucion con saldo restante por periodo (para la confirmacion)
         const distribucion = depto.deudas.map((d) => {
             const ap = Number((aplicaciones.find((a) => a.periodo === d.periodo) || {}).aplicar) || 0;
             return { periodo: d.periodo, aplicado: ap, saldoRestante: d.pendiente - ap };
@@ -74,12 +136,14 @@ export default function RegistrarPago() {
 
         const periodos = distribucion.filter((x) => x.aplicado > 0).map((x) => x.periodo).join(' / ');
 
-        // MOCK: se guarda en el historial y se actualiza el saldo del departamento.
         PAGOS_MOCK.unshift({
             id: codigo,
             fecha: fechaBonita(fecha),
             depto: depto.id,
             responsable: depto.responsable.split(' · ')[0],
+            pagadoPor: pagadoPor || depto.responsable.split(' · ')[0],
+            medio,
+            referencia,
             periodoAplicado: periodos,
             monto: montoNum,
             saldoPosterior: nuevoSaldo,
@@ -96,7 +160,7 @@ export default function RegistrarPago() {
             state: {
                 detalle: {
                     codigo, departamento: depto.id, fecha: fechaBonita(fecha),
-                    monto: montoNum, estado, nuevoSaldo, distribucion,
+                    monto: montoNum, estado, nuevoSaldo, distribucion, pagadoPor, medio, referencia,
                 },
             },
         });
@@ -123,19 +187,31 @@ export default function RegistrarPago() {
                     <Typography variant="h3" sx={{ fontSize: '1.1rem', fontWeight: 600, mb: 2 }}>Datos del pago</Typography>
 
                     <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Departamento</Typography>
-                    <Select fullWidth displayEmpty value={deptoId} onChange={(e) => setDeptoId(e.target.value)} sx={{ mb: 2 }}>
+                    <Select fullWidth displayEmpty value={deptoId} onChange={(e) => cambiarDepto(e.target.value)} sx={{ mb: 2 }}>
                         <MenuItem value=""><em>Seleccione un departamento</em></MenuItem>
                         {DEPARTAMENTOS_DEUDA.map((d) => <MenuItem key={d.id} value={d.id}>{d.etiqueta}</MenuItem>)}
                     </Select>
 
                     {depto && (
                         <Box sx={{ border: '1px solid #CFDCEA', borderRadius: 2, p: 2, mb: 2 }}>
-                            <Typography variant="body2" color="text.secondary">Responsable</Typography>
+                            <Typography variant="body2" color="text.secondary">Responsable del departamento</Typography>
                             <Typography variant="body2" sx={{ fontWeight: 700 }}>{depto.responsable}</Typography>
                             <Typography variant="body2" sx={{ fontWeight: 700, color: '#D9534F', mt: 0.5 }}>
                                 Saldo pendiente actual: {formatBs(saldoPendiente)}
                             </Typography>
                         </Box>
+                    )}
+
+                    {/* Pagado por (editable, precarga con el responsable) */}
+                    {depto && (
+                        <>
+                            <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Pagado por</Typography>
+                            <TextField fullWidth value={pagadoPor} onChange={(e) => setPagadoPor(e.target.value)}
+                                placeholder="Nombre de quien realiza el pago" sx={{ mb: 2 }} />
+                            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: -1.5, mb: 2 }}>
+                                Por defecto el responsable; puede cambiarse si pagó un familiar o inquilino.
+                            </Typography>
+                        </>
                     )}
 
                     <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', mb: 2 }}>
@@ -147,21 +223,29 @@ export default function RegistrarPago() {
                         <Box sx={{ flex: 1, minWidth: 150 }}>
                             <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Monto pagado</Typography>
                             <TextField fullWidth type="number" placeholder="Bs 0,00" value={monto}
-                                onChange={(e) => setMonto(e.target.value)} />
+                                onChange={(e) => cambiarMonto(e.target.value)} />
                         </Box>
                     </Box>
 
                     <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
                         <Box sx={{ flex: 1, minWidth: 150 }}>
                             <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Medio de pago</Typography>
-                            <Select fullWidth value={medio} onChange={(e) => setMedio(e.target.value)}>
+                            <Select fullWidth value={medio} onChange={(e) => { setMedio(e.target.value); setReferencia(''); }}>
                                 {MEDIOS_PAGO.map((m) => <MenuItem key={m} value={m}>{m}</MenuItem>)}
                             </Select>
                         </Box>
                         <Box sx={{ flex: 1, minWidth: 150 }}>
-                            <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Referencia bancaria</Typography>
-                            <TextField fullWidth placeholder="TRF-0000" value={referencia} onChange={(e) => setReferencia(e.target.value)} />
+                            <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>{refCfg.label}</Typography>
+                            <TextField fullWidth placeholder={refCfg.placeholder} value={referencia} onChange={(e) => setReferencia(e.target.value)} />
                         </Box>
+                    </Box>
+
+                    {/* Ayuda contextual segun el medio */}
+                    <Box sx={{ bgcolor: '#E4EEF5', borderRadius: 2, p: 1.5, mt: 1.5 }}>
+                        <Typography variant="caption" sx={{ color: 'primary.main', fontWeight: 600 }} display="block">
+                            {medio}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">{refCfg.ayuda}</Typography>
                     </Box>
 
                     {excedeSaldo && (
@@ -174,10 +258,18 @@ export default function RegistrarPago() {
 
                 {/* Aplicacion del pago */}
                 <Paper sx={{ p: 3, borderRadius: 2, minWidth: 0 }}>
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1, flexWrap: 'wrap', gap: 1 }}>
                         <Typography variant="h3" sx={{ fontSize: '1.1rem', fontWeight: 600 }}>Aplicacion del pago</Typography>
-                        <Typography variant="body2" color="text.secondary">Prioridad: deuda mas antigua</Typography>
+                        {depto && (
+                            <Button size="small" variant="outlined" onClick={pagarSaldoCompleto}
+                                sx={{ color: '#1a2733', borderColor: '#cdd8e3', textTransform: 'none' }}>
+                                Pagar saldo completo ({formatBs(saldoPendiente)})
+                            </Button>
+                        )}
                     </Box>
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                        {depto ? 'Haz clic en el monto pendiente para auto-rellenar. O edita manualmente la columna Aplicar.' : 'Prioridad: deuda mas antigua'}
+                    </Typography>
 
                     {!depto ? (
                         <Typography variant="body2" color="text.secondary" sx={{ py: 3, textAlign: 'center' }}>
@@ -186,7 +278,7 @@ export default function RegistrarPago() {
                     ) : (
                         <>
                             <Box sx={{ overflowX: 'auto' }}>
-                                <Table size="small" sx={{ minWidth: 420 }}>
+                                <Table size="small" sx={{ minWidth: 460 }}>
                                     <TableHead>
                                         <TableRow sx={{ bgcolor: '#F1F5FA' }}>
                                             <TableCell><strong>Periodo</strong></TableCell>
@@ -204,7 +296,17 @@ export default function RegistrarPago() {
                                                     <TableCell sx={{ fontWeight: 600 }}>{d.periodo}</TableCell>
                                                     <TableCell>{formatBs(d.totalDeuda)}</TableCell>
                                                     <TableCell sx={{ color: '#2E9D78' }}>{formatBs(d.pagado)}</TableCell>
-                                                    <TableCell sx={{ color: '#D9534F', fontWeight: 600 }}>{formatBs(d.pendiente)}</TableCell>
+                                                    <TableCell>
+                                                        <Chip
+                                                            label={formatBs(d.pendiente)}
+                                                            size="small"
+                                                            onClick={() => aplicarPendiente(d.periodo, d.pendiente)}
+                                                            sx={{
+                                                                bgcolor: '#FBEAE9', color: '#D9534F', fontWeight: 700,
+                                                                cursor: 'pointer', '&:hover': { bgcolor: '#F5CECB' },
+                                                            }}
+                                                        />
+                                                    </TableCell>
                                                     <TableCell>
                                                         <TextField size="small" type="number" value={ap ? ap.aplicar : 0}
                                                             onChange={(e) => cambiarAplicar(d.periodo, e.target.value)} sx={{ width: 110 }} />

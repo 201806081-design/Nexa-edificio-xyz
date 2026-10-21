@@ -7,11 +7,15 @@ import {
 import AddIcon from '@mui/icons-material/Add';
 import SearchIcon from '@mui/icons-material/Search';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
-import PaidOutlinedIcon from '@mui/icons-material/PaidOutlined';
 import AccountBalanceOutlinedIcon from '@mui/icons-material/AccountBalanceOutlined';
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
 import PrintOutlinedIcon from '@mui/icons-material/PrintOutlined';
 import CancelOutlinedIcon from '@mui/icons-material/CancelOutlined';
+import TrendingUpIcon from '@mui/icons-material/TrendingUp';
+import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
+import SavingsIcon from '@mui/icons-material/Savings';
+import TaskAltIcon from '@mui/icons-material/TaskAlt';
+import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 import { useNavigate } from 'react-router-dom';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import {
@@ -38,11 +42,18 @@ const estadoChipSx = (estado) => (estado === 'Completo'
     ? { bgcolor: '#E4F4EE', color: '#2E9D78' }
     : { bgcolor: '#FDF0D5', color: '#B6802A' });
 
-// Tarjetas de resumen (cobrado / registrados / recuperado)
+// Tarjetas de resumen de pagos de expensas (cada una con su icono y color propios)
 const RESUMEN = [
-    { clave: 'cobradoOctubre', label: 'Cobrado en octubre', nota: '+12 % frente a septiembre', money: true },
-    { clave: 'pagosRegistrados', label: 'Pagos registrados', nota: 'Incluye pagos parciales', money: false, sufijo: ' pagos' },
-    { clave: 'saldoRecuperado', label: 'Saldo recuperado', nota: 'Aplicado a deudas pendientes', money: true },
+    { clave: 'cobradoOctubre', label: 'Cobrado en octubre', nota: '+12 % frente a septiembre', money: true, icon: <TrendingUpIcon />, color: '#2E9D78', bg: '#E4F4EE' },
+    { clave: 'pagosRegistrados', label: 'Pagos registrados', nota: 'Incluye pagos parciales', money: false, sufijo: ' pagos', icon: <ReceiptLongIcon />, color: '#1F5F8B', bg: '#E4EEF5' },
+    { clave: 'saldoRecuperado', label: 'Saldo recuperado', nota: 'Aplicado a deudas pendientes', money: true, icon: <SavingsIcon />, color: '#8E6DD1', bg: '#EFEAF8' },
+];
+
+// Tarjetas de resumen de pagos anticipados
+const RESUMEN_ANT = [
+    { clave: 'recibidos', label: 'Anticipos recibidos', nota: 'Octubre 2026', icon: <TrendingUpIcon />, color: '#2E9D78', bg: '#E4F4EE' },
+    { clave: 'aplicado', label: 'Credito aplicado', nota: 'A expensas generadas', icon: <TaskAltIcon />, color: '#E5A33B', bg: '#FDF0D5' },
+    { clave: 'disponible', label: 'Credito disponible', nota: 'Saldo a favor total', icon: <AccountBalanceWalletIcon />, color: '#1F5F8B', bg: '#E4EEF5' },
 ];
 
 export default function Pagos() {
@@ -125,15 +136,15 @@ export default function Pagos() {
                     <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(3, 1fr)' }, gap: 2, mb: 2 }}>
                         {RESUMEN.map((r) => (
                             <Paper key={r.clave} sx={{ p: 2.5, borderRadius: 2, display: 'flex', alignItems: 'center', gap: 2 }}>
-                                <Box sx={{ flexShrink: 0, width: 44, height: 44, borderRadius: '50%', bgcolor: '#E4F4EE', color: '#2E9D78', display: 'grid', placeItems: 'center' }}>
-                                    <PaidOutlinedIcon />
+                                <Box sx={{ flexShrink: 0, width: 44, height: 44, borderRadius: '50%', bgcolor: r.bg, color: r.color, display: 'grid', placeItems: 'center' }}>
+                                    {r.icon}
                                 </Box>
                                 <Box sx={{ minWidth: 0 }}>
                                     <Typography variant="body2" color="text.secondary">{r.label}</Typography>
-                                    <Typography variant="h3" sx={{ fontWeight: 700 }}>
+                                    <Typography variant="h3" sx={{ fontWeight: 700, color: r.color }}>
                                         {r.money ? formatBs(RESUMEN_PAGOS[r.clave]) : `${RESUMEN_PAGOS[r.clave]}${r.sufijo || ''}`}
                                     </Typography>
-                                    <Typography variant="caption" sx={{ color: '#2E9D78' }}>{r.nota}</Typography>
+                                    <Typography variant="caption" sx={{ color: r.color }}>{r.nota}</Typography>
                                 </Box>
                             </Paper>
                         ))}
@@ -222,19 +233,15 @@ export default function Pagos() {
                 <Box>
                     {/* Resumen (3 tarjetas) */}
                     <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(3, 1fr)' }, gap: 2, mb: 2 }}>
-                        {[
-                            { label: 'Anticipos recibidos', valor: RESUMEN_ANTICIPOS.recibidos, nota: 'Octubre 2026' },
-                            { label: 'Credito aplicado', valor: RESUMEN_ANTICIPOS.aplicado, nota: 'A expensas generadas' },
-                            { label: 'Credito disponible', valor: RESUMEN_ANTICIPOS.disponible, nota: 'Saldo a favor total' },
-                        ].map((r) => (
-                            <Paper key={r.label} sx={{ p: 2.5, borderRadius: 2, display: 'flex', alignItems: 'center', gap: 2 }}>
-                                <Box sx={{ flexShrink: 0, width: 44, height: 44, borderRadius: '50%', bgcolor: '#E4F4EE', color: '#2E9D78', display: 'grid', placeItems: 'center' }}>
-                                    <PaidOutlinedIcon />
+                        {RESUMEN_ANT.map((r) => (
+                            <Paper key={r.clave} sx={{ p: 2.5, borderRadius: 2, display: 'flex', alignItems: 'center', gap: 2 }}>
+                                <Box sx={{ flexShrink: 0, width: 44, height: 44, borderRadius: '50%', bgcolor: r.bg, color: r.color, display: 'grid', placeItems: 'center' }}>
+                                    {r.icon}
                                 </Box>
                                 <Box sx={{ minWidth: 0 }}>
                                     <Typography variant="body2" color="text.secondary">{r.label}</Typography>
-                                    <Typography variant="h3" sx={{ fontWeight: 700 }}>{formatBs(r.valor)}</Typography>
-                                    <Typography variant="caption" sx={{ color: '#2E9D78' }}>{r.nota}</Typography>
+                                    <Typography variant="h3" sx={{ fontWeight: 700, color: r.color }}>{formatBs(RESUMEN_ANTICIPOS[r.clave])}</Typography>
+                                    <Typography variant="caption" sx={{ color: r.color }}>{r.nota}</Typography>
                                 </Box>
                             </Paper>
                         ))}
