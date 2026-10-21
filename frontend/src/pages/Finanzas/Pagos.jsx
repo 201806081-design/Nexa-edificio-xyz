@@ -2,12 +2,16 @@ import { useState } from 'react';
 import {
     Box, Typography, Paper, Button, Chip, IconButton, Select, MenuItem, TextField, InputAdornment,
     Table, TableHead, TableBody, TableRow, TableCell, ToggleButton, ToggleButtonGroup,
+    Menu, Dialog, DialogTitle, DialogContent, DialogActions, Snackbar, Alert, Divider,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import SearchIcon from '@mui/icons-material/Search';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 import PaidOutlinedIcon from '@mui/icons-material/PaidOutlined';
 import AccountBalanceOutlinedIcon from '@mui/icons-material/AccountBalanceOutlined';
+import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
+import PrintOutlinedIcon from '@mui/icons-material/PrintOutlined';
+import CancelOutlinedIcon from '@mui/icons-material/CancelOutlined';
 import { useNavigate } from 'react-router-dom';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import {
@@ -49,6 +53,26 @@ export default function Pagos() {
     const [estado, setEstado] = useState('Todos');
     const [busqueda, setBusqueda] = useState('');
 
+    // Menu de acciones de la tabla (3 puntitos)
+    const [menuAnchor, setMenuAnchor] = useState(null);
+    const [pagoSel, setPagoSel] = useState(null);
+    const [detalleAbierto, setDetalleAbierto] = useState(false);
+    const [anularAbierto, setAnularAbierto] = useState(false);
+    const [snack, setSnack] = useState({ open: false, msg: '', sev: 'success' });
+
+    const abrirMenu = (e, p) => { setMenuAnchor(e.currentTarget); setPagoSel(p); };
+    const cerrarMenu = () => setMenuAnchor(null);
+    const verDetalle = () => { setDetalleAbierto(true); cerrarMenu(); };
+    const imprimirRecibo = () => {
+        setSnack({ open: true, msg: `Recibo del pago ${pagoSel?.id} enviado a impresion`, sev: 'success' });
+        cerrarMenu();
+    };
+    const abrirAnular = () => { setAnularAbierto(true); cerrarMenu(); };
+    const confirmarAnular = () => {
+        setAnularAbierto(false);
+        setSnack({ open: true, msg: `Pago ${pagoSel?.id} anulado (simulado en mock)`, sev: 'warning' });
+    };
+
     const pagos = PAGOS_MOCK.filter((p) =>
         (departamento === 'Todos' || p.depto === departamento) &&
         (estado === 'Todos' || p.estado === estado) &&
@@ -56,21 +80,35 @@ export default function Pagos() {
 
     return (
         <DashboardLayout>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 1 }}>
-                <Box>
-                    <Typography variant="h1" color="primary.main" sx={{ mb: 0.5 }}>Pagos de expensas</Typography>
-                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                        Consulta el historial y registra los pagos realizados por departamento
-                    </Typography>
-                </Box>
-                <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 1 }}>
-                    <Chip label="HU-FI-02" sx={{ bgcolor: '#E4EEF5', color: 'primary.main', fontWeight: 600 }} />
-                    <Button variant="outlined" startIcon={<AccountBalanceOutlinedIcon />}
-                        onClick={() => navigate('/finanzas/pagos/conciliacion')}
-                        sx={{ color: '#1a2733', borderColor: '#cdd8e3' }}>
-                        Conciliacion bancaria
+            {/* Header (patron Expensas): titulo + subtitulo */}
+            <Typography variant="h1" color="primary.main" sx={{ mb: 0.5 }}>Pagos de expensas</Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                Consulta el historial y registra los pagos realizados por departamento
+            </Typography>
+
+            {/* Fila de acciones (patron Expensas): alineada a la derecha, debajo del subtitulo */}
+            <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', justifyContent: { xs: 'stretch', md: 'flex-end' }, mb: 2 }}>
+                {tab === 'expensas' && (
+                    <>
+                        <Button variant="outlined" startIcon={<AccountBalanceOutlinedIcon />}
+                            onClick={() => navigate('/finanzas/pagos/conciliacion')}
+                            sx={{ color: '#1a2733', borderColor: '#cdd8e3', width: { xs: '100%', md: 'auto' } }}>
+                            Conciliacion bancaria
+                        </Button>
+                        <Button variant="contained" startIcon={<AddIcon />}
+                            onClick={() => navigate('/finanzas/pagos/registrar')}
+                            sx={{ width: { xs: '100%', md: 'auto' } }}>
+                            Registrar pago
+                        </Button>
+                    </>
+                )}
+                {tab === 'anticipados' && (
+                    <Button variant="contained" startIcon={<AddIcon />}
+                        onClick={() => navigate('/finanzas/pagos/anticipo')}
+                        sx={{ width: { xs: '100%', md: 'auto' } }}>
+                        Registrar anticipo
                     </Button>
-                </Box>
+                )}
             </Box>
 
             {/* Tabs */}
@@ -83,8 +121,8 @@ export default function Pagos() {
 
             {tab === 'expensas' && (
                 <Box>
-                    {/* Resumen (3 tarjetas) + Registrar pago */}
-                    <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(3, 1fr) auto' }, gap: 2, mb: 2, alignItems: 'stretch' }}>
+                    {/* Resumen (3 tarjetas) */}
+                    <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(3, 1fr)' }, gap: 2, mb: 2 }}>
                         {RESUMEN.map((r) => (
                             <Paper key={r.clave} sx={{ p: 2.5, borderRadius: 2, display: 'flex', alignItems: 'center', gap: 2 }}>
                                 <Box sx={{ flexShrink: 0, width: 44, height: 44, borderRadius: '50%', bgcolor: '#E4F4EE', color: '#2E9D78', display: 'grid', placeItems: 'center' }}>
@@ -99,11 +137,6 @@ export default function Pagos() {
                                 </Box>
                             </Paper>
                         ))}
-                        <Button variant="contained" startIcon={<AddIcon />}
-                            onClick={() => navigate('/finanzas/pagos/registrar')}
-                            sx={{ width: { xs: '100%', md: 'auto' }, px: 3 }}>
-                            Registrar pago
-                        </Button>
                     </Box>
 
                     {/* Filtros */}
@@ -166,7 +199,11 @@ export default function Pagos() {
                                             <TableCell sx={{ fontWeight: 600 }}>{formatBs(p.monto)}</TableCell>
                                             <TableCell sx={{ fontWeight: 600, color: p.saldoPosterior > 0 ? '#D9534F' : '#2E9D78' }}>{formatBs(p.saldoPosterior)}</TableCell>
                                             <TableCell><Chip label={p.estado} size="small" sx={estadoChipSx(p.estado)} /></TableCell>
-                                            <TableCell align="center"><IconButton size="small"><MoreVertIcon fontSize="small" /></IconButton></TableCell>
+                                            <TableCell align="center">
+                                                <IconButton size="small" onClick={(e) => abrirMenu(e, p)}>
+                                                    <MoreVertIcon fontSize="small" />
+                                                </IconButton>
+                                            </TableCell>
                                         </TableRow>
                                     ))}
                                 </TableBody>
@@ -183,8 +220,8 @@ export default function Pagos() {
             {/* Tab Pagos anticipados (movido desde Mora) */}
             {tab === 'anticipados' && (
                 <Box>
-                    {/* Resumen (3 tarjetas) + Registrar anticipo */}
-                    <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(3, 1fr) auto' }, gap: 2, mb: 2, alignItems: 'stretch' }}>
+                    {/* Resumen (3 tarjetas) */}
+                    <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(3, 1fr)' }, gap: 2, mb: 2 }}>
                         {[
                             { label: 'Anticipos recibidos', valor: RESUMEN_ANTICIPOS.recibidos, nota: 'Octubre 2026' },
                             { label: 'Credito aplicado', valor: RESUMEN_ANTICIPOS.aplicado, nota: 'A expensas generadas' },
@@ -201,11 +238,6 @@ export default function Pagos() {
                                 </Box>
                             </Paper>
                         ))}
-                        <Button variant="contained" startIcon={<AddIcon />}
-                            onClick={() => navigate('/finanzas/pagos/anticipo')}
-                            sx={{ width: { xs: '100%', md: 'auto' }, px: 3 }}>
-                            Registrar anticipo
-                        </Button>
                     </Box>
 
                     {/* Historial de anticipos */}
@@ -250,6 +282,91 @@ export default function Pagos() {
                     </Paper>
                 </Box>
             )}
+
+            {/* Menu de los 3 puntitos */}
+            <Menu anchorEl={menuAnchor} open={Boolean(menuAnchor)} onClose={cerrarMenu}>
+                <MenuItem onClick={verDetalle}>
+                    <VisibilityOutlinedIcon fontSize="small" sx={{ mr: 1, color: '#1F5F8B' }} />
+                    Ver detalle del pago
+                </MenuItem>
+                <MenuItem onClick={imprimirRecibo}>
+                    <PrintOutlinedIcon fontSize="small" sx={{ mr: 1, color: '#1F5F8B' }} />
+                    Imprimir recibo
+                </MenuItem>
+                <MenuItem onClick={abrirAnular} sx={{ color: '#D9534F' }}>
+                    <CancelOutlinedIcon fontSize="small" sx={{ mr: 1 }} />
+                    Anular pago
+                </MenuItem>
+            </Menu>
+
+            {/* Dialog: Ver detalle del pago */}
+            <Dialog open={detalleAbierto} onClose={() => setDetalleAbierto(false)} maxWidth="sm" fullWidth>
+                <DialogTitle sx={{ fontWeight: 700 }}>Detalle del pago {pagoSel?.id}</DialogTitle>
+                <DialogContent dividers>
+                    {pagoSel && (
+                        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
+                            <Box>
+                                <Typography variant="body2" color="text.secondary">Fecha</Typography>
+                                <Typography variant="body2" sx={{ fontWeight: 700 }}>{pagoSel.fecha}</Typography>
+                            </Box>
+                            <Box>
+                                <Typography variant="body2" color="text.secondary">Departamento</Typography>
+                                <Typography variant="body2" sx={{ fontWeight: 700 }}>{pagoSel.depto}</Typography>
+                            </Box>
+                            <Box>
+                                <Typography variant="body2" color="text.secondary">Responsable</Typography>
+                                <Typography variant="body2" sx={{ fontWeight: 700 }}>{pagoSel.responsable}</Typography>
+                            </Box>
+                            <Box>
+                                <Typography variant="body2" color="text.secondary">Periodo aplicado</Typography>
+                                <Typography variant="body2" sx={{ fontWeight: 700 }}>{pagoSel.periodoAplicado}</Typography>
+                            </Box>
+                            <Box sx={{ gridColumn: { sm: '1 / -1' } }}>
+                                <Divider sx={{ my: 1 }} />
+                            </Box>
+                            <Box>
+                                <Typography variant="body2" color="text.secondary">Monto pagado</Typography>
+                                <Typography variant="h3" sx={{ fontWeight: 700, color: '#2E9D78' }}>{formatBs(pagoSel.monto)}</Typography>
+                            </Box>
+                            <Box>
+                                <Typography variant="body2" color="text.secondary">Saldo posterior</Typography>
+                                <Typography variant="h3" sx={{ fontWeight: 700, color: pagoSel.saldoPosterior > 0 ? '#D9534F' : '#2E9D78' }}>
+                                    {formatBs(pagoSel.saldoPosterior)}
+                                </Typography>
+                            </Box>
+                            <Box sx={{ gridColumn: { sm: '1 / -1' } }}>
+                                <Typography variant="body2" color="text.secondary">Estado</Typography>
+                                <Chip label={pagoSel.estado} size="small" sx={{ mt: 0.5, ...estadoChipSx(pagoSel.estado) }} />
+                            </Box>
+                        </Box>
+                    )}
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={() => setDetalleAbierto(false)}>Cerrar</Button>
+                </DialogActions>
+            </Dialog>
+
+            {/* Dialog: Confirmar anulacion */}
+            <Dialog open={anularAbierto} onClose={() => setAnularAbierto(false)} maxWidth="xs" fullWidth>
+                <DialogTitle sx={{ fontWeight: 700 }}>Anular pago</DialogTitle>
+                <DialogContent dividers>
+                    <Typography variant="body2">
+                        ¿Confirmas la anulacion del pago <strong>{pagoSel?.id}</strong>? Esta accion revierte el monto aplicado al saldo del departamento.
+                    </Typography>
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={() => setAnularAbierto(false)}>Cancelar</Button>
+                    <Button color="error" variant="contained" onClick={confirmarAnular}>Anular</Button>
+                </DialogActions>
+            </Dialog>
+
+            {/* Snackbar */}
+            <Snackbar open={snack.open} autoHideDuration={3500} onClose={() => setSnack({ ...snack, open: false })}
+                anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}>
+                <Alert severity={snack.sev} onClose={() => setSnack({ ...snack, open: false })} sx={{ width: '100%' }}>
+                    {snack.msg}
+                </Alert>
+            </Snackbar>
         </DashboardLayout>
     );
 }

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import {
-    Box, Typography, Paper, Button, Select, MenuItem, TextField, Alert, Chip,
+    Box, Typography, Paper, Button, Select, MenuItem, TextField, Alert,
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import DashboardLayout from '../../layouts/DashboardLayout';
@@ -52,15 +52,10 @@ export default function RegistrarAnticipo() {
 
     return (
         <DashboardLayout>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 1 }}>
-                <Box>
-                    <Typography variant="h1" color="primary.main" sx={{ mb: 0.5 }}>Registrar pago anticipado</Typography>
-                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                        Crea un saldo a favor para un departamento
-                    </Typography>
-                </Box>
-                <Chip label="HU-FI-05" sx={{ bgcolor: '#E4EEF5', color: 'primary.main', fontWeight: 600 }} />
-            </Box>
+            <Typography variant="h1" color="primary.main" sx={{ mb: 0.5 }}>Registrar pago anticipado</Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                Crea un saldo a favor para un departamento
+            </Typography>
 
             <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 2 }}>
                 {/* Datos del anticipo */}
@@ -140,9 +135,9 @@ export default function RegistrarAnticipo() {
                         <Typography variant="h3" sx={{ fontWeight: 700, color: '#2E9D78' }}>{formatBs(nuevoCredito)}</Typography>
                     </Box>
                     <Box sx={{ bgcolor: '#E4EEF5', borderRadius: 2, p: 2, mt: 2 }}>
-                        <Typography variant="body2" sx={{ fontWeight: 600 }}>Integracion</Typography>
+                        <Typography variant="body2" sx={{ fontWeight: 600 }}>Integracion con flujo de caja</Typography>
                         <Typography variant="body2" color="text.secondary">
-                            HU-FI-04 recibe + {formatBs(montoNum)} hoy. Aplicarlo despues no genera otro ingreso.
+                            El flujo de caja registra + {formatBs(montoNum)} hoy. Al aplicarlo a una expensa no se genera un segundo ingreso.
                         </Typography>
                     </Box>
                 </Paper>

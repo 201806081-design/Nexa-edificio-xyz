@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import {
-    Box, Typography, Paper, Button, Select, MenuItem, TextField, Alert, Chip,
+    Box, Typography, Paper, Button, Select, MenuItem, TextField, Alert,
     Table, TableHead, TableBody, TableRow, TableCell,
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
@@ -104,15 +104,10 @@ export default function RegistrarPago() {
 
     return (
         <DashboardLayout>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 1 }}>
-                <Box>
-                    <Typography variant="h1" color="primary.main" sx={{ mb: 0.5 }}>Registrar pago</Typography>
-                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                        Asocia el pago con un departamento y distribuyelo entre sus deudas pendientes
-                    </Typography>
-                </Box>
-                <Chip label="HU-FI-02" sx={{ bgcolor: '#E4EEF5', color: 'primary.main', fontWeight: 600 }} />
-            </Box>
+            <Typography variant="h1" color="primary.main" sx={{ mb: 0.5 }}>Registrar pago</Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                Asocia el pago con un departamento y distribuyelo entre sus deudas pendientes
+            </Typography>
 
             {/* Pasos */}
             <Alert severity="info" icon={false} sx={{ bgcolor: '#E4EEF5', color: 'text.primary', mb: 2 }}>
