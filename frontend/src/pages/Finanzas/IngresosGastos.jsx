@@ -23,9 +23,9 @@ const tipoChipSx = (tipo) => (tipo === 'Ingreso'
     : { bgcolor: '#FBEAE9', color: '#D9534F' });
 
 const RESUMEN = [
-    { clave: 'totalIngresos', label: 'Total ingresos', icon: <NorthIcon />, color: '#2E9D78', bg: '#E4F4EE' },
-    { clave: 'totalGastos', label: 'Total gastos', icon: <SouthIcon />, color: '#D9534F', bg: '#FBEAE9' },
-    { clave: 'balance', label: 'Balance', icon: <DragHandleIcon />, color: 'primary.main', bg: '#E4EEF5' },
+    { clave: 'totalIngresos', label: 'Otros ingresos', icon: <NorthIcon />, color: '#2E9D78', bg: '#E4F4EE' },
+    { clave: 'totalGastos', label: 'Gastos operativos', icon: <SouthIcon />, color: '#D9534F', bg: '#FBEAE9' },
+    { clave: 'balance', label: 'Resultado operativo', icon: <DragHandleIcon />, color: null, bg: '#E4EEF5' }, // color dinamico segun signo
 ];
 
 export default function IngresosGastos() {
@@ -43,8 +43,8 @@ export default function IngresosGastos() {
     return (
         <DashboardLayout>
             <Typography variant="h1" color="primary.main" sx={{ mb: 0.5 }}>Ingresos y gastos</Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                Consulta y registra los movimientos economicos del edificio
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                Movimientos operativos del edificio (otros ingresos y gastos). Los pagos de expensas se registran en <strong>Pagos</strong>.
             </Typography>
 
             <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', justifyContent: { xs: 'stretch', md: 'flex-end' }, mb: 2 }}>
@@ -90,17 +90,22 @@ export default function IngresosGastos() {
 
             {/* Tarjetas de resumen */}
             <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, 1fr)' }, gap: 2, mb: 3 }}>
-                {RESUMEN.map((r) => (
-                    <Paper key={r.clave} sx={{ p: 2.5, borderRadius: 2, display: 'flex', alignItems: 'center', gap: 2 }}>
-                        <Box sx={{ width: 48, height: 48, borderRadius: '50%', bgcolor: r.bg, color: r.color, display: 'grid', placeItems: 'center' }}>
-                            {r.icon}
-                        </Box>
-                        <Box>
-                            <Typography variant="body2" color="text.secondary">{r.label}</Typography>
-                            <Typography variant="h3" sx={{ fontWeight: 700, color: r.color }}>{formatBs(RESUMEN_MOVIMIENTOS[r.clave])}</Typography>
-                        </Box>
-                    </Paper>
-                ))}
+                {RESUMEN.map((r) => {
+                    const valor = RESUMEN_MOVIMIENTOS[r.clave];
+                    // Color dinamico para el "Resultado operativo": rojo si negativo, verde si positivo
+                    const colorFinal = r.color || (valor < 0 ? '#D9534F' : '#2E9D78');
+                    return (
+                        <Paper key={r.clave} sx={{ p: 2.5, borderRadius: 2, display: 'flex', alignItems: 'center', gap: 2 }}>
+                            <Box sx={{ width: 48, height: 48, borderRadius: '50%', bgcolor: r.bg, color: colorFinal, display: 'grid', placeItems: 'center' }}>
+                                {r.icon}
+                            </Box>
+                            <Box>
+                                <Typography variant="body2" color="text.secondary">{r.label}</Typography>
+                                <Typography variant="h3" sx={{ fontWeight: 700, color: colorFinal }}>{formatBs(valor)}</Typography>
+                            </Box>
+                        </Paper>
+                    );
+                })}
             </Box>
 
             {/* VISTA ESCRITORIO: tabla */}

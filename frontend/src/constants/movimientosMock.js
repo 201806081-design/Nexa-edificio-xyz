@@ -1,30 +1,35 @@
 // Datos de prueba de ingresos y gastos del edificio. Montos en Bs.
+//
+// IMPORTANTE: aqui NO van los pagos de expensas (van en pagosMock.PAGOS_MOCK)
+// ni los anticipos (van en pagosMock.HISTORIAL_ANTICIPOS).
+// Aqui van:
+//   - EGRESOS (gastos operativos del edificio: electricidad, mantenimiento, limpieza, etc.)
+//   - OTROS INGRESOS NO-EXPENSA (alquiler de areas comunes, multas, intereses bancarios, etc.)
 
 import { PERIODOS } from './finanzasMock';
 export { PERIODOS };
 
-// Totales de la parte superior de la lista (actualizados tras enriquecer el mock)
+// Totales operativos del mes (sin expensas — esas estan en Pagos)
 export const RESUMEN_MOVIMIENTOS = {
-    totalIngresos: 8135,
-    totalGastos: 7950,
-    balance: 185,
+    totalIngresos: 1335,  // otros ingresos del periodo (no incluye expensas ni anticipos)
+    totalGastos: 7950,    // gastos operativos del periodo
+    balance: -6615,       // resultado operativo (los gastos se cubren con las expensas que vienen de Pagos)
 };
 
 // Opciones de los selectores del formulario y filtros
 export const TIPOS_MOVIMIENTO = ['Todos', 'Ingreso', 'Gasto'];
-export const CATEGORIAS = ['Expensas', 'Mantenimiento', 'Servicios basicos', 'Limpieza', 'Seguridad', 'Administracion', 'Otros'];
+export const CATEGORIAS = ['Mantenimiento', 'Servicios basicos', 'Limpieza', 'Seguridad', 'Administracion', 'Otros'];
 
 // Movimientos registrados. tipo: 'Ingreso' | 'Gasto'
 export const MOVIMIENTOS_LISTA = [
-    // --- Ingresos ---
-    { id: 1, fecha: '02/10/2026', tipo: 'Ingreso', categoria: 'Expensas', descripcion: 'Cobro de expensas', monto: 6800, comprobante: 'recibo_octubre.pdf', codigo: 'MOV-2026-10-001' },
+    // --- OTROS INGRESOS (no son pagos de expensas) ---
     { id: 4, fecha: '05/10/2026', tipo: 'Ingreso', categoria: 'Otros', descripcion: 'Alquiler salon de eventos', monto: 500, comprobante: 'recibo_salon_05oct.pdf', codigo: 'MOV-2026-10-005' },
     { id: 5, fecha: '12/10/2026', tipo: 'Ingreso', categoria: 'Otros', descripcion: 'Multa por mora — Dpto. 203', monto: 150, comprobante: 'multa_dpto203.pdf', codigo: 'MOV-2026-10-006' },
     { id: 6, fecha: '16/10/2026', tipo: 'Ingreso', categoria: 'Otros', descripcion: 'Alquiler parrillero', monto: 200, comprobante: 'recibo_parrillero.pdf', codigo: 'MOV-2026-10-007' },
     { id: 7, fecha: '25/10/2026', tipo: 'Ingreso', categoria: 'Otros', descripcion: 'Alquiler salon de eventos', monto: 400, comprobante: 'recibo_salon_25oct.pdf', codigo: 'MOV-2026-10-008' },
     { id: 8, fecha: '28/10/2026', tipo: 'Ingreso', categoria: 'Otros', descripcion: 'Interes bancario cuenta de reserva', monto: 85, comprobante: 'estado_cuenta_banco.pdf', codigo: 'MOV-2026-10-009' },
 
-    // --- Egresos (varias categorias) ---
+    // --- EGRESOS operativos (varias categorias) ---
     { id: 2, fecha: '03/10/2026', tipo: 'Gasto', categoria: 'Mantenimiento', descripcion: 'Reparacion del ascensor', monto: 3000, comprobante: 'factura_ascensor.pdf', codigo: 'MOV-2026-10-003' },
     { id: 3, fecha: '04/10/2026', tipo: 'Gasto', categoria: 'Servicios basicos', descripcion: 'Pago de electricidad', monto: 1000, comprobante: 'factura_luz.pdf', codigo: 'MOV-2026-10-004' },
     { id: 9, fecha: '06/10/2026', tipo: 'Gasto', categoria: 'Servicios basicos', descripcion: 'Pago de agua potable', monto: 650, comprobante: 'factura_agua.pdf', codigo: 'MOV-2026-10-010' },
