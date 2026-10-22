@@ -32,6 +32,20 @@ const periodoCoincide = (periodoAplicado, periodoSel) => {
     return (p.includes(mesSel) || p.includes(corto)) && p.includes(anioSel || '');
 };
 
+// Mapa mes-nombre -> indice (1-12)
+const MES_IDX = {
+    enero: 1, febrero: 2, marzo: 3, abril: 4, mayo: 5, junio: 6,
+    julio: 7, agosto: 8, septiembre: 9, octubre: 10, noviembre: 11, diciembre: 12,
+};
+
+// Verifica si la fecha del pago (DD/MM/YYYY) cae dentro del periodo seleccionado
+const fechaEnPeriodo = (fecha, periodoSel) => {
+    const [d, m, y] = (fecha || '').split('/').map(Number);
+    const [mesSel, anioSel] = (periodoSel || '').toLowerCase().split(' ');
+    const mesIdx = MES_IDX[mesSel] || 0;
+    return m === mesIdx && y === Number(anioSel);
+};
+
 const anticipoChipSx = (estado) => {
     if (estado === 'Disponible') return { bgcolor: '#E4F4EE', color: '#2E9D78' };
     if (estado === 'Aplicado') return { bgcolor: '#E4EEF5', color: '#1F5F8B' };
@@ -95,13 +109,16 @@ export default function Pagos() {
         setTick((t) => t + 1); // dispara re-calculo de cards y tabla
     };
 
-    // --- Cards de pagos de expensas (calculadas en vivo) ---
+    // --- Cards de pagos de expensas (calculadas en vivo sobre los pagos del MES por fecha) ---
     const resumenExp = useMemo(() => {
-        const pagosDelPeriodo = PAGOS_MOCK.filter((p) => periodoCoincide(p.periodoAplicado, periodo));
-        const cobrado = pagosDelPeriodo.reduce((s, p) => s + (p.monto || 0), 0);
-        const registrados = pagosDelPeriodo.length;
-        // Saldo recuperado = pagos cuyo periodoAplicado NO es el periodo (son pagos a deudas de meses anteriores)
-        const recuperado = PAGOS_MOCK
+        const pagosDelMes = PAGOS_MOCK.filter((p) => fechaEnPeriodo(p.fecha, periodo));
+        const registrados = pagosDelMes.length;
+        // Cobrado "al periodo" = pagos del mes aplicados a expensas del mismo mes
+        const cobrado = pagosDelMes
+            .filter((p) => periodoCoincide(p.periodoAplicado, periodo))
+            .reduce((s, p) => s + (p.monto || 0), 0);
+        // Saldo recuperado = pagos del mes aplicados a deudas de meses anteriores
+        const recuperado = pagosDelMes
             .filter((p) => !periodoCoincide(p.periodoAplicado, periodo))
             .reduce((s, p) => s + (p.monto || 0), 0);
         return { cobrado, registrados, recuperado };
@@ -129,10 +146,10 @@ export default function Pagos() {
         { label: 'Credito disponible', valor: formatBs(resumenAnt.disponible), nota: 'Saldo a favor pendiente', icon: <AccountBalanceWalletIcon />, color: '#1F5F8B', bg: '#E4EEF5' },
     ];
 
-    // --- Filtrado del historial de pagos ---
+    // --- Filtrado del historial de pagos: por FECHA en el periodo (incluye los recuperados) ---
     const pagosFiltrados = useMemo(() => {
         return PAGOS_MOCK.filter((p) =>
-            periodoCoincide(p.periodoAplicado, periodo) &&
+            fechaEnPeriodo(p.fecha, periodo) &&
             (departamento === 'Todos' || p.depto === departamento) &&
             (estado === 'Todos' || p.estado === estado) &&
             (p.depto + p.responsable + p.id).toLowerCase().includes(busqueda.toLowerCase()));
@@ -256,23 +273,32 @@ export default function Pagos() {
                                                 No hay pagos registrados para {periodo}.
                                             </TableCell>
                                         </TableRow>
-                                    ) : pagosVisibles.map((p) => (
-                                        <TableRow key={p.id}>
-                                            <TableCell sx={{ color: 'primary.main', fontWeight: 600 }}>{p.id}</TableCell>
-                                            <TableCell>{p.fecha}</TableCell>
-                                            <TableCell>{p.depto}</TableCell>
-                                            <TableCell>{p.responsable}</TableCell>
-                                            <TableCell>{p.periodoAplicado}</TableCell>
-                                            <TableCell sx={{ fontWeight: 600 }}>{formatBs(p.monto)}</TableCell>
-                                            <TableCell sx={{ fontWeight: 600, color: p.saldoPosterior > 0 ? '#D9534F' : '#2E9D78' }}>{formatBs(p.saldoPosterior)}</TableCell>
-                                            <TableCell><Chip label={p.estado} size="small" sx={estadoChipSx(p.estado)} /></TableCell>
-                                            <TableCell align="center">
-                                                <IconButton size="small" onClick={(e) => abrirMenu(e, p)}>
-                                                    <MoreVertIcon fontSize="small" />
-                                                </IconButton>
-                                            </TableCell>
-                                        </TableRow>
-                                    ))}
+                                    ) : pagosVisibles.map((p) => {
+                                        const esRecuperado = !periodoCoincide(p.periodoAplicado, periodo);
+                                        return (
+                                            <TableRow key={p.id} sx={esRecuperado ? { bgcolor: '#EFEAF8' } : {}}>
+                                                <TableCell sx={{ color: 'primary.main', fontWeight: 600 }}>{p.id}</TableCell>
+                                                <TableCell>{p.fecha}</TableCell>
+                                                <TableCell>{p.depto}</TableCell>
+                                                <TableCell>{p.responsable}</TableCell>
+                                                <TableCell>
+                                                    {p.periodoAplicado}
+                                                    {esRecuperado && (
+                                                        <Chip label="Recuperado" size="small"
+                                                            sx={{ ml: 0.5, bgcolor: '#8E6DD1', color: '#fff', fontWeight: 600, height: 18, fontSize: '0.65rem' }} />
+                                                    )}
+                                                </TableCell>
+                                                <TableCell sx={{ fontWeight: 600 }}>{formatBs(p.monto)}</TableCell>
+                                                <TableCell sx={{ fontWeight: 600, color: p.saldoPosterior > 0 ? '#D9534F' : '#2E9D78' }}>{formatBs(p.saldoPosterior)}</TableCell>
+                                                <TableCell><Chip label={p.estado} size="small" sx={estadoChipSx(p.estado)} /></TableCell>
+                                                <TableCell align="center">
+                                                    <IconButton size="small" onClick={(e) => abrirMenu(e, p)}>
+                                                        <MoreVertIcon fontSize="small" />
+                                                    </IconButton>
+                                                </TableCell>
+                                            </TableRow>
+                                        );
+                                    })}
                                 </TableBody>
                             </Table>
                         </Box>
@@ -286,6 +312,14 @@ export default function Pagos() {
                                     Ver mas
                                 </Button>
                             )}
+                        </Box>
+
+                        {/* Leyenda de recuperados */}
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1.5, flexWrap: 'wrap' }}>
+                            <Box sx={{ width: 14, height: 14, bgcolor: '#EFEAF8', border: '1px solid #CFDCEA', borderRadius: 0.5 }} />
+                            <Typography variant="caption" color="text.secondary">
+                                Filas en lila = pagos cobrados en {nombreMes} aplicados a deudas de meses anteriores (<strong>Saldo recuperado</strong>).
+                            </Typography>
                         </Box>
                     </Paper>
                 </Box>
