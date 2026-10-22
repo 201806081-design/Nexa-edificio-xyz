@@ -55,7 +55,7 @@ export const RESUMEN_ANTICIPOS = {
     disponible: 1500,  // credito disponible (saldo a favor)
 };
 
-export const ESTADOS_ANTICIPO = ['Todos', 'Disponible', 'Parcial'];
+export const ESTADOS_ANTICIPO = ['Todos', 'Disponible', 'Parcial', 'Aplicado'];
 
 // Departamentos para registrar un anticipo. creditoAnterior = credito a favor ya existente.
 export const DEPARTAMENTOS_ANTICIPO = [
@@ -64,9 +64,14 @@ export const DEPARTAMENTOS_ANTICIPO = [
     { id: '202', etiqueta: '202 — Luis Perez', saldoPendiente: 0, creditoAnterior: 300 },
 ];
 
-// Historial de anticipos. estado: 'Disponible' | 'Parcial'
+// Historial de anticipos.
+// estado:
+//   'Disponible' = anticipo recibido pero AUN NO se aplico a ninguna expensa (todo el saldo esta a favor)
+//   'Parcial'    = parte del anticipo YA se aplico a expensas; queda saldo a favor
+//   'Aplicado'   = anticipo totalmente consumido en expensas (no queda credito disponible)
 export const HISTORIAL_ANTICIPOS = [
     { id: 'PA-0012', fecha: '19/10/2026', depto: '303', responsable: 'Maria Rojas', recibido: 500, aplicado: 0, credito: 500, estado: 'Disponible' },
     { id: 'PA-0011', fecha: '12/10/2026', depto: '101', responsable: 'Ana Lopez', recibido: 700, aplicado: 350, credito: 350, estado: 'Parcial' },
     { id: 'PA-0010', fecha: '03/10/2026', depto: '202', responsable: 'Luis Perez', recibido: 1500, aplicado: 1200, credito: 300, estado: 'Parcial' },
+    { id: 'PA-0009', fecha: '28/09/2026', depto: '201', responsable: 'Marco Vargas', recibido: 300, aplicado: 300, credito: 0, estado: 'Aplicado' },  // totalmente consumido
 ];
