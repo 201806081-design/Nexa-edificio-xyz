@@ -39,6 +39,8 @@ const OPCIONES = {
       { nombre: 'Resumen', icon: <DescriptionIcon />, ruta: '/finanzas' },
       { nombre: 'Dashboard', icon: <BarChartIcon />, ruta: '/finanzas/dashboard' },
       { nombre: 'Expensas', icon: <DescriptionIcon />, ruta: '/finanzas/expensas' },
+      // Expensas v2 (propuesta del Inge, 22-oct-2026) - item temporal para presentar el lunes
+      { nombre: 'Expensas v2', icon: <DescriptionIcon />, ruta: '/finanzas/expensas-v2' },
       { nombre: 'Pagos', icon: <PaymentIcon />, ruta: '/finanzas/pagos' },
       { nombre: 'Estado de cuenta', icon: <ReceiptLongIcon />, ruta: '/finanzas/estado-cuenta' },
       { nombre: 'Ingresos y gastos', icon: <BarChartIcon />, ruta: '/finanzas/ingresos-gastos' },

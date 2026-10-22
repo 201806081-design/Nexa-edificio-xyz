@@ -13,11 +13,28 @@ import CalculateIcon from '@mui/icons-material/Calculate';
 import CalendarMonthIcon from '@mui/icons-material/CalendarMonth';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import {
-    CONFIG_MORA, APLICAR_MORA_DESDE, TIPOS_CALCULO, VIGENTE_DESDE, PERIODO_ACTUAL_MORA,
+    CONFIG_MORA, APLICAR_MORA_DESDE, TIPOS_CALCULO, PERIODO_ACTUAL_MORA,
     REGLA_MORA, DEUDAS_VENCIDAS,
 } from '../../constants/moraMock';
 import { REGLAS_PERIODO, DIAS_VENCIMIENTO } from '../../constants/configuracionMock';
 import { formatBs } from '../../constants/finanzasMock';
+
+// Helpers de conversion mes "YYYY-MM" <-> "Octubre 2026"
+const MESES_ES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+    'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+
+const textoToYyyyMm = (texto) => {
+    if (!texto) return '';
+    const [mes, y] = String(texto).split(' ');
+    const idx = MESES_ES.indexOf(mes);
+    if (idx < 0 || !y) return '';
+    return `${y}-${String(idx + 1).padStart(2, '0')}`;
+};
+const yyyyMmToTexto = (yyyyMm) => {
+    if (!yyyyMm) return '';
+    const [y, m] = yyyyMm.split('-');
+    return `${MESES_ES[Number(m) - 1]} ${y}`;
+};
 
 // Dato de la regla vigente (solo lectura, en recuadro con icono y color semantico)
 function DatoRegla({ etiqueta, valor, icon, color, bg }) {
@@ -41,13 +58,17 @@ function DatoRegla({ etiqueta, valor, icon, color, bg }) {
 }
 
 export default function Mora() {
-    const [config, setConfig] = useState(CONFIG_MORA);
+    const [config, setConfig] = useState({ ...CONFIG_MORA });
     // El dia de vencimiento es compartido con Configuracion financiera de Expensas.
     const [diaVencimiento, setDiaVencimiento] = useState(REGLAS_PERIODO.diaVencimiento);
 
     const [detalle, setDetalle] = useState(null);
     const [openConfig, setOpenConfig] = useState(false);
-    const [cfgDraft, setCfgDraft] = useState({ ...CONFIG_MORA, diaVencimiento: REGLAS_PERIODO.diaVencimiento });
+    const [cfgDraft, setCfgDraft] = useState({
+        ...CONFIG_MORA,
+        diaVencimiento: REGLAS_PERIODO.diaVencimiento,
+        vigenciaMes: textoToYyyyMm(CONFIG_MORA.vigenteDesde),
+    });
     const [openActualizar, setOpenActualizar] = useState(false);
     const [actualizando, setActualizando] = useState(false);
     const [exitoMsg, setExitoMsg] = useState('');
@@ -63,19 +84,31 @@ export default function Mora() {
     const totalVencido = filas.reduce((acc, f) => acc + f.deudaActual, 0);
 
     const abrirConfig = () => {
-        // Siempre leer el ultimo valor compartido (por si lo cambiaron en ConfiguracionFinanciera)
-        setCfgDraft({ ...config, diaVencimiento: REGLAS_PERIODO.diaVencimiento });
+        // Siempre leer el ultimo valor compartido (por si lo cambiaron en ConfiguracionFinanciera o v2)
+        setCfgDraft({
+            ...CONFIG_MORA,
+            diaVencimiento: REGLAS_PERIODO.diaVencimiento,
+            vigenciaMes: textoToYyyyMm(CONFIG_MORA.vigenteDesde),
+        });
+        setConfig({ ...CONFIG_MORA });
         setDiaVencimiento(REGLAS_PERIODO.diaVencimiento);
         setOpenConfig(true);
     };
     const guardarConfig = () => {
-        const { diaVencimiento: nuevoDia, ...resto } = cfgDraft;
-        setConfig(resto);
+        const { diaVencimiento: nuevoDia, vigenciaMes, ...resto } = cfgDraft;
+        const nuevoVigenteDesde = yyyyMmToTexto(vigenciaMes) || resto.vigenteDesde;
+        const nuevaConfig = { ...resto, vigenteDesde: nuevoVigenteDesde };
+        setConfig(nuevaConfig);
+        // BUG FIX: mutar CONFIG_MORA para que sincronice con v2 y persista entre pantallas
+        CONFIG_MORA.interesMensual = Number(nuevaConfig.interesMensual) || 0;
+        CONFIG_MORA.aplicarMoraDesde = nuevaConfig.aplicarMoraDesde;
+        CONFIG_MORA.tipoCalculo = nuevaConfig.tipoCalculo;
+        CONFIG_MORA.vigenteDesde = nuevaConfig.vigenteDesde;
         // Sincroniza con la configuracion financiera (mutacion mock compartida)
         REGLAS_PERIODO.diaVencimiento = nuevoDia;
         setDiaVencimiento(nuevoDia);
         setOpenConfig(false);
-        setExitoMsg('Configuracion de mora guardada');
+        setExitoMsg('Configuracion de mora guardada y sincronizada');
     };
     const cambiarDraft = (campo, valor) => setCfgDraft((c) => ({ ...c, [campo]: valor }));
 
@@ -183,7 +216,8 @@ export default function Mora() {
                 </DialogTitle>
                 <DialogContent dividers>
                     <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                        Define la regla que se aplicara a las deudas vencidas.
+                        Define la regla que se aplicara a las deudas vencidas. Los valores se sincronizan
+                        con <strong>Configuracion financiera v2</strong> y con <strong>Expensas v1</strong>.
                     </Typography>
 
                     <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Interes mensual (%)</Typography>
@@ -201,7 +235,7 @@ export default function Mora() {
                         {DIAS_VENCIMIENTO.map((d) => <MenuItem key={d} value={d}>{`Dia ${d}`}</MenuItem>)}
                     </Select>
                     <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 2 }}>
-                        Compartido con la configuracion financiera de expensas. Al cambiarlo aqui, tambien cambia alla.
+                        Compartido con Configuracion financiera. Al cambiarlo aqui, tambien cambia alla.
                     </Typography>
 
                     <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Tipo de calculo</Typography>
@@ -210,9 +244,8 @@ export default function Mora() {
                     </Select>
 
                     <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Vigente desde</Typography>
-                    <Select fullWidth value={cfgDraft.vigenteDesde} onChange={(e) => cambiarDraft('vigenteDesde', e.target.value)} sx={{ mb: 1 }}>
-                        {VIGENTE_DESDE.map((v) => <MenuItem key={v} value={v}>{v}</MenuItem>)}
-                    </Select>
+                    <TextField fullWidth type="month" value={cfgDraft.vigenciaMes || ''}
+                        onChange={(e) => cambiarDraft('vigenciaMes', e.target.value)} sx={{ mb: 1 }} />
                     <Typography variant="caption" color="text.secondary">Los intereses ya aplicados conservaran la tasa anterior.</Typography>
                 </DialogContent>
                 <DialogActions sx={{ p: 2 }}>
