@@ -18,7 +18,6 @@ export const DEPARTAMENTOS_PAGO = ['Todos', '101', '102', '201', '203', '302'];
 export const MEDIOS_PAGO = ['Transferencia', 'Efectivo', 'QR', 'Cheque'];
 
 // Departamentos con deudas pendientes (para "Registrar pago").
-// pendiente por periodo = totalDeuda - pagado
 export const DEPARTAMENTOS_DEUDA = [
     {
         id: '203', etiqueta: '203 — Carlos Mendoza', responsable: 'Carlos Mendoza · Propietario', saldoPendiente: 599,
@@ -73,10 +72,45 @@ export const DEPARTAMENTOS_ANTICIPO = [
 //   'Disponible' = recibido completo + aplicado 0; todo el saldo esta a favor sin usar
 //   'Parcial'    = parte del anticipo YA se aplico a expensas; queda saldo a favor
 //   'Aplicado'   = anticipo totalmente consumido en expensas (sin saldo a favor)
-// 'notas' alimenta la seccion "Movimientos aplicados" del modal de detalle.
+// aplicaciones[] alimenta la tabla "Aplicaciones del anticipo" del modal de detalle.
 export const HISTORIAL_ANTICIPOS = [
-    { id: 'PA-0012', fecha: '19/10/2026', depto: '303', responsable: 'Maria Rojas', pagadoPor: 'Maria Rojas', medio: 'Transferencia', referencia: 'TRF-241019-303', recibido: 500, aplicado: 0, credito: 500, estado: 'Disponible', notas: 'Deposito voluntario para cubrir las expensas de los proximos meses.' },
-    { id: 'PA-0011', fecha: '12/10/2026', depto: '101', responsable: 'Ana Lopez', pagadoPor: 'Ana Lopez', medio: 'Transferencia', referencia: 'TRF-241012-101', recibido: 700, aplicado: 350, credito: 350, estado: 'Parcial', notas: 'Se aplico Bs 350 a la expensa de Octubre 2026. Queda Bs 350 a favor.' },
-    { id: 'PA-0010', fecha: '03/10/2026', depto: '202', responsable: 'Luis Perez', pagadoPor: 'Luis Perez', medio: 'Transferencia', referencia: 'TRF-241003-202', recibido: 1500, aplicado: 1200, credito: 300, estado: 'Parcial', notas: 'Se aplicaron Bs 600 a Septiembre 2026 y Bs 600 a Octubre 2026. Queda Bs 300 a favor.' },
-    { id: 'PA-0009', fecha: '28/09/2026', depto: '201', responsable: 'Marco Vargas', pagadoPor: 'Marco Vargas', medio: 'Efectivo', referencia: 'EF-240928-201', recibido: 300, aplicado: 300, credito: 0, estado: 'Aplicado', notas: 'Totalmente consumido en la expensa de Septiembre 2026.' },
+    {
+        id: 'PA-0012', fecha: '19/10/2026', depto: '303', tipoDepto: 'C',
+        responsable: 'Maria Rojas', pagadoPor: 'Maria Rojas',
+        medio: 'Transferencia', referencia: 'TRF-241019-303',
+        recibido: 500, aplicado: 0, credito: 500, estado: 'Disponible',
+        aplicaciones: [],
+        notas: 'Deposito voluntario para cubrir las expensas de los proximos meses.',
+    },
+    {
+        id: 'PA-0011', fecha: '12/10/2026', depto: '101', tipoDepto: 'A',
+        responsable: 'Ana Lopez', pagadoPor: 'Ana Lopez',
+        medio: 'Transferencia', referencia: 'TRF-241012-101',
+        recibido: 700, aplicado: 350, credito: 350, estado: 'Parcial',
+        aplicaciones: [
+            { periodo: 'Octubre 2026', pagoRef: 'EX-OCT-101', concepto: 'Expensa base + Agua', monto: 350 },
+        ],
+        notas: 'Se aplico Bs 350 a la expensa de Octubre 2026. Queda Bs 350 a favor.',
+    },
+    {
+        id: 'PA-0010', fecha: '03/10/2026', depto: '202', tipoDepto: 'B',
+        responsable: 'Luis Perez', pagadoPor: 'Luis Perez',
+        medio: 'Transferencia', referencia: 'TRF-241003-202',
+        recibido: 1500, aplicado: 1200, credito: 300, estado: 'Parcial',
+        aplicaciones: [
+            { periodo: 'Septiembre 2026', pagoRef: 'EX-SEP-202', concepto: 'Expensa base + Agua', monto: 600 },
+            { periodo: 'Octubre 2026', pagoRef: 'EX-OCT-202', concepto: 'Expensa base + Agua', monto: 600 },
+        ],
+        notas: 'Se aplicaron Bs 600 a Septiembre 2026 y Bs 600 a Octubre 2026. Queda Bs 300 a favor.',
+    },
+    {
+        id: 'PA-0009', fecha: '28/09/2026', depto: '201', tipoDepto: 'B',
+        responsable: 'Marco Vargas', pagadoPor: 'Marco Vargas',
+        medio: 'Efectivo', referencia: 'EF-240928-201',
+        recibido: 300, aplicado: 300, credito: 0, estado: 'Aplicado',
+        aplicaciones: [
+            { periodo: 'Septiembre 2026', pagoRef: 'EX-SEP-201', concepto: 'Expensa base + Agua', monto: 300 },
+        ],
+        notas: 'Totalmente consumido en la expensa de Septiembre 2026.',
+    },
 ];

@@ -26,7 +26,7 @@ import { EXPENSAS_MOCK } from '../../constants/expensasMock';
 import { DEUDAS_VENCIDAS, CONFIG_MORA } from '../../constants/moraMock';
 import { formatBs } from '../../constants/finanzasMock';
 
-// Verifica si el periodoAplicado del pago coincide con el periodo seleccionado
+// ---------- Helpers ----------
 const periodoCoincide = (periodoAplicado, periodoSel) => {
     const [mesSel, anioSel] = (periodoSel || '').toLowerCase().split(' ');
     const corto = (mesSel || '').slice(0, 3);
@@ -34,13 +34,11 @@ const periodoCoincide = (periodoAplicado, periodoSel) => {
     return (p.includes(mesSel) || p.includes(corto)) && p.includes(anioSel || '');
 };
 
-// Mapa mes-nombre -> indice (1-12)
 const MES_IDX = {
     enero: 1, febrero: 2, marzo: 3, abril: 4, mayo: 5, junio: 6,
     julio: 7, agosto: 8, septiembre: 9, octubre: 10, noviembre: 11, diciembre: 12,
 };
 
-// Verifica si la fecha del pago (DD/MM/YYYY) cae dentro del periodo seleccionado
 const fechaEnPeriodo = (fecha, periodoSel) => {
     const [, m, y] = (fecha || '').split('/').map(Number);
     const [mesSel, anioSel] = (periodoSel || '').toLowerCase().split(' ');
@@ -48,8 +46,7 @@ const fechaEnPeriodo = (fecha, periodoSel) => {
     return m === mesIdx && y === Number(anioSel);
 };
 
-// Devuelve el desglose del pago (base + agua + mora) buscando en EXPENSAS y DEUDAS vencidas.
-// Puede devolver 1 fila (pago a un solo periodo) o varias (pago distribuido).
+// Devuelve el desglose del pago cruzando con EXPENSAS y DEUDAS vencidas.
 const calcularComposicion = (pago) => {
     if (!pago) return [];
     const items = [];
@@ -57,7 +54,16 @@ const calcularComposicion = (pago) => {
         e.departamento === `Depto. ${pago.depto}` &&
         periodoCoincide(pago.periodoAplicado, e.periodo));
     for (const e of expensas) {
-        items.push({ periodo: e.periodo, base: e.base, agua: e.agua, mora: 0, total: e.total });
+        const m3 = (e.lecturaActual != null && e.lecturaAnterior != null)
+            ? Math.max(0, (e.lecturaActual || 0) - (e.lecturaAnterior || 0)) : null;
+        const tarifa = (m3 && m3 > 0) ? (e.agua / m3) : null;
+        items.push({
+            periodo: e.periodo, tipo: e.tipo || null,
+            base: e.base, agua: e.agua,
+            m3Agua: m3, lecturaAnt: e.lecturaAnterior ?? null, lecturaAct: e.lecturaActual ?? null, tarifa,
+            mora: 0, mesesMora: 0, deudaOriginal: e.base + e.agua,
+            total: e.total, origen: 'corriente',
+        });
     }
     const deudas = DEUDAS_VENCIDAS.filter((d) =>
         d.depto === pago.depto &&
@@ -68,7 +74,13 @@ const calcularComposicion = (pago) => {
             ? d.deudaOriginal * (1 + tasa * d.meses)
             : d.deudaOriginal * (1 + tasa) ** d.meses;
         const mora = Math.round(conMora - d.deudaOriginal);
-        items.push({ periodo: d.periodo, base: d.expensaBase, agua: d.agua, mora, total: d.deudaOriginal + mora });
+        items.push({
+            periodo: d.periodo, tipo: d.tipo || null,
+            base: d.expensaBase, agua: d.agua,
+            m3Agua: null, lecturaAnt: null, lecturaAct: null, tarifa: null,
+            mora, mesesMora: d.meses, deudaOriginal: d.deudaOriginal,
+            total: d.deudaOriginal + mora, origen: 'vencida',
+        });
     }
     return items;
 };
@@ -76,7 +88,7 @@ const calcularComposicion = (pago) => {
 const anticipoChipSx = (estado) => {
     if (estado === 'Disponible') return { bgcolor: '#E4F4EE', color: '#2E9D78' };
     if (estado === 'Aplicado') return { bgcolor: '#E4EEF5', color: '#1F5F8B' };
-    return { bgcolor: '#FDF0D5', color: '#B6802A' }; // Parcial
+    return { bgcolor: '#FDF0D5', color: '#B6802A' };
 };
 
 const tabGroupSx = {
@@ -103,16 +115,14 @@ export default function Pagos() {
     const [estado, setEstado] = useState('Todos');
     const [busqueda, setBusqueda] = useState('');
     const [limite, setLimite] = useState(PAGE_SIZE);
-    const [tick, setTick] = useState(0); // force re-render tras mutaciones del mock
+    const [tick, setTick] = useState(0);
 
-    // Menu de acciones de la tabla (3 puntitos)
     const [menuAnchor, setMenuAnchor] = useState(null);
     const [pagoSel, setPagoSel] = useState(null);
     const [detalleAbierto, setDetalleAbierto] = useState(false);
     const [anularAbierto, setAnularAbierto] = useState(false);
     const [snack, setSnack] = useState({ open: false, msg: '', sev: 'success' });
 
-    // Detalle de anticipos
     const [anticipoSel, setAnticipoSel] = useState(null);
     const [anticipoAbierto, setAnticipoAbierto] = useState(false);
 
@@ -128,7 +138,6 @@ export default function Pagos() {
     const abrirAnticipo = (a) => { setAnticipoSel(a); setAnticipoAbierto(true); };
     const cerrarAnticipo = () => { setAnticipoAbierto(false); };
 
-    // Anular pago REAL: lo saca de PAGOS_MOCK y restaura el saldo del depto si estaba en DEPARTAMENTOS_DEUDA
     const confirmarAnular = () => {
         const idx = PAGOS_MOCK.findIndex((p) => p.id === pagoSel.id);
         if (idx >= 0) {
@@ -140,10 +149,9 @@ export default function Pagos() {
         }
         setAnularAbierto(false);
         setPagoSel(null);
-        setTick((t) => t + 1); // dispara re-calculo de cards y tabla
+        setTick((t) => t + 1);
     };
 
-    // --- Cards de pagos de expensas (calculadas en vivo sobre los pagos del MES por fecha) ---
     const resumenExp = useMemo(() => {
         const pagosDelMes = PAGOS_MOCK.filter((p) => fechaEnPeriodo(p.fecha, periodo));
         const registrados = pagosDelMes.length;
@@ -156,7 +164,6 @@ export default function Pagos() {
         return { cobrado, registrados, recuperado };
     }, [periodo, tick]);
 
-    // --- Cards de anticipos ---
     const resumenAnt = useMemo(() => {
         const recibidos = HISTORIAL_ANTICIPOS.reduce((s, a) => s + (a.recibido || 0), 0);
         const aplicado = HISTORIAL_ANTICIPOS.reduce((s, a) => s + (a.aplicado || 0), 0);
@@ -178,7 +185,6 @@ export default function Pagos() {
         { label: 'Saldo a favor', valor: formatBs(resumenAnt.disponible), nota: 'Pendiente de aplicar', icon: <AccountBalanceWalletIcon />, color: '#1F5F8B', bg: '#E4EEF5' },
     ];
 
-    // --- Filtrado del historial de pagos: por FECHA en el periodo (incluye los recuperados) ---
     const pagosFiltrados = useMemo(() => {
         return PAGOS_MOCK.filter((p) =>
             fechaEnPeriodo(p.fecha, periodo) &&
@@ -190,22 +196,18 @@ export default function Pagos() {
     const pagosVisibles = pagosFiltrados.slice(0, limite);
     const hayMas = pagosFiltrados.length > limite;
 
-    // Composicion del pago seleccionado (para el modal)
     const composicion = useMemo(() => calcularComposicion(pagoSel), [pagoSel]);
     const totalComp = useMemo(() => composicion.reduce((s, c) => s + c.total, 0), [composicion]);
-    const totalBase = useMemo(() => composicion.reduce((s, c) => s + c.base, 0), [composicion]);
-    const totalAgua = useMemo(() => composicion.reduce((s, c) => s + c.agua, 0), [composicion]);
-    const totalMora = useMemo(() => composicion.reduce((s, c) => s + c.mora, 0), [composicion]);
+    const tasaMora = CONFIG_MORA?.interesMensual || 0;
+    const tipoCalc = (CONFIG_MORA?.tipoCalculo || 'Simple').toLowerCase();
 
     return (
         <DashboardLayout>
-            {/* Header */}
             <Typography variant="h1" color="primary.main" sx={{ mb: 0.5 }}>Pagos de expensas</Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                 Consulta el historial y registra los pagos realizados por departamento
             </Typography>
 
-            {/* Fila de acciones */}
             <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', justifyContent: { xs: 'stretch', md: 'flex-end' }, mb: 2 }}>
                 {tab === 'expensas' && (
                     <>
@@ -230,7 +232,6 @@ export default function Pagos() {
                 )}
             </Box>
 
-            {/* Tabs */}
             <Paper sx={{ p: 1.5, borderRadius: 2, mb: 2 }}>
                 <ToggleButtonGroup exclusive value={tab} onChange={(e, v) => v && setTab(v)} sx={tabGroupSx}>
                     <ToggleButton value="expensas">Pagos de expensas</ToggleButton>
@@ -240,7 +241,6 @@ export default function Pagos() {
 
             {tab === 'expensas' && (
                 <Box>
-                    {/* Resumen (3 tarjetas en vivo) */}
                     <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(3, 1fr)' }, gap: 2, mb: 2 }}>
                         {RESUMEN_EXP.map((r) => (
                             <Paper key={r.label} sx={{ p: 2.5, borderRadius: 2, display: 'flex', alignItems: 'center', gap: 2 }}>
@@ -256,7 +256,6 @@ export default function Pagos() {
                         ))}
                     </Box>
 
-                    {/* Filtros */}
                     <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'flex-end', mb: 3 }}>
                         <Box sx={{ flex: 2, minWidth: 200 }}>
                             <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Buscar</Typography>
@@ -284,7 +283,6 @@ export default function Pagos() {
                         </Box>
                     </Box>
 
-                    {/* Historial de pagos */}
                     <Paper sx={{ p: 3, borderRadius: 2 }}>
                         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
                             <Typography variant="body2" sx={{ fontWeight: 600 }}>Historial de pagos</Typography>
@@ -353,7 +351,6 @@ export default function Pagos() {
                             )}
                         </Box>
 
-                        {/* Leyenda */}
                         <Box sx={{ bgcolor: '#F1F5FA', borderRadius: 2, p: 1.5, mt: 2 }}>
                             <Typography variant="caption" sx={{ fontWeight: 700, display: 'block', mb: 0.75 }}>¿Que significa cada columna?</Typography>
                             <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
@@ -373,10 +370,8 @@ export default function Pagos() {
                 </Box>
             )}
 
-            {/* Tab Pagos anticipados */}
             {tab === 'anticipados' && (
                 <Box>
-                    {/* Resumen (3 tarjetas en vivo) */}
                     <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(3, 1fr)' }, gap: 2, mb: 2 }}>
                         {RESUMEN_ANT.map((r) => (
                             <Paper key={r.label} sx={{ p: 2.5, borderRadius: 2, display: 'flex', alignItems: 'center', gap: 2 }}>
@@ -392,7 +387,6 @@ export default function Pagos() {
                         ))}
                     </Box>
 
-                    {/* Historial de anticipos */}
                     <Paper sx={{ p: 3, borderRadius: 2 }}>
                         <Typography variant="body2" sx={{ fontWeight: 600, mb: 1 }}>Historial de anticipos</Typography>
                         <Box sx={{ overflowX: 'auto' }}>
@@ -432,7 +426,6 @@ export default function Pagos() {
                             </Table>
                         </Box>
 
-                        {/* Leyenda columnas */}
                         <Box sx={{ bgcolor: '#F1F5FA', borderRadius: 2, p: 1.5, mt: 2 }}>
                             <Typography variant="caption" sx={{ fontWeight: 700, display: 'block', mb: 0.75 }}>¿Que significa cada columna?</Typography>
                             <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
@@ -464,7 +457,6 @@ export default function Pagos() {
                 </Box>
             )}
 
-            {/* Menu de los 3 puntitos (pagos) */}
             <Menu anchorEl={menuAnchor} open={Boolean(menuAnchor)} onClose={cerrarMenu}>
                 <MenuItem onClick={verDetalle}>
                     <VisibilityOutlinedIcon fontSize="small" sx={{ mr: 1, color: '#1F5F8B' }} />
@@ -480,13 +472,15 @@ export default function Pagos() {
                 </MenuItem>
             </Menu>
 
-            {/* Dialog: Ver detalle del pago (enriquecido) */}
+            {/* ============================================================ */}
+            {/* Dialog: Ver detalle del pago (desglose completo por periodo) */}
+            {/* ============================================================ */}
             <Dialog open={detalleAbierto} onClose={() => setDetalleAbierto(false)} maxWidth="md" fullWidth>
                 <DialogTitle sx={{ fontWeight: 700 }}>Detalle del pago {pagoSel?.id}</DialogTitle>
                 <DialogContent dividers>
                     {pagoSel && (
                         <Box>
-                            {/* Datos del pago */}
+                            {/* 1. Datos del pago */}
                             <Typography variant="body2" sx={{ fontWeight: 700, mb: 1 }}>Datos del pago</Typography>
                             <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr 1fr', sm: 'repeat(3, 1fr)' }, gap: 1.5, mb: 2 }}>
                                 <Box>
@@ -513,20 +507,12 @@ export default function Pagos() {
                                     <Typography variant="caption" color="text.secondary">Referencia</Typography>
                                     <Typography variant="body2" sx={{ fontWeight: 700 }}>{pagoSel.referencia || '—'}</Typography>
                                 </Box>
-                                <Box>
-                                    <Typography variant="caption" color="text.secondary">Periodo aplicado</Typography>
-                                    <Typography variant="body2" sx={{ fontWeight: 700 }}>{pagoSel.periodoAplicado}</Typography>
-                                </Box>
-                                <Box>
-                                    <Typography variant="caption" color="text.secondary">Estado</Typography>
-                                    <Chip label={pagoSel.estado} size="small" sx={{ mt: 0.5, ...estadoChipSx(pagoSel.estado) }} />
-                                </Box>
                             </Box>
 
                             <Divider sx={{ my: 2 }} />
 
-                            {/* Composicion del cobro */}
-                            <Typography variant="body2" sx={{ fontWeight: 700, mb: 1 }}>Composicion del cobro</Typography>
+                            {/* 2. ¿De que esta compuesta esta expensa? */}
+                            <Typography variant="body2" sx={{ fontWeight: 700, mb: 1 }}>¿De que esta compuesta esta expensa?</Typography>
                             {composicion.length === 0 ? (
                                 <Box sx={{ bgcolor: '#FDF0D5', borderRadius: 2, p: 1.5, mb: 2 }}>
                                     <Typography variant="caption" color="text.secondary">
@@ -534,48 +520,62 @@ export default function Pagos() {
                                         Monto registrado: <strong>{formatBs(pagoSel.monto)}</strong>.
                                     </Typography>
                                 </Box>
-                            ) : (
-                                <Box sx={{ overflowX: 'auto', mb: 2 }}>
-                                    <Table size="small" sx={{ minWidth: 520 }}>
-                                        <TableHead>
-                                            <TableRow sx={{ bgcolor: '#F1F5FA' }}>
-                                                <TableCell><strong>Periodo</strong></TableCell>
-                                                <TableCell align="right"><strong>Expensa base</strong></TableCell>
-                                                <TableCell align="right"><strong>Agua</strong></TableCell>
-                                                <TableCell align="right"><strong>Mora</strong></TableCell>
-                                                <TableCell align="right"><strong>Total expensa</strong></TableCell>
-                                            </TableRow>
-                                        </TableHead>
-                                        <TableBody>
-                                            {composicion.map((c, i) => (
-                                                <TableRow key={i}>
-                                                    <TableCell>{c.periodo}</TableCell>
-                                                    <TableCell align="right">{formatBs(c.base)}</TableCell>
-                                                    <TableCell align="right">{formatBs(c.agua)}</TableCell>
-                                                    <TableCell align="right" sx={{ color: c.mora > 0 ? '#D9534F' : 'text.primary' }}>{formatBs(c.mora)}</TableCell>
-                                                    <TableCell align="right" sx={{ fontWeight: 600 }}>{formatBs(c.total)}</TableCell>
-                                                </TableRow>
-                                            ))}
-                                            {composicion.length > 1 && (
-                                                <TableRow sx={{ bgcolor: '#F8FAFC' }}>
-                                                    <TableCell><strong>Totales</strong></TableCell>
-                                                    <TableCell align="right"><strong>{formatBs(totalBase)}</strong></TableCell>
-                                                    <TableCell align="right"><strong>{formatBs(totalAgua)}</strong></TableCell>
-                                                    <TableCell align="right" sx={{ color: totalMora > 0 ? '#D9534F' : 'text.primary' }}><strong>{formatBs(totalMora)}</strong></TableCell>
-                                                    <TableCell align="right"><strong>{formatBs(totalComp)}</strong></TableCell>
-                                                </TableRow>
+                            ) : composicion.map((c, i) => (
+                                <Paper key={i} sx={{ p: 2, mb: 1.5, bgcolor: '#F8FAFC', borderLeft: `4px solid ${c.origen === 'vencida' ? '#D9534F' : '#1F5F8B'}` }}>
+                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1, flexWrap: 'wrap' }}>
+                                        <Typography variant="body2" sx={{ fontWeight: 700 }}>Expensa de {c.periodo}</Typography>
+                                        {c.tipo && (
+                                            <Chip label={`Tipo ${c.tipo}`} size="small" sx={{ bgcolor: '#E4EEF5', color: '#1F5F8B', fontWeight: 600 }} />
+                                        )}
+                                        {c.origen === 'vencida' && (
+                                            <Chip label={`${c.mesesMora} ${c.mesesMora === 1 ? 'mes' : 'meses'} de atraso`} size="small"
+                                                sx={{ bgcolor: '#FDE7E6', color: '#D9534F', fontWeight: 600 }} />
+                                        )}
+                                    </Box>
+
+                                    <Box sx={{ display: 'grid', gridTemplateColumns: '1fr auto', rowGap: 0.75, columnGap: 2 }}>
+                                        <Typography variant="body2" color="text.secondary">
+                                            Expensa base (alicuota del tipo {c.tipo || '—'})
+                                        </Typography>
+                                        <Typography variant="body2" sx={{ fontWeight: 600 }}>{formatBs(c.base)}</Typography>
+
+                                        <Typography variant="body2" color="text.secondary">
+                                            Consumo de agua
+                                            {c.m3Agua != null && c.lecturaAnt != null && (
+                                                <Typography variant="caption" sx={{ display: 'block', color: '#64748B' }}>
+                                                    Lectura {c.lecturaAnt} → {c.lecturaAct} = {c.m3Agua} m³
+                                                    {c.tarifa && ` × Bs ${c.tarifa.toFixed(2)}/m³`}
+                                                </Typography>
                                             )}
-                                        </TableBody>
-                                    </Table>
-                                </Box>
-                            )}
+                                        </Typography>
+                                        <Typography variant="body2" sx={{ fontWeight: 600 }}>{formatBs(c.agua)}</Typography>
+
+                                        {c.mora > 0 && (
+                                            <>
+                                                <Typography variant="body2" sx={{ color: '#D9534F' }}>
+                                                    Interes por mora
+                                                    <Typography variant="caption" sx={{ display: 'block', color: '#64748B' }}>
+                                                        {tasaMora}% mensual ({tipoCalc}) × {c.mesesMora} {c.mesesMora === 1 ? 'mes' : 'meses'} sobre Bs {c.deudaOriginal.toFixed(0)}
+                                                    </Typography>
+                                                </Typography>
+                                                <Typography variant="body2" sx={{ fontWeight: 600, color: '#D9534F' }}>+ {formatBs(c.mora)}</Typography>
+                                            </>
+                                        )}
+
+                                        <Box sx={{ gridColumn: '1 / -1', borderTop: '1px dashed #CFDCEA', mt: 0.5, pt: 0.5 }} />
+
+                                        <Typography variant="body2" sx={{ fontWeight: 700 }}>Total expensa de {c.periodo}</Typography>
+                                        <Typography variant="body2" sx={{ fontWeight: 700 }}>{formatBs(c.total)}</Typography>
+                                    </Box>
+                                </Paper>
+                            ))}
 
                             <Divider sx={{ my: 2 }} />
 
-                            {/* Resumen final */}
-                            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, 1fr)' }, gap: 2 }}>
+                            {/* 3. Resumen de cobro */}
+                            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, 1fr)' }, gap: 2, mb: 1.5 }}>
                                 <Box sx={{ p: 1.5, bgcolor: '#F1F5FA', borderRadius: 2 }}>
-                                    <Typography variant="caption" color="text.secondary">Total expensa</Typography>
+                                    <Typography variant="caption" color="text.secondary">Total a cobrar</Typography>
                                     <Typography variant="h4" sx={{ fontWeight: 700 }}>
                                         {composicion.length > 0 ? formatBs(totalComp) : formatBs(pagoSel.monto + pagoSel.saldoPosterior)}
                                     </Typography>
@@ -592,10 +592,29 @@ export default function Pagos() {
                                 </Box>
                             </Box>
 
-                            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1.5 }}>
-                                <strong>Saldo posterior</strong> = cuanto le queda debiendo el depto al edificio despues de este pago.
-                                Si llega a Bs 0, el depto queda al dia.
-                            </Typography>
+                            {/* 4. Nota del saldo posterior */}
+                            <Box sx={{ bgcolor: '#FDF0D5', borderRadius: 2, p: 1.5 }}>
+                                <Typography variant="caption" sx={{ fontWeight: 700, display: 'block', mb: 0.5 }}>
+                                    Sobre el saldo posterior
+                                </Typography>
+                                <Typography variant="caption" color="text.secondary">
+                                    {pagoSel.saldoPosterior > 0 ? (
+                                        <>
+                                            Quedan <strong>{formatBs(pagoSel.saldoPosterior)}</strong> pendientes del depto <strong>{pagoSel.depto}</strong>.
+                                            Este saldo <strong>no acumula mora de inmediato</strong>: la mora recien empieza a correr desde el dia siguiente al
+                                            vencimiento del periodo (segun el dia de vencimiento configurado en <em>Mora e intereses</em> / <em>Configuracion financiera</em>).
+                                            Cuando el saldo pase a estar vencido, se aplicara mora al <strong>{tasaMora}% mensual ({tipoCalc})</strong> sobre la
+                                            <strong> deuda original</strong> del periodo (expensa base + agua), no sobre el monto pagado ni acumulando con los
+                                            intereses ya cobrados.
+                                        </>
+                                    ) : (
+                                        <>
+                                            El depto <strong>{pagoSel.depto}</strong> quedo al dia con este pago. No hay saldo pendiente, por lo tanto tampoco
+                                            aplicara mora para el periodo <strong>{pagoSel.periodoAplicado}</strong>.
+                                        </>
+                                    )}
+                                </Typography>
+                            </Box>
                         </Box>
                     )}
                 </DialogContent>
@@ -622,13 +641,15 @@ export default function Pagos() {
                 </DialogActions>
             </Dialog>
 
-            {/* Dialog: Ver detalle del anticipo */}
-            <Dialog open={anticipoAbierto} onClose={cerrarAnticipo} maxWidth="sm" fullWidth>
+            {/* ============================================================ */}
+            {/* Dialog: Ver detalle del anticipo (tipo + aplicaciones)       */}
+            {/* ============================================================ */}
+            <Dialog open={anticipoAbierto} onClose={cerrarAnticipo} maxWidth="md" fullWidth>
                 <DialogTitle sx={{ fontWeight: 700 }}>Detalle del anticipo {anticipoSel?.id}</DialogTitle>
                 <DialogContent dividers>
                     {anticipoSel && (
                         <Box>
-                            {/* Datos del anticipo */}
+                            {/* 1. Datos del anticipo */}
                             <Typography variant="body2" sx={{ fontWeight: 700, mb: 1 }}>Datos del anticipo</Typography>
                             <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr 1fr', sm: 'repeat(3, 1fr)' }, gap: 1.5, mb: 2 }}>
                                 <Box>
@@ -637,7 +658,13 @@ export default function Pagos() {
                                 </Box>
                                 <Box>
                                     <Typography variant="caption" color="text.secondary">Departamento</Typography>
-                                    <Typography variant="body2" sx={{ fontWeight: 700 }}>{anticipoSel.depto}</Typography>
+                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                        <Typography variant="body2" sx={{ fontWeight: 700 }}>{anticipoSel.depto}</Typography>
+                                        {anticipoSel.tipoDepto && (
+                                            <Chip label={`Tipo ${anticipoSel.tipoDepto}`} size="small"
+                                                sx={{ bgcolor: '#E4EEF5', color: '#1F5F8B', fontWeight: 600, height: 20 }} />
+                                        )}
+                                    </Box>
                                 </Box>
                                 <Box>
                                     <Typography variant="caption" color="text.secondary">Responsable</Typography>
@@ -659,7 +686,7 @@ export default function Pagos() {
 
                             <Divider sx={{ my: 2 }} />
 
-                            {/* Movimiento del anticipo */}
+                            {/* 2. Movimiento del anticipo */}
                             <Typography variant="body2" sx={{ fontWeight: 700, mb: 1 }}>Movimiento del anticipo</Typography>
                             <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, 1fr)' }, gap: 2, mb: 2 }}>
                                 <Box sx={{ p: 1.5, bgcolor: '#E4F4EE', borderRadius: 2 }}>
@@ -681,17 +708,62 @@ export default function Pagos() {
 
                             <Divider sx={{ my: 2 }} />
 
-                            {/* Estado + nota */}
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                            {/* 3. Aplicaciones del anticipo (en que expensas se descontó) */}
+                            <Typography variant="body2" sx={{ fontWeight: 700, mb: 1 }}>¿A que expensas se aplico este anticipo?</Typography>
+                            {(!anticipoSel.aplicaciones || anticipoSel.aplicaciones.length === 0) ? (
+                                <Box sx={{ bgcolor: '#E4F4EE', borderRadius: 2, p: 1.5, mb: 2 }}>
+                                    <Typography variant="caption" color="text.secondary">
+                                        Este anticipo todavia <strong>no se aplico a ninguna expensa</strong>. El saldo esta integro a favor del depto <strong>{anticipoSel.depto}</strong>
+                                        y se descontara automaticamente de las proximas expensas que se generen.
+                                    </Typography>
+                                </Box>
+                            ) : (
+                                <Box sx={{ overflowX: 'auto', mb: 2 }}>
+                                    <Table size="small" sx={{ minWidth: 520 }}>
+                                        <TableHead>
+                                            <TableRow sx={{ bgcolor: '#F1F5FA' }}>
+                                                <TableCell><strong>Periodo cubierto</strong></TableCell>
+                                                <TableCell><strong>Concepto</strong></TableCell>
+                                                <TableCell><strong>Pago generado</strong></TableCell>
+                                                <TableCell align="right"><strong>Monto aplicado</strong></TableCell>
+                                            </TableRow>
+                                        </TableHead>
+                                        <TableBody>
+                                            {anticipoSel.aplicaciones.map((ap, i) => (
+                                                <TableRow key={i}>
+                                                    <TableCell>{ap.periodo}</TableCell>
+                                                    <TableCell>
+                                                        <Typography variant="body2">{ap.concepto || 'Expensa base + Agua'}</Typography>
+                                                    </TableCell>
+                                                    <TableCell sx={{ color: 'primary.main', fontWeight: 600 }}>{ap.pagoRef || '—'}</TableCell>
+                                                    <TableCell align="right" sx={{ fontWeight: 600, color: '#B6802A' }}>{formatBs(ap.monto)}</TableCell>
+                                                </TableRow>
+                                            ))}
+                                            <TableRow sx={{ bgcolor: '#F8FAFC' }}>
+                                                <TableCell colSpan={3}><strong>Total aplicado</strong></TableCell>
+                                                <TableCell align="right"><strong>{formatBs(anticipoSel.aplicado)}</strong></TableCell>
+                                            </TableRow>
+                                        </TableBody>
+                                    </Table>
+                                </Box>
+                            )}
+
+                            {/* 4. Estado + alcance */}
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
                                 <Typography variant="body2" color="text.secondary">Estado:</Typography>
                                 <Chip label={anticipoSel.estado} size="small" sx={anticipoChipSx(anticipoSel.estado)} />
                             </Box>
-                            {anticipoSel.notas && (
-                                <Box sx={{ bgcolor: '#F1F5FA', borderRadius: 2, p: 1.5 }}>
-                                    <Typography variant="caption" sx={{ fontWeight: 700, display: 'block', mb: 0.5 }}>Movimientos aplicados</Typography>
-                                    <Typography variant="caption" color="text.secondary">{anticipoSel.notas}</Typography>
-                                </Box>
-                            )}
+
+                            <Box sx={{ bgcolor: '#FDF0D5', borderRadius: 2, p: 1.5 }}>
+                                <Typography variant="caption" sx={{ fontWeight: 700, display: 'block', mb: 0.5 }}>
+                                    ¿A que se puede aplicar un anticipo?
+                                </Typography>
+                                <Typography variant="caption" color="text.secondary">
+                                    Un anticipo <strong>solo se aplica a expensas</strong>: expensa base del tipo del depto + consumo de agua + mora (si llegara a vencerse).
+                                    No cubre multas por reglamento, servicios adicionales (reservas, sanciones, convocatorias) ni consumos extras que se cobran por
+                                    fuera del recibo mensual. Si queda saldo a favor despues de aplicarse a varias expensas, sigue acumulado para los proximos periodos.
+                                </Typography>
+                            </Box>
                         </Box>
                     )}
                 </DialogContent>
@@ -700,7 +772,6 @@ export default function Pagos() {
                 </DialogActions>
             </Dialog>
 
-            {/* Snackbar */}
             <Snackbar open={snack.open} autoHideDuration={3500} onClose={() => setSnack({ ...snack, open: false })}
                 anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}>
                 <Alert severity={snack.sev} onClose={() => setSnack({ ...snack, open: false })} sx={{ width: '100%' }}>
