@@ -1,8 +1,8 @@
-import { useState } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import {
     Box, Typography, Select, MenuItem, Paper, Button, Chip, IconButton,
     Table, TableHead, TableBody, TableRow, TableCell, InputAdornment, TextField, Divider,
-    Dialog, DialogTitle, DialogContent,
+    Dialog, DialogTitle, DialogContent, Snackbar, Alert,
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import AddIcon from '@mui/icons-material/Add';
@@ -12,11 +12,12 @@ import VisibilityIcon from '@mui/icons-material/Visibility';
 import DescriptionOutlinedIcon from '@mui/icons-material/DescriptionOutlined';
 import ScheduleIcon from '@mui/icons-material/Schedule';
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircle';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import {
-    PERIODOS, ESTADOS_EXPENSA, RESUMEN_EXPENSAS, EXPENSAS_MOCK,
+    PERIODOS, ESTADOS_EXPENSA, EXPENSAS_MOCK,
 } from '../../constants/expensasMock';
+import { PAGOS_MOCK } from '../../constants/pagosMock';
 import { formatBs } from '../../constants/finanzasMock';
 
 // Color del chip segun el estado de la expensa
@@ -24,21 +25,52 @@ const estadoChipSx = (estado) => (estado === 'Pagado'
     ? { bgcolor: '#E4F4EE', color: '#2E9D78' }
     : { bgcolor: '#FDF0D5', color: '#B6802A' });
 
-// Tarjetas de resumen (total / pendiente / pagado)
-const RESUMEN = [
-    { clave: 'totalGenerado', label: 'Total generados', icon: <DescriptionOutlinedIcon />, color: 'primary.main', bg: '#E4EEF5' },
-    { clave: 'pendiente', label: 'Pendiente', icon: <ScheduleIcon />, color: '#B6802A', bg: '#FDF0D5' },
-    { clave: 'pagado', label: 'Pagado', icon: <CheckCircleOutlineIcon />, color: '#2E9D78', bg: '#E4F4EE' },
-];
+// Helper: ¿el periodoAplicado (ej "Octubre 2026") corresponde al periodo seleccionado?
+const periodoCoincide = (periodoAplicado, periodoSel) => {
+    const p = (periodoAplicado || '').toLowerCase();
+    const [mesSel, anioSel] = (periodoSel || '').toLowerCase().split(' ');
+    const corto = (mesSel || '').slice(0, 3); // 'oct' para 'octubre'
+    return (p.includes(mesSel) || p.includes(corto)) && p.includes(anioSel || '');
+};
 
 export default function Expensas() {
     const navigate = useNavigate();
+    const location = useLocation();
     const [periodo, setPeriodo] = useState(PERIODOS[0]);
     const [estado, setEstado] = useState('Todos');
     const [busqueda, setBusqueda] = useState('');
-    const [detalle, setDetalle] = useState(null); // expensa seleccionada para el modal
+    const [detalle, setDetalle] = useState(null);
+    const [snack, setSnack] = useState({ open: false, msg: '', sev: 'success' });
 
+    // Si venimos de "Generar expensas" con mensaje, mostrarlo
+    useEffect(() => {
+        if (location.state?.mensaje) {
+            setSnack({ open: true, msg: location.state.mensaje, sev: 'success' });
+            // Limpia el state para que no reaparezca al refrescar
+            navigate(location.pathname, { replace: true, state: null });
+        }
+    }, [location, navigate]);
+
+    // KPIs calculados en vivo desde los mocks (sincronizados con Pagos)
+    const resumen = useMemo(() => {
+        const expensasPeriodo = EXPENSAS_MOCK.filter((e) => e.periodo === periodo);
+        const totalGenerado = expensasPeriodo.reduce((s, e) => s + (e.monto || 0), 0);
+        const pagado = PAGOS_MOCK
+            .filter((p) => periodoCoincide(p.periodoAplicado, periodo))
+            .reduce((s, p) => s + (p.monto || 0), 0);
+        const pendiente = Math.max(0, totalGenerado - pagado);
+        return { totalGenerado, pagado, pendiente };
+    }, [periodo]);
+
+    const RESUMEN = [
+        { clave: 'totalGenerado', label: 'Total generado', valor: resumen.totalGenerado, icon: <DescriptionOutlinedIcon />, color: '#1F5F8B', bg: '#E4EEF5' },
+        { clave: 'pendiente', label: 'Pendiente', valor: resumen.pendiente, icon: <ScheduleIcon />, color: '#B6802A', bg: '#FDF0D5' },
+        { clave: 'pagado', label: 'Pagado', valor: resumen.pagado, icon: <CheckCircleOutlineIcon />, color: '#2E9D78', bg: '#E4F4EE' },
+    ];
+
+    // Lista filtrada por periodo + estado + busqueda
     const expensas = EXPENSAS_MOCK.filter((e) =>
+        e.periodo === periodo &&
         (estado === 'Todos' || e.estado === estado) &&
         e.departamento.toLowerCase().includes(busqueda.toLowerCase()));
 
@@ -83,7 +115,7 @@ export default function Expensas() {
                 </Box>
             </Box>
 
-            {/* Tarjetas de resumen */}
+            {/* Tarjetas de resumen (en vivo desde mocks) */}
             <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, 1fr)' }, gap: 2, mb: 3 }}>
                 {RESUMEN.map((r) => (
                     <Paper key={r.clave} sx={{ p: 2.5, borderRadius: 2, display: 'flex', alignItems: 'center', gap: 2 }}>
@@ -92,7 +124,7 @@ export default function Expensas() {
                         </Box>
                         <Box>
                             <Typography variant="body2" color="text.secondary">{r.label}</Typography>
-                            <Typography variant="h3" sx={{ fontWeight: 700, color: r.color }}>{formatBs(RESUMEN_EXPENSAS[r.clave])}</Typography>
+                            <Typography variant="h3" sx={{ fontWeight: 700, color: r.color }}>{formatBs(r.valor)}</Typography>
                         </Box>
                     </Paper>
                 ))}
@@ -111,7 +143,13 @@ export default function Expensas() {
                         </TableRow>
                     </TableHead>
                     <TableBody>
-                        {expensas.map((e) => (
+                        {expensas.length === 0 ? (
+                            <TableRow>
+                                <TableCell colSpan={5} align="center" sx={{ color: 'text.secondary', py: 3 }}>
+                                    No hay expensas generadas para {periodo}.
+                                </TableCell>
+                            </TableRow>
+                        ) : expensas.map((e) => (
                             <TableRow key={e.id}>
                                 <TableCell sx={{ fontWeight: 600 }}>{e.departamento}</TableCell>
                                 <TableCell>{e.periodo}</TableCell>
@@ -128,7 +166,11 @@ export default function Expensas() {
 
             {/* VISTA MOVIL: tarjetas */}
             <Box sx={{ display: { xs: 'block', md: 'none' } }}>
-                {expensas.map((e) => (
+                {expensas.length === 0 ? (
+                    <Paper sx={{ p: 2, borderRadius: 2, textAlign: 'center', color: 'text.secondary' }}>
+                        No hay expensas generadas para {periodo}.
+                    </Paper>
+                ) : expensas.map((e) => (
                     <Paper key={e.id} sx={{ p: 2, borderRadius: 2, mb: 2 }}>
                         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
                             <Typography sx={{ fontWeight: 700 }}>{e.departamento}</Typography>
@@ -183,6 +225,14 @@ export default function Expensas() {
                     </>
                 )}
             </Dialog>
+
+            {/* Snackbar de confirmacion */}
+            <Snackbar open={snack.open} autoHideDuration={3500} onClose={() => setSnack({ ...snack, open: false })}
+                anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}>
+                <Alert severity={snack.sev} onClose={() => setSnack({ ...snack, open: false })} sx={{ width: '100%' }}>
+                    {snack.msg}
+                </Alert>
+            </Snackbar>
         </DashboardLayout>
     );
 }
