@@ -22,6 +22,8 @@ import {
     PERIODOS, ESTADOS_PAGO, DEPARTAMENTOS_PAGO, PAGOS_MOCK, DEPARTAMENTOS_DEUDA,
     HISTORIAL_ANTICIPOS,
 } from '../../constants/pagosMock';
+import { EXPENSAS_MOCK } from '../../constants/expensasMock';
+import { DEUDAS_VENCIDAS, CONFIG_MORA } from '../../constants/moraMock';
 import { formatBs } from '../../constants/finanzasMock';
 
 // Verifica si el periodoAplicado del pago coincide con el periodo seleccionado
@@ -44,6 +46,31 @@ const fechaEnPeriodo = (fecha, periodoSel) => {
     const [mesSel, anioSel] = (periodoSel || '').toLowerCase().split(' ');
     const mesIdx = MES_IDX[mesSel] || 0;
     return m === mesIdx && y === Number(anioSel);
+};
+
+// Devuelve el desglose del pago (base + agua + mora) buscando en EXPENSAS y DEUDAS vencidas.
+// Puede devolver 1 fila (pago a un solo periodo) o varias (pago distribuido).
+const calcularComposicion = (pago) => {
+    if (!pago) return [];
+    const items = [];
+    const expensas = EXPENSAS_MOCK.filter((e) =>
+        e.departamento === `Depto. ${pago.depto}` &&
+        periodoCoincide(pago.periodoAplicado, e.periodo));
+    for (const e of expensas) {
+        items.push({ periodo: e.periodo, base: e.base, agua: e.agua, mora: 0, total: e.total });
+    }
+    const deudas = DEUDAS_VENCIDAS.filter((d) =>
+        d.depto === pago.depto &&
+        periodoCoincide(pago.periodoAplicado, d.periodo));
+    const tasa = (CONFIG_MORA?.interesMensual || 0) / 100;
+    for (const d of deudas) {
+        const conMora = CONFIG_MORA?.tipoCalculo === 'Simple'
+            ? d.deudaOriginal * (1 + tasa * d.meses)
+            : d.deudaOriginal * (1 + tasa) ** d.meses;
+        const mora = Math.round(conMora - d.deudaOriginal);
+        items.push({ periodo: d.periodo, base: d.expensaBase, agua: d.agua, mora, total: d.deudaOriginal + mora });
+    }
+    return items;
 };
 
 const anticipoChipSx = (estado) => {
@@ -85,6 +112,10 @@ export default function Pagos() {
     const [anularAbierto, setAnularAbierto] = useState(false);
     const [snack, setSnack] = useState({ open: false, msg: '', sev: 'success' });
 
+    // Detalle de anticipos
+    const [anticipoSel, setAnticipoSel] = useState(null);
+    const [anticipoAbierto, setAnticipoAbierto] = useState(false);
+
     const abrirMenu = (e, p) => { setMenuAnchor(e.currentTarget); setPagoSel(p); };
     const cerrarMenu = () => setMenuAnchor(null);
     const verDetalle = () => { setDetalleAbierto(true); cerrarMenu(); };
@@ -93,6 +124,9 @@ export default function Pagos() {
         cerrarMenu();
     };
     const abrirAnular = () => { setAnularAbierto(true); cerrarMenu(); };
+
+    const abrirAnticipo = (a) => { setAnticipoSel(a); setAnticipoAbierto(true); };
+    const cerrarAnticipo = () => { setAnticipoAbierto(false); };
 
     // Anular pago REAL: lo saca de PAGOS_MOCK y restaura el saldo del depto si estaba en DEPARTAMENTOS_DEUDA
     const confirmarAnular = () => {
@@ -113,11 +147,9 @@ export default function Pagos() {
     const resumenExp = useMemo(() => {
         const pagosDelMes = PAGOS_MOCK.filter((p) => fechaEnPeriodo(p.fecha, periodo));
         const registrados = pagosDelMes.length;
-        // Cobrado "al periodo" = pagos del mes aplicados a expensas del mismo mes
         const cobrado = pagosDelMes
             .filter((p) => periodoCoincide(p.periodoAplicado, periodo))
             .reduce((s, p) => s + (p.monto || 0), 0);
-        // Saldo recuperado = pagos del mes aplicados a deudas de meses anteriores
         const recuperado = pagosDelMes
             .filter((p) => !periodoCoincide(p.periodoAplicado, periodo))
             .reduce((s, p) => s + (p.monto || 0), 0);
@@ -135,15 +167,15 @@ export default function Pagos() {
     const nombreMes = (periodo || '').split(' ')[0] || 'periodo';
 
     const RESUMEN_EXP = [
-        { label: `Cobrado en ${nombreMes}`, valor: formatBs(resumenExp.cobrado), nota: 'Suma de pagos aplicados al periodo', icon: <TrendingUpIcon />, color: '#2E9D78', bg: '#E4F4EE' },
+        { label: `Cobrado en ${nombreMes}`, valor: formatBs(resumenExp.cobrado), nota: 'Pagos aplicados al periodo seleccionado', icon: <TrendingUpIcon />, color: '#2E9D78', bg: '#E4F4EE' },
         { label: 'Pagos registrados', valor: `${resumenExp.registrados} pagos`, nota: 'Incluye pagos parciales', icon: <ReceiptLongIcon />, color: '#1F5F8B', bg: '#E4EEF5' },
         { label: 'Saldo recuperado', valor: formatBs(resumenExp.recuperado), nota: 'Pagos a deudas de meses anteriores', icon: <SavingsIcon />, color: '#8E6DD1', bg: '#EFEAF8' },
     ];
 
     const RESUMEN_ANT = [
         { label: 'Anticipos recibidos', valor: formatBs(resumenAnt.recibidos), nota: 'Total depositado por residentes', icon: <TrendingUpIcon />, color: '#2E9D78', bg: '#E4F4EE' },
-        { label: 'Credito aplicado', valor: formatBs(resumenAnt.aplicado), nota: 'Ya consumido en expensas', icon: <TaskAltIcon />, color: '#E5A33B', bg: '#FDF0D5' },
-        { label: 'Credito disponible', valor: formatBs(resumenAnt.disponible), nota: 'Saldo a favor pendiente', icon: <AccountBalanceWalletIcon />, color: '#1F5F8B', bg: '#E4EEF5' },
+        { label: 'Ya aplicado', valor: formatBs(resumenAnt.aplicado), nota: 'Consumido en expensas', icon: <TaskAltIcon />, color: '#E5A33B', bg: '#FDF0D5' },
+        { label: 'Saldo a favor', valor: formatBs(resumenAnt.disponible), nota: 'Pendiente de aplicar', icon: <AccountBalanceWalletIcon />, color: '#1F5F8B', bg: '#E4EEF5' },
     ];
 
     // --- Filtrado del historial de pagos: por FECHA en el periodo (incluye los recuperados) ---
@@ -157,6 +189,13 @@ export default function Pagos() {
 
     const pagosVisibles = pagosFiltrados.slice(0, limite);
     const hayMas = pagosFiltrados.length > limite;
+
+    // Composicion del pago seleccionado (para el modal)
+    const composicion = useMemo(() => calcularComposicion(pagoSel), [pagoSel]);
+    const totalComp = useMemo(() => composicion.reduce((s, c) => s + c.total, 0), [composicion]);
+    const totalBase = useMemo(() => composicion.reduce((s, c) => s + c.base, 0), [composicion]);
+    const totalAgua = useMemo(() => composicion.reduce((s, c) => s + c.agua, 0), [composicion]);
+    const totalMora = useMemo(() => composicion.reduce((s, c) => s + c.mora, 0), [composicion]);
 
     return (
         <DashboardLayout>
@@ -314,12 +353,21 @@ export default function Pagos() {
                             )}
                         </Box>
 
-                        {/* Leyenda de recuperados */}
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1.5, flexWrap: 'wrap' }}>
-                            <Box sx={{ width: 14, height: 14, bgcolor: '#EFEAF8', border: '1px solid #CFDCEA', borderRadius: 0.5 }} />
-                            <Typography variant="caption" color="text.secondary">
-                                Filas en lila = pagos cobrados en {nombreMes} aplicados a deudas de meses anteriores (<strong>Saldo recuperado</strong>).
+                        {/* Leyenda */}
+                        <Box sx={{ bgcolor: '#F1F5FA', borderRadius: 2, p: 1.5, mt: 2 }}>
+                            <Typography variant="caption" sx={{ fontWeight: 700, display: 'block', mb: 0.75 }}>¿Que significa cada columna?</Typography>
+                            <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                                <strong>Monto</strong>: cuanto pago el depto en ese registro &nbsp;·&nbsp;
+                                <strong>Saldo posterior</strong>: cuanto le queda debiendo al edificio despues del pago &nbsp;·&nbsp;
+                                <strong>Completo</strong>: quedo al dia (saldo posterior Bs 0) &nbsp;·&nbsp;
+                                <strong>Parcial</strong>: aun queda saldo pendiente.
                             </Typography>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1, flexWrap: 'wrap' }}>
+                                <Box sx={{ width: 14, height: 14, bgcolor: '#EFEAF8', border: '1px solid #CFDCEA', borderRadius: 0.5 }} />
+                                <Typography variant="caption" color="text.secondary">
+                                    Filas en lila = pagos cobrados en {nombreMes} aplicados a deudas de meses anteriores (<strong>Saldo recuperado</strong>).
+                                </Typography>
+                            </Box>
                         </Box>
                     </Paper>
                 </Box>
@@ -348,7 +396,7 @@ export default function Pagos() {
                     <Paper sx={{ p: 3, borderRadius: 2 }}>
                         <Typography variant="body2" sx={{ fontWeight: 600, mb: 1 }}>Historial de anticipos</Typography>
                         <Box sx={{ overflowX: 'auto' }}>
-                            <Table size="small" sx={{ minWidth: 820 }}>
+                            <Table size="small" sx={{ minWidth: 880 }}>
                                 <TableHead>
                                     <TableRow sx={{ bgcolor: '#F1F5FA' }}>
                                         <TableCell><strong>N.º</strong></TableCell>
@@ -357,8 +405,9 @@ export default function Pagos() {
                                         <TableCell><strong>Responsable</strong></TableCell>
                                         <TableCell><strong>Recibido</strong></TableCell>
                                         <TableCell><strong>Aplicado</strong></TableCell>
-                                        <TableCell><strong>Credito</strong></TableCell>
+                                        <TableCell><strong>Saldo a favor</strong></TableCell>
                                         <TableCell><strong>Estado</strong></TableCell>
+                                        <TableCell align="center"><strong></strong></TableCell>
                                     </TableRow>
                                 </TableHead>
                                 <TableBody>
@@ -372,15 +421,25 @@ export default function Pagos() {
                                             <TableCell>{formatBs(a.aplicado)}</TableCell>
                                             <TableCell sx={{ color: a.credito > 0 ? '#2E9D78' : '#64748B', fontWeight: 600 }}>{formatBs(a.credito)}</TableCell>
                                             <TableCell><Chip label={a.estado} size="small" sx={anticipoChipSx(a.estado)} /></TableCell>
+                                            <TableCell align="center">
+                                                <IconButton size="small" onClick={() => abrirAnticipo(a)}>
+                                                    <VisibilityOutlinedIcon fontSize="small" sx={{ color: '#1F5F8B' }} />
+                                                </IconButton>
+                                            </TableCell>
                                         </TableRow>
                                     ))}
                                 </TableBody>
                             </Table>
                         </Box>
 
-                        {/* Leyenda de estados */}
+                        {/* Leyenda columnas */}
                         <Box sx={{ bgcolor: '#F1F5FA', borderRadius: 2, p: 1.5, mt: 2 }}>
-                            <Typography variant="caption" sx={{ fontWeight: 700, display: 'block', mb: 0.75 }}>¿Que significa cada estado?</Typography>
+                            <Typography variant="caption" sx={{ fontWeight: 700, display: 'block', mb: 0.75 }}>¿Que significa cada columna?</Typography>
+                            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
+                                <strong>Recibido</strong>: lo que el depto deposito por adelantado &nbsp;·&nbsp;
+                                <strong>Aplicado</strong>: cuanto de ese anticipo ya se descuento para pagar expensas &nbsp;·&nbsp;
+                                <strong>Saldo a favor</strong>: cuanto le queda disponible (Recibido − Aplicado).
+                            </Typography>
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5, flexWrap: 'wrap' }}>
                                 <Chip label="Disponible" size="small" sx={anticipoChipSx('Disponible')} />
                                 <Typography variant="caption" color="text.secondary">todo el anticipo esta a favor del depto, sin usar.</Typography>
@@ -391,7 +450,7 @@ export default function Pagos() {
                             </Box>
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
                                 <Chip label="Aplicado" size="small" sx={anticipoChipSx('Aplicado')} />
-                                <Typography variant="caption" color="text.secondary">totalmente consumido en expensas, sin credito disponible.</Typography>
+                                <Typography variant="caption" color="text.secondary">totalmente consumido en expensas, sin saldo a favor.</Typography>
                             </Box>
                         </Box>
 
@@ -405,7 +464,7 @@ export default function Pagos() {
                 </Box>
             )}
 
-            {/* Menu de los 3 puntitos */}
+            {/* Menu de los 3 puntitos (pagos) */}
             <Menu anchorEl={menuAnchor} open={Boolean(menuAnchor)} onClose={cerrarMenu}>
                 <MenuItem onClick={verDetalle}>
                     <VisibilityOutlinedIcon fontSize="small" sx={{ mr: 1, color: '#1F5F8B' }} />
@@ -421,57 +480,122 @@ export default function Pagos() {
                 </MenuItem>
             </Menu>
 
-            {/* Dialog: Ver detalle del pago */}
-            <Dialog open={detalleAbierto} onClose={() => setDetalleAbierto(false)} maxWidth="sm" fullWidth>
+            {/* Dialog: Ver detalle del pago (enriquecido) */}
+            <Dialog open={detalleAbierto} onClose={() => setDetalleAbierto(false)} maxWidth="md" fullWidth>
                 <DialogTitle sx={{ fontWeight: 700 }}>Detalle del pago {pagoSel?.id}</DialogTitle>
                 <DialogContent dividers>
                     {pagoSel && (
-                        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
-                            <Box>
-                                <Typography variant="body2" color="text.secondary">Fecha</Typography>
-                                <Typography variant="body2" sx={{ fontWeight: 700 }}>{pagoSel.fecha}</Typography>
-                            </Box>
-                            <Box>
-                                <Typography variant="body2" color="text.secondary">Departamento</Typography>
-                                <Typography variant="body2" sx={{ fontWeight: 700 }}>{pagoSel.depto}</Typography>
-                            </Box>
-                            <Box>
-                                <Typography variant="body2" color="text.secondary">Responsable</Typography>
-                                <Typography variant="body2" sx={{ fontWeight: 700 }}>{pagoSel.responsable}</Typography>
-                            </Box>
-                            <Box>
-                                <Typography variant="body2" color="text.secondary">Periodo aplicado</Typography>
-                                <Typography variant="body2" sx={{ fontWeight: 700 }}>{pagoSel.periodoAplicado}</Typography>
-                            </Box>
-                            {pagoSel.medio && (
+                        <Box>
+                            {/* Datos del pago */}
+                            <Typography variant="body2" sx={{ fontWeight: 700, mb: 1 }}>Datos del pago</Typography>
+                            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr 1fr', sm: 'repeat(3, 1fr)' }, gap: 1.5, mb: 2 }}>
                                 <Box>
-                                    <Typography variant="body2" color="text.secondary">Medio</Typography>
-                                    <Typography variant="body2" sx={{ fontWeight: 700 }}>{pagoSel.medio}</Typography>
+                                    <Typography variant="caption" color="text.secondary">Fecha</Typography>
+                                    <Typography variant="body2" sx={{ fontWeight: 700 }}>{pagoSel.fecha}</Typography>
+                                </Box>
+                                <Box>
+                                    <Typography variant="caption" color="text.secondary">Departamento</Typography>
+                                    <Typography variant="body2" sx={{ fontWeight: 700 }}>{pagoSel.depto}</Typography>
+                                </Box>
+                                <Box>
+                                    <Typography variant="caption" color="text.secondary">Responsable</Typography>
+                                    <Typography variant="body2" sx={{ fontWeight: 700 }}>{pagoSel.responsable}</Typography>
+                                </Box>
+                                <Box>
+                                    <Typography variant="caption" color="text.secondary">Pagado por</Typography>
+                                    <Typography variant="body2" sx={{ fontWeight: 700 }}>{pagoSel.pagadoPor || pagoSel.responsable}</Typography>
+                                </Box>
+                                <Box>
+                                    <Typography variant="caption" color="text.secondary">Medio</Typography>
+                                    <Typography variant="body2" sx={{ fontWeight: 700 }}>{pagoSel.medio || '—'}</Typography>
+                                </Box>
+                                <Box>
+                                    <Typography variant="caption" color="text.secondary">Referencia</Typography>
+                                    <Typography variant="body2" sx={{ fontWeight: 700 }}>{pagoSel.referencia || '—'}</Typography>
+                                </Box>
+                                <Box>
+                                    <Typography variant="caption" color="text.secondary">Periodo aplicado</Typography>
+                                    <Typography variant="body2" sx={{ fontWeight: 700 }}>{pagoSel.periodoAplicado}</Typography>
+                                </Box>
+                                <Box>
+                                    <Typography variant="caption" color="text.secondary">Estado</Typography>
+                                    <Chip label={pagoSel.estado} size="small" sx={{ mt: 0.5, ...estadoChipSx(pagoSel.estado) }} />
+                                </Box>
+                            </Box>
+
+                            <Divider sx={{ my: 2 }} />
+
+                            {/* Composicion del cobro */}
+                            <Typography variant="body2" sx={{ fontWeight: 700, mb: 1 }}>Composicion del cobro</Typography>
+                            {composicion.length === 0 ? (
+                                <Box sx={{ bgcolor: '#FDF0D5', borderRadius: 2, p: 1.5, mb: 2 }}>
+                                    <Typography variant="caption" color="text.secondary">
+                                        Este pago se concilio manualmente; el desglose automatico (expensa base / agua / mora) no esta disponible.
+                                        Monto registrado: <strong>{formatBs(pagoSel.monto)}</strong>.
+                                    </Typography>
+                                </Box>
+                            ) : (
+                                <Box sx={{ overflowX: 'auto', mb: 2 }}>
+                                    <Table size="small" sx={{ minWidth: 520 }}>
+                                        <TableHead>
+                                            <TableRow sx={{ bgcolor: '#F1F5FA' }}>
+                                                <TableCell><strong>Periodo</strong></TableCell>
+                                                <TableCell align="right"><strong>Expensa base</strong></TableCell>
+                                                <TableCell align="right"><strong>Agua</strong></TableCell>
+                                                <TableCell align="right"><strong>Mora</strong></TableCell>
+                                                <TableCell align="right"><strong>Total expensa</strong></TableCell>
+                                            </TableRow>
+                                        </TableHead>
+                                        <TableBody>
+                                            {composicion.map((c, i) => (
+                                                <TableRow key={i}>
+                                                    <TableCell>{c.periodo}</TableCell>
+                                                    <TableCell align="right">{formatBs(c.base)}</TableCell>
+                                                    <TableCell align="right">{formatBs(c.agua)}</TableCell>
+                                                    <TableCell align="right" sx={{ color: c.mora > 0 ? '#D9534F' : 'text.primary' }}>{formatBs(c.mora)}</TableCell>
+                                                    <TableCell align="right" sx={{ fontWeight: 600 }}>{formatBs(c.total)}</TableCell>
+                                                </TableRow>
+                                            ))}
+                                            {composicion.length > 1 && (
+                                                <TableRow sx={{ bgcolor: '#F8FAFC' }}>
+                                                    <TableCell><strong>Totales</strong></TableCell>
+                                                    <TableCell align="right"><strong>{formatBs(totalBase)}</strong></TableCell>
+                                                    <TableCell align="right"><strong>{formatBs(totalAgua)}</strong></TableCell>
+                                                    <TableCell align="right" sx={{ color: totalMora > 0 ? '#D9534F' : 'text.primary' }}><strong>{formatBs(totalMora)}</strong></TableCell>
+                                                    <TableCell align="right"><strong>{formatBs(totalComp)}</strong></TableCell>
+                                                </TableRow>
+                                            )}
+                                        </TableBody>
+                                    </Table>
                                 </Box>
                             )}
-                            {pagoSel.referencia && (
-                                <Box>
-                                    <Typography variant="body2" color="text.secondary">Referencia</Typography>
-                                    <Typography variant="body2" sx={{ fontWeight: 700 }}>{pagoSel.referencia}</Typography>
+
+                            <Divider sx={{ my: 2 }} />
+
+                            {/* Resumen final */}
+                            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, 1fr)' }, gap: 2 }}>
+                                <Box sx={{ p: 1.5, bgcolor: '#F1F5FA', borderRadius: 2 }}>
+                                    <Typography variant="caption" color="text.secondary">Total expensa</Typography>
+                                    <Typography variant="h4" sx={{ fontWeight: 700 }}>
+                                        {composicion.length > 0 ? formatBs(totalComp) : formatBs(pagoSel.monto + pagoSel.saldoPosterior)}
+                                    </Typography>
                                 </Box>
-                            )}
-                            <Box sx={{ gridColumn: { sm: '1 / -1' } }}>
-                                <Divider sx={{ my: 1 }} />
+                                <Box sx={{ p: 1.5, bgcolor: '#E4F4EE', borderRadius: 2 }}>
+                                    <Typography variant="caption" color="text.secondary">Monto pagado</Typography>
+                                    <Typography variant="h4" sx={{ fontWeight: 700, color: '#2E9D78' }}>{formatBs(pagoSel.monto)}</Typography>
+                                </Box>
+                                <Box sx={{ p: 1.5, bgcolor: pagoSel.saldoPosterior > 0 ? '#FDE7E6' : '#E4F4EE', borderRadius: 2 }}>
+                                    <Typography variant="caption" color="text.secondary">Saldo posterior</Typography>
+                                    <Typography variant="h4" sx={{ fontWeight: 700, color: pagoSel.saldoPosterior > 0 ? '#D9534F' : '#2E9D78' }}>
+                                        {formatBs(pagoSel.saldoPosterior)}
+                                    </Typography>
+                                </Box>
                             </Box>
-                            <Box>
-                                <Typography variant="body2" color="text.secondary">Monto pagado</Typography>
-                                <Typography variant="h3" sx={{ fontWeight: 700, color: '#2E9D78' }}>{formatBs(pagoSel.monto)}</Typography>
-                            </Box>
-                            <Box>
-                                <Typography variant="body2" color="text.secondary">Saldo posterior</Typography>
-                                <Typography variant="h3" sx={{ fontWeight: 700, color: pagoSel.saldoPosterior > 0 ? '#D9534F' : '#2E9D78' }}>
-                                    {formatBs(pagoSel.saldoPosterior)}
-                                </Typography>
-                            </Box>
-                            <Box sx={{ gridColumn: { sm: '1 / -1' } }}>
-                                <Typography variant="body2" color="text.secondary">Estado</Typography>
-                                <Chip label={pagoSel.estado} size="small" sx={{ mt: 0.5, ...estadoChipSx(pagoSel.estado) }} />
-                            </Box>
+
+                            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1.5 }}>
+                                <strong>Saldo posterior</strong> = cuanto le queda debiendo el depto al edificio despues de este pago.
+                                Si llega a Bs 0, el depto queda al dia.
+                            </Typography>
                         </Box>
                     )}
                 </DialogContent>
@@ -495,6 +619,84 @@ export default function Pagos() {
                 <DialogActions>
                     <Button onClick={() => setAnularAbierto(false)}>Cancelar</Button>
                     <Button color="error" variant="contained" onClick={confirmarAnular}>Anular</Button>
+                </DialogActions>
+            </Dialog>
+
+            {/* Dialog: Ver detalle del anticipo */}
+            <Dialog open={anticipoAbierto} onClose={cerrarAnticipo} maxWidth="sm" fullWidth>
+                <DialogTitle sx={{ fontWeight: 700 }}>Detalle del anticipo {anticipoSel?.id}</DialogTitle>
+                <DialogContent dividers>
+                    {anticipoSel && (
+                        <Box>
+                            {/* Datos del anticipo */}
+                            <Typography variant="body2" sx={{ fontWeight: 700, mb: 1 }}>Datos del anticipo</Typography>
+                            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr 1fr', sm: 'repeat(3, 1fr)' }, gap: 1.5, mb: 2 }}>
+                                <Box>
+                                    <Typography variant="caption" color="text.secondary">Fecha</Typography>
+                                    <Typography variant="body2" sx={{ fontWeight: 700 }}>{anticipoSel.fecha}</Typography>
+                                </Box>
+                                <Box>
+                                    <Typography variant="caption" color="text.secondary">Departamento</Typography>
+                                    <Typography variant="body2" sx={{ fontWeight: 700 }}>{anticipoSel.depto}</Typography>
+                                </Box>
+                                <Box>
+                                    <Typography variant="caption" color="text.secondary">Responsable</Typography>
+                                    <Typography variant="body2" sx={{ fontWeight: 700 }}>{anticipoSel.responsable}</Typography>
+                                </Box>
+                                <Box>
+                                    <Typography variant="caption" color="text.secondary">Pagado por</Typography>
+                                    <Typography variant="body2" sx={{ fontWeight: 700 }}>{anticipoSel.pagadoPor || anticipoSel.responsable}</Typography>
+                                </Box>
+                                <Box>
+                                    <Typography variant="caption" color="text.secondary">Medio</Typography>
+                                    <Typography variant="body2" sx={{ fontWeight: 700 }}>{anticipoSel.medio || '—'}</Typography>
+                                </Box>
+                                <Box>
+                                    <Typography variant="caption" color="text.secondary">Referencia</Typography>
+                                    <Typography variant="body2" sx={{ fontWeight: 700 }}>{anticipoSel.referencia || '—'}</Typography>
+                                </Box>
+                            </Box>
+
+                            <Divider sx={{ my: 2 }} />
+
+                            {/* Movimiento del anticipo */}
+                            <Typography variant="body2" sx={{ fontWeight: 700, mb: 1 }}>Movimiento del anticipo</Typography>
+                            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, 1fr)' }, gap: 2, mb: 2 }}>
+                                <Box sx={{ p: 1.5, bgcolor: '#E4F4EE', borderRadius: 2 }}>
+                                    <Typography variant="caption" color="text.secondary">Recibido</Typography>
+                                    <Typography variant="h4" sx={{ fontWeight: 700, color: '#2E9D78' }}>{formatBs(anticipoSel.recibido)}</Typography>
+                                    <Typography variant="caption" color="text.secondary">plata que entro</Typography>
+                                </Box>
+                                <Box sx={{ p: 1.5, bgcolor: '#FDF0D5', borderRadius: 2 }}>
+                                    <Typography variant="caption" color="text.secondary">Ya aplicado</Typography>
+                                    <Typography variant="h4" sx={{ fontWeight: 700, color: '#B6802A' }}>{formatBs(anticipoSel.aplicado)}</Typography>
+                                    <Typography variant="caption" color="text.secondary">consumido en expensas</Typography>
+                                </Box>
+                                <Box sx={{ p: 1.5, bgcolor: '#E4EEF5', borderRadius: 2 }}>
+                                    <Typography variant="caption" color="text.secondary">Saldo a favor</Typography>
+                                    <Typography variant="h4" sx={{ fontWeight: 700, color: '#1F5F8B' }}>{formatBs(anticipoSel.credito)}</Typography>
+                                    <Typography variant="caption" color="text.secondary">queda disponible</Typography>
+                                </Box>
+                            </Box>
+
+                            <Divider sx={{ my: 2 }} />
+
+                            {/* Estado + nota */}
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                                <Typography variant="body2" color="text.secondary">Estado:</Typography>
+                                <Chip label={anticipoSel.estado} size="small" sx={anticipoChipSx(anticipoSel.estado)} />
+                            </Box>
+                            {anticipoSel.notas && (
+                                <Box sx={{ bgcolor: '#F1F5FA', borderRadius: 2, p: 1.5 }}>
+                                    <Typography variant="caption" sx={{ fontWeight: 700, display: 'block', mb: 0.5 }}>Movimientos aplicados</Typography>
+                                    <Typography variant="caption" color="text.secondary">{anticipoSel.notas}</Typography>
+                                </Box>
+                            )}
+                        </Box>
+                    )}
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={cerrarAnticipo}>Cerrar</Button>
                 </DialogActions>
             </Dialog>
 
