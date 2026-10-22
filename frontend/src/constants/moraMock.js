@@ -7,7 +7,9 @@
 // Tasa por defecto (compatibilidad); la vigente sale de CONFIG_MORA.interesMensual
 export const TASA_MORA = 0.10;
 
-// Configuracion de mora vigente
+// Configuracion de mora vigente.
+// Nota: el "diaVencimiento" NO vive aqui; se lee/escribe en configuracionMock.REGLAS_PERIODO
+// para mantenerlo sincronizado con la configuracion financiera de Expensas.
 export const CONFIG_MORA = {
     interesMensual: 10, // porcentaje
     aplicarMoraDesde: 'Dia siguiente a la fecha de vencimiento',
@@ -32,11 +34,12 @@ export const REGLA_MORA = {
     ejemplo: 'Ejemplo: Bs 360 -> primer mes Bs 396 -> segundo mes Bs 435,60.',
 };
 
-// Deudas vencidas. El interes se calcula sobre la deuda y los meses vencidos.
+// Deudas vencidas con desglose: expensaBase (segun tipo de depto) + agua = deudaOriginal.
+// El interes se calcula sobre la deuda original y los meses vencidos.
 export const DEUDAS_VENCIDAS = [
-    { id: 1, depto: '101', periodo: 'Agosto 2026', deudaOriginal: 360, meses: 1 },
-    { id: 2, depto: '202', periodo: 'Julio 2026', deudaOriginal: 375, meses: 2 },
-    { id: 3, depto: '303', periodo: 'Junio 2026', deudaOriginal: 420, meses: 3 },
+    { id: 1, depto: '101', tipo: 'A', periodo: 'Septiembre 2026', expensaBase: 300, agua: 60, deudaOriginal: 360, meses: 1 },  // recien vencida
+    { id: 2, depto: '202', tipo: 'B', periodo: 'Agosto 2026', expensaBase: 350, agua: 25, deudaOriginal: 375, meses: 2 },
+    { id: 3, depto: '303', tipo: 'C', periodo: 'Julio 2026', expensaBase: 400, agua: 20, deudaOriginal: 420, meses: 3 },
 ];
 
 // ============================================================

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import {
-  Box, TextField, Button, Typography,
+  Box, TextField, Button, Typography, Link,
   InputAdornment, IconButton, Alert,
 } from '@mui/material';
 import PersonIcon from '@mui/icons-material/Person';
@@ -134,6 +134,15 @@ export default function LoginForm() {
           },
         }}
       />
+
+      {/* Enlace a recuperar contraseña (HU-SE-03) */}
+      <Box sx={{ mt: 1.5 }}>
+        <Link component="button" type="button" underline="hover"
+          onClick={() => navigate('/recuperar-contrasena')}
+          sx={{ color: 'primary.main', fontWeight: 600, fontSize: '0.9rem' }}>
+          ¿Olvidaste tu contraseña?
+        </Link>
+      </Box>
 
       {apiError && (
         <Alert severity="error" sx={{ mt: 1.5, py: 0 }}>{apiError}</Alert>

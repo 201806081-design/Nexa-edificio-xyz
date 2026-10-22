@@ -1,5 +1,10 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import Login from '../pages/Login/Login';
+import RecuperarContrasena from '../pages/Auth/RecuperarContrasena';
+import RevisaCorreo from '../pages/Auth/RevisaCorreo';
+import CrearNuevaContrasena from '../pages/Auth/CrearNuevaContrasena';
+import ContrasenaActualizada from '../pages/Auth/ContrasenaActualizada';
+import EnlaceVencido from '../pages/Auth/EnlaceVencido';
 import Dashboard from '../pages/Dashboard/Dashboard';
 import Usuarios from '../pages/Usuarios/Usuarios';
 import Permisos from '../pages/Permisos/Permisos';
@@ -16,21 +21,32 @@ import GestionFinanciera from '../pages/Finanzas/GestionFinanciera';
 import DashboardFinanciero from '../pages/Finanzas/DashboardFinanciero';
 import Expensas from '../pages/Finanzas/Expensas';
 import ConfiguracionFinanciera from '../pages/Finanzas/ConfiguracionFinanciera';
+import Pagos from '../pages/Finanzas/Pagos';
+import RegistrarPago from '../pages/Finanzas/RegistrarPago';
+import PagoRegistrado from '../pages/Finanzas/PagoRegistrado';
+import ConciliacionBancaria from '../pages/Finanzas/ConciliacionBancaria';
+import AnticipoRegistrar from '../pages/Finanzas/AnticipoRegistrar';
+import AnticipoRegistrado from '../pages/Finanzas/AnticipoRegistrado';
 import GenerarExpensas from '../pages/Finanzas/GenerarExpensas';
 import EstadoCuenta from '../pages/Finanzas/EstadoCuenta';
 import IngresosGastos from '../pages/Finanzas/IngresosGastos';
 import RegistrarMovimiento from '../pages/Finanzas/RegistrarMovimiento';
 import DetalleMovimiento from '../pages/Finanzas/DetalleMovimiento';
+import FlujoCaja from '../pages/Finanzas/FlujoCaja';
 import Mora from '../pages/Finanzas/Mora';
-import ConfigurarInteres from '../pages/Finanzas/ConfigurarInteres';
-import RegistrarAnticipo from '../pages/Finanzas/RegistrarAnticipo';
-import DetalleAnticipo from '../pages/Finanzas/DetalleAnticipo';
 import ProtectedRoute from './ProtectedRoute';
 
 export default function AppRoutes() {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
+      {/* Recuperacion de contrasena (HU-SE-03) - rutas publicas */}
+      <Route path="/recuperar-contrasena" element={<RecuperarContrasena />} />
+      <Route path="/recuperar-contrasena/enviado" element={<RevisaCorreo />} />
+      <Route path="/restablecer-contrasena" element={<CrearNuevaContrasena />} />
+      <Route path="/restablecer-contrasena/listo" element={<ContrasenaActualizada />} />
+      <Route path="/enlace-vencido" element={<EnlaceVencido />} />
+
       <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
       <Route path="/usuarios" element={<ProtectedRoute rolesPermitidos={['Administrador']}><Usuarios /></ProtectedRoute>} />
       <Route path="/permisos" element={<ProtectedRoute rolesPermitidos={['Administrador']}><Permisos /></ProtectedRoute>} />
@@ -49,16 +65,20 @@ export default function AppRoutes() {
       <Route path="/finanzas" element={<ProtectedRoute><GestionFinanciera /></ProtectedRoute>} />
       <Route path="/finanzas/dashboard" element={<ProtectedRoute><DashboardFinanciero /></ProtectedRoute>} />
       <Route path="/finanzas/expensas" element={<ProtectedRoute><Expensas /></ProtectedRoute>} />
+      <Route path="/finanzas/pagos" element={<ProtectedRoute><Pagos /></ProtectedRoute>} />
+      <Route path="/finanzas/pagos/registrar" element={<ProtectedRoute><RegistrarPago /></ProtectedRoute>} />
+      <Route path="/finanzas/pagos/registrado" element={<ProtectedRoute><PagoRegistrado /></ProtectedRoute>} />
+      <Route path="/finanzas/pagos/conciliacion" element={<ProtectedRoute><ConciliacionBancaria /></ProtectedRoute>} />
+      <Route path="/finanzas/pagos/anticipo" element={<ProtectedRoute><AnticipoRegistrar /></ProtectedRoute>} />
+      <Route path="/finanzas/pagos/anticipo/registrado" element={<ProtectedRoute><AnticipoRegistrado /></ProtectedRoute>} />
       <Route path="/finanzas/configuracion" element={<ProtectedRoute><ConfiguracionFinanciera /></ProtectedRoute>} />
       <Route path="/finanzas/expensas/generar" element={<ProtectedRoute><GenerarExpensas /></ProtectedRoute>} />
       <Route path="/finanzas/estado-cuenta" element={<ProtectedRoute><EstadoCuenta /></ProtectedRoute>} />
       <Route path="/finanzas/ingresos-gastos" element={<ProtectedRoute><IngresosGastos /></ProtectedRoute>} />
       <Route path="/finanzas/ingresos-gastos/registrar" element={<ProtectedRoute><RegistrarMovimiento /></ProtectedRoute>} />
       <Route path="/finanzas/ingresos-gastos/:id" element={<ProtectedRoute><DetalleMovimiento /></ProtectedRoute>} />
+      <Route path="/finanzas/flujo-caja" element={<ProtectedRoute><FlujoCaja /></ProtectedRoute>} />
       <Route path="/finanzas/mora" element={<ProtectedRoute><Mora /></ProtectedRoute>} />
-      <Route path="/finanzas/mora/configuracion" element={<ProtectedRoute><ConfigurarInteres /></ProtectedRoute>} />
-      <Route path="/finanzas/mora/anticipo" element={<ProtectedRoute><RegistrarAnticipo /></ProtectedRoute>} />
-      <Route path="/finanzas/mora/anticipo/:id" element={<ProtectedRoute><DetalleAnticipo /></ProtectedRoute>} />
 
       <Route path="*" element={<Navigate to="/login" replace />} />
     </Routes>

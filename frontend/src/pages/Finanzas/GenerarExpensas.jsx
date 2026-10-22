@@ -1,58 +1,147 @@
-import { useState } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
     Box, Typography, Select, MenuItem, Paper, Button, Chip, TextField, InputAdornment,
     Table, TableHead, TableBody, TableRow, TableCell, Alert,
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import DashboardLayout from '../../layouts/DashboardLayout';
-import { PERIODOS, DEPARTAMENTOS_ACTIVOS } from '../../constants/expensasMock';
+import { PERIODOS, DEPARTAMENTOS_ACTIVOS, EXPENSAS_MOCK } from '../../constants/expensasMock';
 import { EXPENSA_BASE, CONFIG_AGUA } from '../../constants/configuracionMock';
 import { formatBs } from '../../constants/finanzasMock';
 
-const PRECIO_M3 = Number(CONFIG_AGUA.precioM3);
-const TARIFA_MIN = Number(CONFIG_AGUA.tarifaMinima);
+// 'Octubre 2026' -> {mes: 10, anio: 2026}
+const MES_IDX = {
+    enero: 1, febrero: 2, marzo: 3, abril: 4, mayo: 5, junio: 6,
+    julio: 7, agosto: 8, septiembre: 9, octubre: 10, noviembre: 11, diciembre: 12,
+};
+const parsePeriodo = (p) => {
+    const [mes, anio] = (p || '').toLowerCase().split(' ');
+    return { mes: MES_IDX[mes] || 0, anio: Number(anio) || 0 };
+};
+
+// Busca la lecturaActual mas reciente del depto en expensas PREVIAS al periodo seleccionado.
+// Asi la "anterior" de cada mes queda encadenada con la "actual" del mes previo.
+function buscarLecturaPrevia(depto, periodoSel) {
+    const pSel = parsePeriodo(periodoSel);
+    const previas = EXPENSAS_MOCK
+        .filter((e) => e.departamento === `Depto. ${depto}` && e.lecturaActual !== undefined)
+        .filter((e) => {
+            const pE = parsePeriodo(e.periodo);
+            return (pE.anio < pSel.anio) || (pE.anio === pSel.anio && pE.mes < pSel.mes);
+        })
+        .sort((a, b) => {
+            const pA = parsePeriodo(a.periodo);
+            const pB = parsePeriodo(b.periodo);
+            return (pB.anio - pA.anio) || (pB.mes - pA.mes);
+        });
+    return previas[0]?.lecturaActual;
+}
 
 // Cargo de agua automatico: consumo x precio, aplicando la tarifa minima
 function aguaAutomatica(consumo) {
-    const cargo = consumo * PRECIO_M3;
-    return cargo < TARIFA_MIN ? TARIFA_MIN : cargo;
+    const precio = Number(CONFIG_AGUA.precioM3) || 0;
+    const minimo = Number(CONFIG_AGUA.tarifaMinima) || 0;
+    const cargo = consumo * precio;
+    return cargo < minimo ? minimo : cargo;
 }
 
 export default function GenerarExpensas() {
     const navigate = useNavigate();
-    const [periodo, setPeriodo] = useState(PERIODOS[0]);
-    // Lectura actual por departamento (arranca igual a la anterior)
-    const [lecturas, setLecturas] = useState(
-        Object.fromEntries(DEPARTAMENTOS_ACTIVOS.map((d) => [d.departamento, d.lecturaAnterior])),
-    );
-    // Agua editada manualmente por departamento (si no hay, se usa la automatica)
+
+    // Solo los periodos que todavia NO tienen expensas generadas
+    const periodosDisponibles = useMemo(() => {
+        const generados = new Set(EXPENSAS_MOCK.map((e) => e.periodo));
+        return PERIODOS.filter((p) => !generados.has(p));
+    }, []);
+
+    const [periodo, setPeriodo] = useState(periodosDisponibles[0] || '');
+    const [lecturas, setLecturas] = useState({});
     const [aguaManual, setAguaManual] = useState({});
+    const [error, setError] = useState('');
+
+    // Al cambiar de periodo, inicializa las lecturas actuales con la lectura previa encadenada
+    useEffect(() => {
+        if (!periodo) return;
+        const iniciales = Object.fromEntries(DEPARTAMENTOS_ACTIVOS.map((d) => {
+            const prev = buscarLecturaPrevia(d.departamento, periodo) ?? d.lecturaAnterior;
+            return [d.departamento, prev];
+        }));
+        setLecturas(iniciales);
+        setAguaManual({});
+        setError('');
+    }, [periodo]);
+
+    // Si no hay periodos disponibles, mostramos un mensaje
+    if (periodosDisponibles.length === 0) {
+        return (
+            <DashboardLayout>
+                <Typography variant="h1" color="primary.main" sx={{ mb: 0.5 }}>Generar expensas mensuales</Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                    Combina la expensa fija del tipo de departamento con el consumo de agua
+                </Typography>
+                <Alert severity="info" sx={{ mb: 2 }}>
+                    <Typography variant="body2" sx={{ fontWeight: 700, mb: 0.5 }}>No hay periodos disponibles</Typography>
+                    <Typography variant="body2">
+                        Ya se generaron expensas para todos los periodos del sistema. Agrega periodos
+                        futuros en la configuracion para seguir generando.
+                    </Typography>
+                </Alert>
+                <Box sx={{ display: 'flex', justifyContent: { xs: 'stretch', md: 'flex-end' } }}>
+                    <Button variant="contained" onClick={() => navigate('/finanzas/expensas')} sx={{ width: { xs: '100%', md: 'auto' } }}>
+                        Volver a expensas
+                    </Button>
+                </Box>
+            </DashboardLayout>
+        );
+    }
 
     const cambiarLectura = (dep, valor) => {
         setLecturas((l) => ({ ...l, [dep]: valor }));
-        // al cambiar la lectura, el agua vuelve a calcularse automaticamente
         setAguaManual((a) => ({ ...a, [dep]: undefined }));
+        setError('');
     };
-    const cambiarAgua = (dep, valor) => setAguaManual((a) => ({ ...a, [dep]: valor }));
+    const cambiarAgua = (dep, valor) => { setAguaManual((a) => ({ ...a, [dep]: valor })); setError(''); };
 
-    // Filas calculadas. agua = valor editado si existe, si no el automatico.
+    // Filas calculadas con lectura previa encadenada
     const filas = DEPARTAMENTOS_ACTIVOS.map((d) => {
-        const actual = Number(lecturas[d.departamento]);
-        const consumo = Math.max(0, actual - d.lecturaAnterior);
+        const base = EXPENSA_BASE[d.tipo] ?? d.base;
+        const lecturaAnterior = buscarLecturaPrevia(d.departamento, periodo) ?? d.lecturaAnterior;
+        const actualNum = Number(lecturas[d.departamento] ?? lecturaAnterior);
+        const consumo = Math.max(0, actualNum - lecturaAnterior);
         const auto = aguaAutomatica(consumo);
         const override = aguaManual[d.departamento];
         const aguaVal = (override !== undefined && override !== '') ? Number(override) : auto;
-        const aguaInput = override !== undefined ? override : auto; // lo que se muestra en el campo
-        return { ...d, consumo, aguaVal, aguaInput, total: d.base + aguaVal };
+        const aguaInput = override !== undefined ? override : auto;
+        return { ...d, base, lecturaAnterior, actualNum, consumo, aguaVal, aguaInput, total: base + aguaVal };
     });
     const totalBase = filas.reduce((acc, f) => acc + f.base, 0);
     const totalAgua = filas.reduce((acc, f) => acc + f.aguaVal, 0);
     const totalGeneral = totalBase + totalAgua;
 
+    // Confirma la generacion: crea las expensas en EXPENSAS_MOCK (persiste en la sesion)
     const generar = () => {
-        // MOCK: aqui se llamaria al backend. Por ahora vuelve a la lista con aviso.
-        navigate('/finanzas/expensas', { state: { mensaje: 'Expensas generadas correctamente' } });
+        const siguienteId = Math.max(0, ...EXPENSAS_MOCK.map((e) => e.id || 0)) + 1;
+        filas.forEach((f, i) => {
+            EXPENSAS_MOCK.push({
+                id: siguienteId + i,
+                departamento: `Depto. ${f.departamento}`,
+                tipo: f.tipo,
+                periodo,
+                base: f.base,
+                agua: f.aguaVal,
+                monto: f.total,
+                estado: 'Pendiente',
+                lecturaAnterior: f.lecturaAnterior,
+                lecturaActual: f.actualNum, // se encadena para la siguiente generacion
+            });
+        });
+        navigate('/finanzas/expensas', {
+            state: { mensaje: `${filas.length} expensas generadas para ${periodo} por ${formatBs(totalGeneral)}` },
+        });
     };
+
+    const PRECIO_M3 = Number(CONFIG_AGUA.precioM3);
+    const TARIFA_MIN = Number(CONFIG_AGUA.tarifaMinima);
 
     return (
         <DashboardLayout>
@@ -66,12 +155,15 @@ export default function GenerarExpensas() {
                 <Paper sx={{ p: 3, borderRadius: 2 }}>
                     <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Periodo mensual</Typography>
                     <Select fullWidth value={periodo} onChange={(e) => setPeriodo(e.target.value)}>
-                        {PERIODOS.map((p) => <MenuItem key={p} value={p}>{p}</MenuItem>)}
+                        {periodosDisponibles.map((p) => <MenuItem key={p} value={p}>{p}</MenuItem>)}
                     </Select>
+                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+                        Solo se listan los periodos que todavia no tienen expensas generadas.
+                    </Typography>
                 </Paper>
                 <Alert severity="info" icon={false} sx={{ bgcolor: '#E4EEF5', color: 'text.primary', alignItems: 'center' }}>
                     <strong>Calculo automatico</strong><br />
-                    Expensa base + cargo de agua = total del periodo
+                    Expensa base + cargo de agua = total del periodo. La lectura anterior viene del periodo previo.
                 </Alert>
             </Box>
 
@@ -128,9 +220,9 @@ export default function GenerarExpensas() {
                                     <TableCell>{f.departamento}</TableCell>
                                     <TableCell>{f.tipo}</TableCell>
                                     <TableCell>{formatBs(f.base)}</TableCell>
-                                    <TableCell>{f.lecturaAnterior.toLocaleString('es-BO')}</TableCell>
+                                    <TableCell>{Number(f.lecturaAnterior).toLocaleString('es-BO')}</TableCell>
                                     <TableCell>
-                                        <TextField size="small" type="number" value={lecturas[f.departamento]}
+                                        <TextField size="small" type="number" value={lecturas[f.departamento] ?? ''}
                                             onChange={(e) => cambiarLectura(f.departamento, e.target.value)}
                                             sx={{ width: 100 }} />
                                     </TableCell>
@@ -162,6 +254,8 @@ export default function GenerarExpensas() {
                     </Box>
                 </Box>
             </Paper>
+
+            {error && <Alert severity="warning" sx={{ mb: 2 }}>{error}</Alert>}
 
             {/* Botones */}
             <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column-reverse', md: 'row' }, justifyContent: { md: 'flex-end' } }}>
