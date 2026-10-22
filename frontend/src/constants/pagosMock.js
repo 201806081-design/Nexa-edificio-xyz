@@ -16,10 +16,10 @@ export const MEDIOS_PAGO = ['Transferencia', 'Efectivo', 'QR', 'Cheque'];
 
 export const DEPARTAMENTOS_DEUDA = [
     {
-        id: '203', etiqueta: '203 — Carlos Mendoza', responsable: 'Carlos Mendoza · Propietario', saldoPendiente: 599,
+        id: '203', etiqueta: '203 — Carlos Mendoza', responsable: 'Carlos Mendoza · Propietario', saldoPendiente: 757,
         deudas: [
-            { periodo: 'Agosto 2026', totalDeuda: 366, pagado: 100, pendiente: 266 },
-            { periodo: 'Septiembre 2026', totalDeuda: 333, pagado: 0, pendiente: 333 },
+            { periodo: 'Agosto 2026', totalDeuda: 384, pagado: 0, pendiente: 384 },
+            { periodo: 'Septiembre 2026', totalDeuda: 373, pagado: 0, pendiente: 373 },
         ],
     },
     {
@@ -31,13 +31,57 @@ export const DEPARTAMENTOS_DEUDA = [
     },
 ];
 
-// Historial de pagos. estado: 'Completo' | 'Parcial'
+// Historial de pagos. Cada pago lleva ahora:
+//   tipoDepto    → chip Tipo A/B/C en "Datos del pago"
+//   composicion  → desglose base/agua/m3Agua/mora por periodo
+//                  (si existe, el modal lo usa directo; si no, cae al cruce con EXPENSAS/DEUDAS)
 export const PAGOS_MOCK = [
-    { id: 'PG-0042', fecha: '19/10/2026', depto: '203', responsable: 'Carlos Mendoza', pagadoPor: 'Carlos Mendoza', medio: 'Transferencia', referencia: 'TRF-241019-203', periodoAplicado: 'Ago. / Sep. 2026', monto: 450, saldoPosterior: 149, estado: 'Parcial' },
-    { id: 'PG-0041', fecha: '18/10/2026', depto: '101', responsable: 'Ana Lopez', pagadoPor: 'Ana Lopez', medio: 'Transferencia', referencia: 'TRF-241018-101', periodoAplicado: 'Octubre 2026', monto: 315, saldoPosterior: 0, estado: 'Completo' },
-    { id: 'PG-0040', fecha: '17/10/2026', depto: '302', responsable: 'Maria Rojas', pagadoPor: 'Maria Rojas', medio: 'QR', referencia: 'QR-241017-302', periodoAplicado: 'Octubre 2026', monto: 415, saldoPosterior: 0, estado: 'Completo' },
-    { id: 'PG-0039', fecha: '16/10/2026', depto: '102', responsable: 'Luis Garcia', pagadoPor: 'Luis Garcia', medio: 'Efectivo', referencia: 'EF-241016-102', periodoAplicado: 'Octubre 2026', monto: 200, saldoPosterior: 165, estado: 'Parcial' },
-    { id: 'PG-0038', fecha: '15/10/2026', depto: '201', responsable: 'Sofia Flores', pagadoPor: 'Sofia Flores', medio: 'Transferencia', referencia: 'TRF-241015-201', periodoAplicado: 'Septiembre 2026', monto: 350, saldoPosterior: 0, estado: 'Completo' },
+    {
+        id: 'PG-0042', fecha: '19/10/2026', depto: '203', tipoDepto: 'B',
+        responsable: 'Carlos Mendoza', pagadoPor: 'Carlos Mendoza',
+        medio: 'Transferencia', referencia: 'TRF-241019-203',
+        periodoAplicado: 'Ago. / Sep. 2026', monto: 500, saldoPosterior: 257, estado: 'Parcial',
+        composicion: [
+            { periodo: 'Agosto 2026', tipo: 'B', base: 350, agua: 20, m3Agua: 4, mora: 14, mesesMora: 2, total: 384 },
+            { periodo: 'Septiembre 2026', tipo: 'B', base: 350, agua: 15, m3Agua: 3, mora: 8, mesesMora: 1, total: 373 },
+        ],
+    },
+    {
+        id: 'PG-0041', fecha: '18/10/2026', depto: '101', tipoDepto: 'A',
+        responsable: 'Ana Lopez', pagadoPor: 'Ana Lopez',
+        medio: 'Transferencia', referencia: 'TRF-241018-101',
+        periodoAplicado: 'Octubre 2026', monto: 315, saldoPosterior: 0, estado: 'Completo',
+        composicion: [
+            { periodo: 'Octubre 2026', tipo: 'A', base: 300, agua: 15, m3Agua: 3, mora: 0, mesesMora: 0, total: 315 },
+        ],
+    },
+    {
+        id: 'PG-0040', fecha: '17/10/2026', depto: '302', tipoDepto: 'C',
+        responsable: 'Maria Rojas', pagadoPor: 'Maria Rojas',
+        medio: 'QR', referencia: 'QR-241017-302',
+        periodoAplicado: 'Octubre 2026', monto: 415, saldoPosterior: 0, estado: 'Completo',
+        composicion: [
+            { periodo: 'Octubre 2026', tipo: 'C', base: 400, agua: 15, m3Agua: 3, mora: 0, mesesMora: 0, total: 415 },
+        ],
+    },
+    {
+        id: 'PG-0039', fecha: '16/10/2026', depto: '102', tipoDepto: 'B',
+        responsable: 'Luis Garcia', pagadoPor: 'Luis Garcia',
+        medio: 'Efectivo', referencia: 'EF-241016-102',
+        periodoAplicado: 'Octubre 2026', monto: 200, saldoPosterior: 165, estado: 'Parcial',
+        composicion: [
+            { periodo: 'Octubre 2026', tipo: 'B', base: 350, agua: 15, m3Agua: 3, mora: 0, mesesMora: 0, total: 365 },
+        ],
+    },
+    {
+        id: 'PG-0038', fecha: '15/10/2026', depto: '201', tipoDepto: 'A',
+        responsable: 'Sofia Flores', pagadoPor: 'Sofia Flores',
+        medio: 'Transferencia', referencia: 'TRF-241015-201',
+        periodoAplicado: 'Septiembre 2026', monto: 350, saldoPosterior: 0, estado: 'Completo',
+        composicion: [
+            { periodo: 'Septiembre 2026', tipo: 'A', base: 300, agua: 50, m3Agua: 10, mora: 0, mesesMora: 0, total: 350 },
+        ],
+    },
 ];
 
 // ============================================================
@@ -58,13 +102,6 @@ export const DEPARTAMENTOS_ANTICIPO = [
     { id: '202', etiqueta: '202 — Luis Perez', saldoPendiente: 0, creditoAnterior: 300 },
 ];
 
-// Historial de anticipos.
-// recibido  = monto depositado por adelantado
-// aplicado  = suma de aplicaciones[].monto (lo que ya se descuento en expensas)
-// credito   = recibido - aplicado (saldo que todavia queda a favor)
-// aplicaciones[] alimenta la seccion de desglose del modal:
-//   cada aplicacion lleva base + agua + m3Agua + (mora, mesesMora si hay)
-//   para que se vea igual que la composicion del pago.
 export const HISTORIAL_ANTICIPOS = [
     {
         id: 'PA-0012', fecha: '19/10/2026', depto: '303', tipoDepto: 'C',
@@ -81,7 +118,7 @@ export const HISTORIAL_ANTICIPOS = [
         aplicaciones: [
             {
                 periodo: 'Octubre 2026', pagoRef: 'EX-OCT-101', tipo: 'A',
-                base: 300, agua: 50, m3Agua: 10, mora: 0, mesesMora: 0, monto: 350
+                base: 300, agua: 50, m3Agua: 10, mora: 0, mesesMora: 0, total: 350, monto: 350
             },
         ],
     },
@@ -93,23 +130,23 @@ export const HISTORIAL_ANTICIPOS = [
         aplicaciones: [
             {
                 periodo: 'Septiembre 2026', pagoRef: 'EX-SEP-202', tipo: 'B',
-                base: 350, agua: 25, m3Agua: 5, mora: 0, mesesMora: 0, monto: 375
+                base: 350, agua: 25, m3Agua: 5, mora: 0, mesesMora: 0, total: 375, monto: 375
             },
             {
                 periodo: 'Octubre 2026', pagoRef: 'EX-OCT-202', tipo: 'B',
-                base: 350, agua: 25, m3Agua: 5, mora: 0, mesesMora: 0, monto: 375
+                base: 350, agua: 25, m3Agua: 5, mora: 0, mesesMora: 0, total: 375, monto: 375
             },
         ],
     },
     {
-        id: 'PA-0009', fecha: '28/09/2026', depto: '201', tipoDepto: 'B',
+        id: 'PA-0009', fecha: '28/09/2026', depto: '201', tipoDepto: 'A',
         responsable: 'Marco Vargas', pagadoPor: 'Marco Vargas',
         medio: 'Efectivo', referencia: 'EF-240928-201',
         recibido: 375, aplicado: 375, credito: 0, estado: 'Aplicado',
         aplicaciones: [
             {
-                periodo: 'Septiembre 2026', pagoRef: 'EX-SEP-201', tipo: 'B',
-                base: 350, agua: 25, m3Agua: 5, mora: 0, mesesMora: 0, monto: 375
+                periodo: 'Septiembre 2026', pagoRef: 'EX-SEP-201', tipo: 'A',
+                base: 300, agua: 75, m3Agua: 15, mora: 0, mesesMora: 0, total: 375, monto: 375
             },
         ],
     },

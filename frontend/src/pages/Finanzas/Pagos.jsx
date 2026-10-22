@@ -48,9 +48,25 @@ const fechaEnPeriodo = (fecha, periodoSel) => {
     return m === mesIdx && y === Number(anioSel);
 };
 
-// Devuelve el desglose del pago. FIX NaN: usa fallback base+agua+mora si falta e.total
+// Devuelve el desglose del pago.
+// Prioridad: 1) composicion embebida en el propio pago (nuevo flujo),
+//            2) cruce con EXPENSAS_MOCK + DEUDAS_VENCIDAS (fallback).
 const calcularComposicion = (pago) => {
     if (!pago) return [];
+    // 1) Si el pago trae su propia composicion, usarla directo (fuente de verdad)
+    if (Array.isArray(pago.composicion) && pago.composicion.length > 0) {
+        return pago.composicion.map((c) => ({
+            periodo: c.periodo,
+            tipo: c.tipo || null,
+            base: c.base ?? 0,
+            agua: c.agua ?? 0,
+            m3Agua: c.m3Agua ?? null,
+            mora: c.mora ?? 0,
+            mesesMora: c.mesesMora ?? 0,
+            total: c.total ?? ((c.base ?? 0) + (c.agua ?? 0) + (c.mora ?? 0)),
+        }));
+    }
+    // 2) Fallback: cruzar con EXPENSAS_MOCK y DEUDAS_VENCIDAS
     const items = [];
     const expensas = EXPENSAS_MOCK.filter((e) =>
         e.departamento === `Depto. ${pago.depto}` &&
@@ -546,7 +562,13 @@ export default function Pagos() {
                                 </Box>
                                 <Box>
                                     <Typography variant="caption" color="text.secondary">Departamento</Typography>
-                                    <Typography variant="body2" sx={{ fontWeight: 700 }}>{pagoSel.depto}</Typography>
+                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                        <Typography variant="body2" sx={{ fontWeight: 700 }}>{pagoSel.depto}</Typography>
+                                        {pagoSel.tipoDepto && (
+                                            <Chip label={`Tipo ${pagoSel.tipoDepto}`} size="small"
+                                                sx={{ bgcolor: '#E4EEF5', color: '#1F5F8B', fontWeight: 600, height: 20 }} />
+                                        )}
+                                    </Box>
                                 </Box>
                                 <Box>
                                     <Typography variant="caption" color="text.secondary">Responsable</Typography>
