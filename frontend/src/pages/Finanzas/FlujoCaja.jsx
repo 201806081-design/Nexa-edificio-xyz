@@ -11,7 +11,7 @@ import BarChartIcon from '@mui/icons-material/BarChart';
 import DonutLargeIcon from '@mui/icons-material/DonutLarge';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import {
-    BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
+    BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
     PieChart, Pie, Cell, ResponsiveContainer,
 } from 'recharts';
 import { useNavigate } from 'react-router-dom';

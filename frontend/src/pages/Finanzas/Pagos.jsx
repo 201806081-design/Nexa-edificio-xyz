@@ -40,7 +40,7 @@ const MES_IDX = {
 
 // Verifica si la fecha del pago (DD/MM/YYYY) cae dentro del periodo seleccionado
 const fechaEnPeriodo = (fecha, periodoSel) => {
-    const [d, m, y] = (fecha || '').split('/').map(Number);
+    const [, m, y] = (fecha || '').split('/').map(Number);
     const [mesSel, anioSel] = (periodoSel || '').toLowerCase().split(' ');
     const mesIdx = MES_IDX[mesSel] || 0;
     return m === mesIdx && y === Number(anioSel);
