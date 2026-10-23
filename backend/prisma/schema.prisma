@@ -192,6 +192,7 @@ model Unidad {
   superficieM2 Decimal?   @map("superficie_m2") @db.Decimal(8, 2)
   coeficiente  Decimal?   @db.Decimal(6, 4)
   activo       Boolean    @default(true)
+  categoria    String?    @db.VarChar(5)
 
   ocupaciones Ocupacion[]
   expensas    Expensa[]
@@ -256,6 +257,8 @@ model Expensa {
   periodoId        Int           @map("periodo_id")
   monto            Decimal       @db.Decimal(12, 2)
   moraAcumulada    Decimal       @default(0) @map("mora_acumulada") @db.Decimal(12, 2)
+  montoAgua        Decimal       @default(0) @map("monto_agua") @db.Decimal(12, 2)
+  consumoM3        Decimal?      @map("consumo_m3") @db.Decimal(10, 2)
   saldoPendiente   Decimal       @map("saldo_pendiente") @db.Decimal(12, 2)
   fechaVencimiento DateTime      @map("fecha_vencimiento") @db.Date
   estado           EstadoExpensa @default(PENDIENTE)
