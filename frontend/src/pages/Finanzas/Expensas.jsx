@@ -129,15 +129,20 @@ export default function Expensas() {
         cerrarAgua();
     };
 
-    const marcarPagada = () => {
-        const idx = EXPENSAS_MOCK.findIndex((e) => e.id === filaSel.id);
-        if (idx >= 0) {
-            EXPENSAS_MOCK[idx].estado = 'Pagada';
-            EXPENSAS_MOCK[idx].pagado = EXPENSAS_MOCK[idx].total;
-            setSnack({ open: true, msg: `Pago registrado en depto ${filaSel.depto}: ${formatBs(filaSel.total)}.`, sev: 'success' });
-            setTick((t) => t + 1);
-        }
+    // Redirige a "Registrar pago" con el depto y periodo precargados.
+    // El pago real + sincronizacion (anticipo, marcar expensa como Pagada) se hace alla,
+    // asi todo pago queda registrado en PAGOS_MOCK y sincronizado con Dashboard/Resumen/Flujo de caja.
+    const irARegistrarPago = () => {
+        const f = filaSel;
         cerrarMenu();
+        navigate('/finanzas/pagos/registrar', {
+            state: {
+                deptoPrecargado: f.depto,
+                periodoPrecargado: f.periodo,
+                expensaId: f.id,
+                montoPendiente: Math.max(0, (f.total || 0) - (f.pagado || 0)),
+            },
+        });
     };
 
     const nombreMes = (periodo || '').split(' ')[0] || 'periodo';
@@ -347,9 +352,9 @@ export default function Expensas() {
                     Editar agua
                 </MenuItem>
                 {filaSel?.estado === 'Lista' && (
-                    <MenuItem onClick={marcarPagada}>
+                    <MenuItem onClick={irARegistrarPago}>
                         <PaidIcon fontSize="small" sx={{ mr: 1, color: '#2E9D78' }} />
-                        Marcar como pagada
+                        Registrar pago
                     </MenuItem>
                 )}
             </Menu>
