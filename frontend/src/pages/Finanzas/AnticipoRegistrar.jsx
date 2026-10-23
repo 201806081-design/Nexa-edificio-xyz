@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import {
     Box, Typography, Paper, Button, Select, MenuItem, TextField, Alert,
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import DashboardLayout from '../../layouts/DashboardLayout';
-import { DEPARTAMENTOS_ANTICIPO, MEDIOS_PAGO, HISTORIAL_ANTICIPOS } from '../../constants/pagosMock';
+import { MEDIOS_PAGO, HISTORIAL_ANTICIPOS } from '../../constants/pagosMock';
+import { DEPARTAMENTOS_ACTIVOS, EXPENSAS_MOCK } from '../../constants/expensasMock';
 import { formatBs } from '../../constants/finanzasMock';
 
 const fechaBonita = (iso) => {
@@ -55,32 +56,55 @@ export default function RegistrarAnticipo() {
     const [pagadoPor, setPagadoPor] = useState('');
     const [error, setError] = useState('');
 
-    const depto = DEPARTAMENTOS_ANTICIPO.find((d) => d.id === deptoId);
+    // Lista completa de deptos del edificio con credito acumulado y saldo pendiente
+    // derivado automaticamente de HISTORIAL_ANTICIPOS y EXPENSAS_MOCK (ya no hardcoded)
+    const deptosDisponibles = useMemo(() => {
+        return DEPARTAMENTOS_ACTIVOS.map((d) => {
+            const creditoAnterior = HISTORIAL_ANTICIPOS
+                .filter((a) => a.depto === d.id)
+                .reduce((s, a) => s + (a.credito || 0), 0);
+            const saldoPendiente = EXPENSAS_MOCK
+                .filter((e) => e.depto === d.id && e.estado !== 'Pagada')
+                .reduce((s, e) => s + Math.max(0, (e.total || e.monto || 0) - (e.pagado || 0)), 0);
+            return {
+                id: d.id,
+                etiqueta: `${d.id} — ${d.responsable}`,
+                responsable: d.responsable,
+                tipo: d.tipo,
+                creditoAnterior,
+                saldoPendiente,
+            };
+        });
+    }, []);
+
+    const depto = deptosDisponibles.find((d) => d.id === deptoId);
     const creditoAnterior = depto ? depto.creditoAnterior : 0;
     const montoNum = Number(monto) || 0;
     const nuevoCredito = creditoAnterior + montoNum;
     const refCfg = REF_CONFIG[medio] || REF_CONFIG['Transferencia'];
-    const responsable = depto ? (depto.etiqueta.split(' — ')[1] || '') : '';
+    const responsable = depto ? depto.responsable : '';
 
     // Cambiar depto: precarga "Pagado por" con el responsable (editable despues)
     const cambiarDepto = (id) => {
         setDeptoId(id);
         setError('');
-        const d = DEPARTAMENTOS_ANTICIPO.find((x) => x.id === id);
-        setPagadoPor(d ? (d.etiqueta.split(' — ')[1] || '') : '');
+        const d = deptosDisponibles.find((x) => x.id === id);
+        setPagadoPor(d ? d.responsable : '');
     };
 
     const registrar = () => {
         if (!deptoId) { setError('Seleccione un departamento'); return; }
         if (!(montoNum > 0)) { setError('Ingrese un monto valido'); return; }
         const codigo = siguienteCodigo();
-        // MOCK: se registra el anticipo y suma el credito del departamento.
+        // MOCK: se registra el anticipo. El credito del depto se deriva automaticamente
+        // de HISTORIAL_ANTICIPOS, asi que ya no hace falta mutar un creditoAnterior aparte.
         HISTORIAL_ANTICIPOS.unshift({
-            id: codigo, fecha: fechaBonita(fecha), depto: depto.id, responsable,
-            recibido: montoNum, aplicado: 0, credito: nuevoCredito, estado: 'Disponible',
-            pagadoPor: pagadoPor || responsable, medio, referencia,
+            id: codigo, fecha: fechaBonita(fecha), depto: depto.id, tipoDepto: depto.tipo,
+            responsable, pagadoPor: pagadoPor || responsable,
+            medio, referencia,
+            recibido: montoNum, aplicado: 0, credito: montoNum, estado: 'Disponible',
+            aplicaciones: [],
         });
-        depto.creditoAnterior = nuevoCredito;
         navigate('/finanzas/pagos/anticipo/registrado', {
             state: { detalle: { codigo, departamento: depto.id, fecha: fechaBonita(fecha), monto: montoNum, nuevoCredito, medio, referencia, pagadoPor: pagadoPor || responsable } },
         });
@@ -101,7 +125,7 @@ export default function RegistrarAnticipo() {
                     <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Departamento</Typography>
                     <Select fullWidth displayEmpty value={deptoId} onChange={(e) => cambiarDepto(e.target.value)} sx={{ mb: 2 }}>
                         <MenuItem value=""><em>Seleccione un departamento</em></MenuItem>
-                        {DEPARTAMENTOS_ANTICIPO.map((d) => <MenuItem key={d.id} value={d.id}>{d.etiqueta}</MenuItem>)}
+                        {deptosDisponibles.map((d) => <MenuItem key={d.id} value={d.id}>{d.etiqueta}</MenuItem>)}
                     </Select>
 
                     {depto && (
