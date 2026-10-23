@@ -1,11 +1,15 @@
-import { useState } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
     Box, Typography, Paper, Button, Select, MenuItem, TextField, Alert, Chip,
-    Table, TableHead, TableBody, TableRow, TableCell,
+    Table, TableHead, TableBody, TableRow, TableCell, Checkbox, FormControlLabel,
 } from '@mui/material';
-import { useNavigate } from 'react-router-dom';
+import SavingsIcon from '@mui/icons-material/Savings';
+import { useNavigate, useLocation } from 'react-router-dom';
 import DashboardLayout from '../../layouts/DashboardLayout';
-import { DEPARTAMENTOS_DEUDA, MEDIOS_PAGO, PAGOS_MOCK } from '../../constants/pagosMock';
+import {
+    DEPARTAMENTOS_DEUDA, MEDIOS_PAGO, PAGOS_MOCK, HISTORIAL_ANTICIPOS,
+} from '../../constants/pagosMock';
+import { EXPENSAS_MOCK } from '../../constants/expensasMock';
 import { formatBs } from '../../constants/finanzasMock';
 
 // Distribuye un monto entre las deudas, de la mas antigua a la mas nueva
@@ -14,7 +18,7 @@ function distribuir(deudas, monto) {
     return deudas.map((d) => {
         const aplicar = Math.min(d.pendiente, Math.max(0, restante));
         restante -= aplicar;
-        return { periodo: d.periodo, aplicar };
+        return { periodo: d.periodo, aplicar, expensaId: d.expensaId };
     });
 }
 
@@ -34,17 +38,16 @@ const fechaBonita = (iso) => {
 
 const PASOS = ['1. Selecciona el departamento', '2. Distribuye el monto', '3. Confirma el pago'];
 
-// Config dinamica del campo "Referencia" segun el medio de pago
 const REF_CONFIG = {
     'Transferencia': {
         label: 'N.º de transferencia',
         placeholder: '1234567890',
-        ayuda: 'Es el N.º de operacion que da el banco emisor en el comprobante de quien paga. (Ejemplo: "Operacion 20261019-0045721"). No es el numero de cuenta del edificio.',
+        ayuda: 'Es el N.º de operacion que da el banco emisor en el comprobante de quien paga.',
     },
     'QR': {
         label: 'N.º de operacion QR',
         placeholder: '1234567890',
-        ayuda: 'Es el N.º de operacion que da la app bancaria al escanear el QR del edificio. Aparece en el comprobante del residente.',
+        ayuda: 'Es el N.º de operacion que da la app bancaria al escanear el QR del edificio.',
     },
     'Cheque': {
         label: 'N.º de cheque',
@@ -59,70 +62,169 @@ const REF_CONFIG = {
     },
 };
 
+// Fecha de hoy en formato YYYY-MM-DD
+const hoyIso = () => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+
 export default function RegistrarPago() {
     const navigate = useNavigate();
+    const location = useLocation();
+
+    // --- Lista unificada de deptos con deuda: DEPARTAMENTOS_DEUDA + EXPENSAS_MOCK pendientes ---
+    const deptosDisponibles = useMemo(() => {
+        const mapa = new Map();
+        // 1) Agregar los de DEPARTAMENTOS_DEUDA (ya traen deudas estructuradas con pagado/pendiente)
+        DEPARTAMENTOS_DEUDA.forEach((d) => {
+            mapa.set(d.id, { ...d, deudas: d.deudas.map((x) => ({ ...x })) });
+        });
+        // 2) Agregar los de EXPENSAS_MOCK que tengan saldo pendiente y no esten en el mapa
+        EXPENSAS_MOCK.forEach((e) => {
+            if (e.estado === 'Pagada') return;
+            const pendiente = Math.max(0, (e.total || e.monto || 0) - (e.pagado || 0));
+            if (pendiente === 0) return;
+            if (!mapa.has(e.depto)) {
+                mapa.set(e.depto, {
+                    id: e.depto,
+                    etiqueta: `${e.depto} — ${e.responsable}`,
+                    responsable: `${e.responsable} · Propietario`,
+                    saldoPendiente: 0,
+                    deudas: [],
+                });
+            }
+            const d = mapa.get(e.depto);
+            if (!d.deudas.some((x) => x.periodo === e.periodo)) {
+                d.deudas.push({
+                    periodo: e.periodo,
+                    totalDeuda: e.total || e.monto || 0,
+                    pagado: e.pagado || 0,
+                    pendiente,
+                    expensaId: e.id,
+                });
+            }
+        });
+        // 3) Recalcular saldoPendiente de cada depto
+        mapa.forEach((d) => {
+            d.saldoPendiente = d.deudas.reduce((s, x) => s + x.pendiente, 0);
+        });
+        return Array.from(mapa.values()).sort((a, b) => String(a.id).localeCompare(String(b.id)));
+    }, []);
+
     const [deptoId, setDeptoId] = useState('');
-    const [fecha, setFecha] = useState('2026-10-19');
+    const [fecha, setFecha] = useState(hoyIso());
     const [monto, setMonto] = useState('');
     const [medio, setMedio] = useState('Transferencia');
     const [referencia, setReferencia] = useState('');
     const [pagadoPor, setPagadoPor] = useState('');
-    const [aplicaciones, setAplicaciones] = useState([]); // [{periodo, aplicar}]
+    const [aplicaciones, setAplicaciones] = useState([]);
+    const [aplicarCredito, setAplicarCredito] = useState(false);
 
-    const depto = DEPARTAMENTOS_DEUDA.find((d) => d.id === deptoId);
+    const depto = deptosDisponibles.find((d) => d.id === deptoId);
     const saldoPendiente = depto ? depto.saldoPendiente : 0;
     const refCfg = REF_CONFIG[medio] || REF_CONFIG['Transferencia'];
 
-    // Suma de las aplicaciones (helper)
-    const sumarAplicaciones = (arr) => arr.reduce((s, a) => s + (Number(a.aplicar) || 0), 0);
+    // Credito disponible del depto (suma de todos los anticipos con saldo a favor)
+    const creditoDepto = useMemo(() => {
+        if (!depto) return 0;
+        return HISTORIAL_ANTICIPOS
+            .filter((a) => a.depto === depto.id)
+            .reduce((s, a) => s + (a.credito || 0), 0);
+    }, [depto]);
 
-    // Cambiar depto: reinicia aplicaciones a 0, precarga "Pagado por" con el responsable
+    // Credito a aplicar efectivamente (nunca mas que lo necesario)
+    const efectivoNum = Number(monto) || 0;
+    const creditoReal = aplicarCredito && depto
+        ? Math.min(creditoDepto, Math.max(0, saldoPendiente - efectivoNum))
+        : 0;
+    const totalEfectivo = efectivoNum + creditoReal;
+
+    const sumarAplicaciones = (arr) => arr.reduce((s, a) => s + (Number(a.aplicar) || 0), 0);
+    const totalAplicado = sumarAplicaciones(aplicaciones);
+    const excedeSaldo = totalEfectivo > saldoPendiente;
+    const distribuidoOk = depto && totalEfectivo > 0 && totalAplicado === totalEfectivo && !excedeSaldo;
+    const nuevoSaldo = saldoPendiente - totalAplicado;
+
+    // Cambiar depto: reinicia aplicaciones, precarga pagadoPor, resetea credito
     const cambiarDepto = (id) => {
         setDeptoId(id);
-        const d = DEPARTAMENTOS_DEUDA.find((x) => x.id === id);
+        const d = deptosDisponibles.find((x) => x.id === id);
         if (d) {
-            setAplicaciones(d.deudas.map((x) => ({ periodo: x.periodo, aplicar: 0 })));
-            setPagadoPor(d.responsable.split(' · ')[0]);
+            setAplicaciones(d.deudas.map((x) => ({ periodo: x.periodo, aplicar: 0, expensaId: x.expensaId })));
+            setPagadoPor((d.responsable || '').split(' · ')[0]);
         } else {
             setAplicaciones([]);
             setPagadoPor('');
         }
         setMonto('');
+        setAplicarCredito(false);
     };
+
+    // Autocarga desde location.state (viene de Expensas -> "Registrar pago")
+    useEffect(() => {
+        const s = location.state;
+        if (s?.deptoPrecargado) {
+            const d = deptosDisponibles.find((x) => x.id === s.deptoPrecargado);
+            if (d) {
+                setDeptoId(d.id);
+                setAplicaciones(d.deudas.map((x) => ({ periodo: x.periodo, aplicar: 0, expensaId: x.expensaId })));
+                setPagadoPor((d.responsable || '').split(' · ')[0]);
+                // Precargar el monto pendiente y auto-distribuir
+                const montoP = s.montoPendiente || d.saldoPendiente;
+                setMonto(String(montoP));
+                setAplicaciones(distribuir(d.deudas, montoP));
+            }
+            // Limpiar state para no repetir en refresh
+            window.history.replaceState({}, '');
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     // Monto -> auto-distribuye en aplicaciones (deuda mas antigua primero)
     const cambiarMonto = (valor) => {
         setMonto(valor);
-        if (depto) setAplicaciones(distribuir(depto.deudas, valor));
+        const efectivo = Number(valor) || 0;
+        const credito = aplicarCredito ? Math.min(creditoDepto, Math.max(0, saldoPendiente - efectivo)) : 0;
+        const totalADistribuir = efectivo + credito;
+        if (depto) setAplicaciones(distribuir(depto.deudas, totalADistribuir));
     };
 
-    // Editar manualmente una casilla "Aplicar" -> sincroniza "Monto pagado" al total
+    // Toggle credito -> redistribuye incluyendo o excluyendo el credito
+    const toggleCredito = (checked) => {
+        setAplicarCredito(checked);
+        const efectivo = Number(monto) || 0;
+        const credito = checked ? Math.min(creditoDepto, Math.max(0, saldoPendiente - efectivo)) : 0;
+        const totalADistribuir = efectivo + credito;
+        if (depto) setAplicaciones(distribuir(depto.deudas, totalADistribuir));
+    };
+
+    // Editar manualmente una casilla "Aplicar" -> sincroniza "Monto pagado"
     const cambiarAplicar = (periodo, valor) => {
         const nuevas = aplicaciones.map((a) => (a.periodo === periodo ? { ...a, aplicar: valor } : a));
         setAplicaciones(nuevas);
-        setMonto(String(sumarAplicaciones(nuevas)));
+        const total = sumarAplicaciones(nuevas);
+        const credito = aplicarCredito ? Math.min(creditoDepto, total) : 0;
+        setMonto(String(Math.max(0, total - credito)));
     };
 
-    // Clic en el chip "pendiente" -> auto-rellena "Aplicar" + sincroniza "Monto pagado"
+    // Clic en el chip "pendiente" -> auto-rellena "Aplicar"
     const aplicarPendiente = (periodo, pendiente) => {
         const nuevas = aplicaciones.map((a) => (a.periodo === periodo ? { ...a, aplicar: pendiente } : a));
         setAplicaciones(nuevas);
-        setMonto(String(sumarAplicaciones(nuevas)));
+        const total = sumarAplicaciones(nuevas);
+        const credito = aplicarCredito ? Math.min(creditoDepto, total) : 0;
+        setMonto(String(Math.max(0, total - credito)));
     };
 
     // Pagar todos los pendientes de un solo clic
     const pagarSaldoCompleto = () => {
         if (!depto) return;
-        const nuevas = depto.deudas.map((d) => ({ periodo: d.periodo, aplicar: d.pendiente }));
+        const nuevas = depto.deudas.map((d) => ({ periodo: d.periodo, aplicar: d.pendiente, expensaId: d.expensaId }));
         setAplicaciones(nuevas);
-        setMonto(String(sumarAplicaciones(nuevas)));
+        const total = sumarAplicaciones(nuevas);
+        const credito = aplicarCredito ? Math.min(creditoDepto, total) : 0;
+        setMonto(String(Math.max(0, total - credito)));
     };
-
-    const montoNum = Number(monto) || 0;
-    const totalAplicado = aplicaciones.reduce((acc, a) => acc + (Number(a.aplicar) || 0), 0);
-    const nuevoSaldo = saldoPendiente - totalAplicado;
-    const excedeSaldo = montoNum > saldoPendiente;
-    const distribuidoOk = depto && montoNum > 0 && totalAplicado === montoNum && !excedeSaldo;
 
     const confirmar = () => {
         if (!distribuidoOk) return;
@@ -136,31 +238,75 @@ export default function RegistrarPago() {
 
         const periodos = distribucion.filter((x) => x.aplicado > 0).map((x) => x.periodo).join(' / ');
 
+        // 1) Agregar el pago al PAGOS_MOCK
         PAGOS_MOCK.unshift({
             id: codigo,
             fecha: fechaBonita(fecha),
             depto: depto.id,
-            responsable: depto.responsable.split(' · ')[0],
-            pagadoPor: pagadoPor || depto.responsable.split(' · ')[0],
+            responsable: (depto.responsable || '').split(' · ')[0],
+            pagadoPor: pagadoPor || (depto.responsable || '').split(' · ')[0],
             medio,
             referencia,
             periodoAplicado: periodos,
-            monto: montoNum,
+            monto: efectivoNum,                  // solo lo que entro en efectivo
+            creditoAplicado: creditoReal,         // crédito aplicado del anticipo
+            total: totalEfectivo,                 // suma de efectivo + crédito
             saldoPosterior: nuevoSaldo,
             estado,
         });
-        depto.deudas.forEach((d) => {
-            const ap = Number((aplicaciones.find((a) => a.periodo === d.periodo) || {}).aplicar) || 0;
-            d.pagado += ap;
-            d.pendiente -= ap;
+
+        // 2) Actualizar DEPARTAMENTOS_DEUDA (si el depto esta ahi)
+        const deptoOriginal = DEPARTAMENTOS_DEUDA.find((x) => x.id === depto.id);
+        if (deptoOriginal) {
+            deptoOriginal.deudas.forEach((d) => {
+                const ap = Number((aplicaciones.find((a) => a.periodo === d.periodo) || {}).aplicar) || 0;
+                d.pagado += ap;
+                d.pendiente -= ap;
+            });
+            deptoOriginal.saldoPendiente = Math.max(0, (deptoOriginal.saldoPendiente || 0) - totalAplicado);
+        }
+
+        // 3) Marcar expensas en EXPENSAS_MOCK como Pagada cuando corresponde
+        aplicaciones.forEach((a) => {
+            if (!a.expensaId || !a.aplicar) return;
+            const exp = EXPENSAS_MOCK.find((e) => e.id === a.expensaId);
+            if (!exp) return;
+            exp.pagado = (exp.pagado || 0) + Number(a.aplicar);
+            const totalExp = exp.total || exp.monto || 0;
+            if (exp.pagado >= totalExp) exp.estado = 'Pagada';
         });
-        depto.saldoPendiente = nuevoSaldo;
+
+        // 4) Descontar credito aplicado del HISTORIAL_ANTICIPOS (mas antiguos primero)
+        if (creditoReal > 0) {
+            let restante = creditoReal;
+            HISTORIAL_ANTICIPOS
+                .filter((a) => a.depto === depto.id && (a.credito || 0) > 0)
+                .sort((a, b) => (a.fecha || '').localeCompare(b.fecha || ''))
+                .forEach((a) => {
+                    if (restante <= 0) return;
+                    const descontar = Math.min(a.credito, restante);
+                    a.aplicado = (a.aplicado || 0) + descontar;
+                    a.credito -= descontar;
+                    restante -= descontar;
+                    if (a.credito === 0) a.estado = 'Aplicado';
+                    else if (a.aplicado > 0) a.estado = 'Parcial';
+                    if (!a.aplicaciones) a.aplicaciones = [];
+                    a.aplicaciones.push({
+                        periodo: periodos || 'varios',
+                        pagoRef: codigo,
+                        tipo: a.tipoDepto,
+                        base: 0, agua: 0, m3Agua: null, mora: 0, mesesMora: 0,
+                        total: descontar, monto: descontar,
+                    });
+                });
+        }
 
         navigate('/finanzas/pagos/registrado', {
             state: {
                 detalle: {
                     codigo, departamento: depto.id, fecha: fechaBonita(fecha),
-                    monto: montoNum, estado, nuevoSaldo, distribucion, pagadoPor, medio, referencia,
+                    monto: efectivoNum, creditoAplicado: creditoReal, total: totalEfectivo,
+                    estado, nuevoSaldo, distribucion, pagadoPor, medio, referencia,
                 },
             },
         });
@@ -189,7 +335,7 @@ export default function RegistrarPago() {
                     <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Departamento</Typography>
                     <Select fullWidth displayEmpty value={deptoId} onChange={(e) => cambiarDepto(e.target.value)} sx={{ mb: 2 }}>
                         <MenuItem value=""><em>Seleccione un departamento</em></MenuItem>
-                        {DEPARTAMENTOS_DEUDA.map((d) => <MenuItem key={d.id} value={d.id}>{d.etiqueta}</MenuItem>)}
+                        {deptosDisponibles.map((d) => <MenuItem key={d.id} value={d.id}>{d.etiqueta}</MenuItem>)}
                     </Select>
 
                     {depto && (
@@ -199,6 +345,32 @@ export default function RegistrarPago() {
                             <Typography variant="body2" sx={{ fontWeight: 700, color: '#D9534F', mt: 0.5 }}>
                                 Saldo pendiente actual: {formatBs(saldoPendiente)}
                             </Typography>
+                        </Box>
+                    )}
+
+                    {/* Credito disponible del depto */}
+                    {depto && creditoDepto > 0 && (
+                        <Box sx={{ bgcolor: '#E4F4EE', border: '1px solid #C6E6D7', borderRadius: 2, p: 2, mb: 2 }}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                                <SavingsIcon sx={{ color: '#2E9D78' }} />
+                                <Typography variant="body2" sx={{ fontWeight: 700, color: '#2E9D78' }}>
+                                    Crédito disponible: {formatBs(creditoDepto)}
+                                </Typography>
+                            </Box>
+                            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
+                                Este departamento tiene saldo a favor de pagos anticipados.
+                            </Typography>
+                            <FormControlLabel
+                                control={<Checkbox checked={aplicarCredito} onChange={(e) => toggleCredito(e.target.checked)} />}
+                                label={<Typography variant="body2" sx={{ fontWeight: 600 }}>
+                                    Aplicar hasta {formatBs(Math.min(creditoDepto, saldoPendiente))} del crédito al pago
+                                </Typography>}
+                            />
+                            {aplicarCredito && creditoReal > 0 && (
+                                <Typography variant="caption" sx={{ display: 'block', color: '#2E9D78', fontWeight: 600 }}>
+                                    Se aplicarán {formatBs(creditoReal)} del crédito.
+                                </Typography>
+                            )}
                         </Box>
                     )}
 
@@ -221,7 +393,14 @@ export default function RegistrarPago() {
                                 slotProps={{ inputLabel: { shrink: true } }} />
                         </Box>
                         <Box sx={{ flex: 1, minWidth: 150 }}>
-                            <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Monto pagado</Typography>
+                            <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>
+                                Monto en efectivo
+                                {aplicarCredito && creditoReal > 0 && (
+                                    <Typography variant="caption" sx={{ ml: 1, color: '#2E9D78' }}>
+                                        (+ {formatBs(creditoReal)} crédito)
+                                    </Typography>
+                                )}
+                            </Typography>
                             <TextField fullWidth type="number" placeholder="Bs 0,00" value={monto}
                                 onChange={(e) => cambiarMonto(e.target.value)} />
                         </Box>
@@ -250,8 +429,8 @@ export default function RegistrarPago() {
 
                     {excedeSaldo && (
                         <Alert severity="warning" icon={false} sx={{ bgcolor: '#FDF0D5', color: '#8A5A00', mt: 2 }}>
-                            <Typography variant="body2" sx={{ fontWeight: 700 }}>El pago no puede superar el saldo pendiente.</Typography>
-                            <Typography variant="body2">Los excedentes se registran como pago anticipado.</Typography>
+                            <Typography variant="body2" sx={{ fontWeight: 700 }}>El pago supera el saldo pendiente.</Typography>
+                            <Typography variant="body2">Ajusta el monto o aplica un anticipo.</Typography>
                         </Alert>
                     )}
                 </Paper>
@@ -326,9 +505,15 @@ export default function RegistrarPago() {
                                     <Typography variant="body2" sx={{ fontWeight: 600 }}>{formatBs(saldoPendiente)}</Typography>
                                 </Box>
                                 <Box sx={{ display: 'flex', justifyContent: 'space-between', py: 0.5 }}>
-                                    <Typography variant="body2" color="text.secondary">Monto aplicado</Typography>
-                                    <Typography variant="body2" sx={{ fontWeight: 600, color: '#2E9D78' }}>− {formatBs(totalAplicado)}</Typography>
+                                    <Typography variant="body2" color="text.secondary">Pagado en efectivo</Typography>
+                                    <Typography variant="body2" sx={{ fontWeight: 600, color: '#2E9D78' }}>− {formatBs(efectivoNum)}</Typography>
                                 </Box>
+                                {creditoReal > 0 && (
+                                    <Box sx={{ display: 'flex', justifyContent: 'space-between', py: 0.5 }}>
+                                        <Typography variant="body2" color="text.secondary">Crédito aplicado</Typography>
+                                        <Typography variant="body2" sx={{ fontWeight: 600, color: '#2E9D78' }}>− {formatBs(creditoReal)}</Typography>
+                                    </Box>
+                                )}
                                 <Box sx={{ display: 'flex', justifyContent: 'space-between', py: 0.5, borderTop: '1px solid #CFDCEA', mt: 0.5, pt: 1 }}>
                                     <Typography variant="body2" sx={{ fontWeight: 700 }}>Nuevo saldo pendiente</Typography>
                                     <Typography variant="h3" sx={{ fontWeight: 700, color: nuevoSaldo > 0 ? '#D9534F' : '#2E9D78' }}>{formatBs(nuevoSaldo)}</Typography>
@@ -338,7 +523,7 @@ export default function RegistrarPago() {
                             {distribuidoOk && (
                                 <Alert severity="success" icon={false} sx={{ bgcolor: '#E4F4EE', color: '#2E7D5B', mt: 2 }}>
                                     <Typography variant="body2" sx={{ fontWeight: 700 }}>✓ El monto esta completamente distribuido.</Typography>
-                                    <Typography variant="body2">Se generara un registro en el historial de pagos.</Typography>
+                                    <Typography variant="body2">Se generara un registro en el historial de pagos y se actualizaran las expensas.</Typography>
                                 </Alert>
                             )}
                         </>
