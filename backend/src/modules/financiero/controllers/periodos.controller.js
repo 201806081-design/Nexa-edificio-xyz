@@ -12,10 +12,16 @@ async function listar(req, res, next) {
   } catch (err) { next(err); }
 }
 
+/** Genera el periodo completo o un bloque (categorias: ['A']). Si el periodo existe, agrega las unidades que faltan. */
 async function crear(req, res, next) {
   try {
     const data = await service.crear(req.body || {}, req.user.id);
-    res.status(201).json({ ok: true, mensaje: `Periodo ${data.periodo.mes}/${data.periodo.anio} generado con ${data.expensasGeneradas} expensas`, data });
+    const bloque = data.bloque ? ` (bloque ${data.bloque.join('/')})` : '';
+    res.status(201).json({
+      ok: true,
+      mensaje: `Periodo ${data.periodo.etiqueta}${bloque}: ${data.expensasGeneradas} expensas generadas, ${data.acumulado}/${data.unidadesActivas} unidades con expensa`,
+      data,
+    });
   } catch (err) { next(err); }
 }
 
@@ -35,4 +41,23 @@ async function cerrar(req, res, next) {
   } catch (err) { next(err); }
 }
 
-module.exports = { listar, crear, vistaPrevia, cerrar };
+async function listarAgua(req, res, next) {
+  try {
+    const id = idValido(req.params.id);
+    if (!id) return res.status(400).json({ ok: false, error: 'El id debe ser un entero positivo' });
+    res.json({ ok: true, data: await service.listarAgua(id) });
+  } catch (err) { next(err); }
+}
+
+/** Registra el monto de agua de UNA unidad en el periodo (uno por uno, como pidió el docente). */
+async function registrarAgua(req, res, next) {
+  try {
+    const id = idValido(req.params.id);
+    const unidadId = idValido(req.params.unidadId);
+    if (!id || !unidadId) return res.status(400).json({ ok: false, error: 'id y unidadId deben ser enteros positivos' });
+    const data = await service.registrarAgua(id, unidadId, req.body || {}, req.user?.id ?? null);
+    res.json({ ok: true, mensaje: `Agua de ${data.departamento}: Bs ${data.montoAgua} (total mensual Bs ${data.montoTotal})`, data });
+  } catch (err) { next(err); }
+}
+
+module.exports = { listar, crear, vistaPrevia, cerrar, listarAgua, registrarAgua };

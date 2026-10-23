@@ -11,6 +11,7 @@ const ie = require('./controllers/ingresosEgresos.controller');
 const contabilidad = require('./controllers/contabilidad.controller');
 const configuracion = require('./controllers/configuracion.controller');
 const mora = require('./controllers/mora.controller');
+const vistas = require('./controllers/vistas.controller');
 const dashboard = require('./controllers/dashboard.controller');
 
 const router = Router();
@@ -34,9 +35,12 @@ router.get('/periodos', periodos.listar);
 router.post('/periodos', soloAdmin, periodos.crear);
 router.post('/periodos/vista-previa', periodos.vistaPrevia);          // paso 2 del asistente: no escribe
 router.patch('/periodos/:id/cerrar', soloAdmin, periodos.cerrar);
+router.get('/periodos/:id/agua', periodos.listarAgua);                   // pantalla Registrar agua (uno por uno)
+router.put('/periodos/:id/agua/:unidadId', soloAdmin, periodos.registrarAgua);
 
 // Unidades → estado de cuenta
 router.get('/unidades', unidades.listar);
+router.get('/unidades/selector', vistas.unidadesSelector);           // selector de departamentos (antes de /:id)
 router.get('/unidades/:id/estado-cuenta', unidades.estadoCuenta);
 
 // Pagos de expensas
@@ -60,6 +64,10 @@ router.put('/configuracion/mora', soloAdmin, configuracion.actualizar);
 router.get('/mora', mora.resumen);
 router.get('/anticipos', mora.anticipos);
 router.get('/anticipos/:id', mora.anticipoPorId);
+
+// Vistas en la forma de las pantallas (US2.2 estado de cuenta · US2.3 ingresos y gastos)
+router.get('/estado-cuenta/:unidadId', vistas.estadoCuenta);           // ?anio&mes
+router.get('/movimientos', vistas.movimientos);                         // ?anio&mes&tipo&categoriaId
 
 // Caja y bancos
 router.get('/cuentas', cuentas.listar);
