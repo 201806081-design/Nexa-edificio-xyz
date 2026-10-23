@@ -145,6 +145,9 @@ export default function RegistrarPago() {
     const distribuidoOk = depto && totalEfectivo > 0 && totalAplicado === totalEfectivo && !excedeSaldo;
     const nuevoSaldo = saldoPendiente - totalAplicado;
 
+    // Pago 100% con credito: no hay efectivo, solo se aplica saldo a favor del depto
+    const soloCredito = depto && efectivoNum === 0 && creditoReal > 0;
+
     // Cambiar depto: reinicia aplicaciones, precarga pagadoPor, resetea credito
     const cambiarDepto = (id) => {
         setDeptoId(id);
@@ -238,6 +241,10 @@ export default function RegistrarPago() {
 
         const periodos = distribucion.filter((x) => x.aplicado > 0).map((x) => x.periodo).join(' / ');
 
+        // Si el pago es 100% con credito, no hay medio ni referencia reales
+        const medioFinal = soloCredito ? 'Crédito a favor' : medio;
+        const referenciaFinal = soloCredito ? '' : referencia;
+
         // 1) Agregar el pago al PAGOS_MOCK
         PAGOS_MOCK.unshift({
             id: codigo,
@@ -245,8 +252,8 @@ export default function RegistrarPago() {
             depto: depto.id,
             responsable: (depto.responsable || '').split(' · ')[0],
             pagadoPor: pagadoPor || (depto.responsable || '').split(' · ')[0],
-            medio,
-            referencia,
+            medio: medioFinal,
+            referencia: referenciaFinal,
             periodoAplicado: periodos,
             monto: efectivoNum,                  // solo lo que entro en efectivo
             creditoAplicado: creditoReal,         // crédito aplicado del anticipo
@@ -306,7 +313,8 @@ export default function RegistrarPago() {
                 detalle: {
                     codigo, departamento: depto.id, fecha: fechaBonita(fecha),
                     monto: efectivoNum, creditoAplicado: creditoReal, total: totalEfectivo,
-                    estado, nuevoSaldo, distribucion, pagadoPor, medio, referencia,
+                    estado, nuevoSaldo, distribucion, pagadoPor,
+                    medio: medioFinal, referencia: referenciaFinal,
                 },
             },
         });
@@ -406,26 +414,45 @@ export default function RegistrarPago() {
                         </Box>
                     </Box>
 
-                    <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-                        <Box sx={{ flex: 1, minWidth: 150 }}>
-                            <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Medio de pago</Typography>
-                            <Select fullWidth value={medio} onChange={(e) => { setMedio(e.target.value); setReferencia(''); }}>
-                                {MEDIOS_PAGO.map((m) => <MenuItem key={m} value={m}>{m}</MenuItem>)}
-                            </Select>
+                    {soloCredito ? (
+                        /* Pago cubierto 100% con credito: no se piden medio ni referencia */
+                        <Box sx={{ bgcolor: '#E4F4EE', border: '1px solid #C6E6D7', borderRadius: 2, p: 2, mt: 1 }}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+                                <SavingsIcon sx={{ color: '#2E9D78' }} fontSize="small" />
+                                <Typography variant="body2" sx={{ fontWeight: 700, color: '#2E9D78' }}>
+                                    Pago cubierto 100% con crédito a favor
+                                </Typography>
+                            </Box>
+                            <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                                Este pago no requiere medio ni número de referencia porque se descuenta del
+                                saldo a favor que el departamento ya tenía por un anticipo previo.
+                                El registro quedará guardado con medio “Crédito a favor”.
+                            </Typography>
                         </Box>
-                        <Box sx={{ flex: 1, minWidth: 150 }}>
-                            <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>{refCfg.label}</Typography>
-                            <TextField fullWidth placeholder={refCfg.placeholder} value={referencia} onChange={(e) => setReferencia(e.target.value)} />
-                        </Box>
-                    </Box>
+                    ) : (
+                        <>
+                            <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+                                <Box sx={{ flex: 1, minWidth: 150 }}>
+                                    <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Medio de pago</Typography>
+                                    <Select fullWidth value={medio} onChange={(e) => { setMedio(e.target.value); setReferencia(''); }}>
+                                        {MEDIOS_PAGO.map((m) => <MenuItem key={m} value={m}>{m}</MenuItem>)}
+                                    </Select>
+                                </Box>
+                                <Box sx={{ flex: 1, minWidth: 150 }}>
+                                    <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>{refCfg.label}</Typography>
+                                    <TextField fullWidth placeholder={refCfg.placeholder} value={referencia} onChange={(e) => setReferencia(e.target.value)} />
+                                </Box>
+                            </Box>
 
-                    {/* Ayuda contextual segun el medio */}
-                    <Box sx={{ bgcolor: '#E4EEF5', borderRadius: 2, p: 1.5, mt: 1.5 }}>
-                        <Typography variant="caption" sx={{ color: 'primary.main', fontWeight: 600 }} display="block">
-                            {medio}
-                        </Typography>
-                        <Typography variant="caption" color="text.secondary">{refCfg.ayuda}</Typography>
-                    </Box>
+                            {/* Ayuda contextual segun el medio */}
+                            <Box sx={{ bgcolor: '#E4EEF5', borderRadius: 2, p: 1.5, mt: 1.5 }}>
+                                <Typography variant="caption" sx={{ color: 'primary.main', fontWeight: 600 }} display="block">
+                                    {medio}
+                                </Typography>
+                                <Typography variant="caption" color="text.secondary">{refCfg.ayuda}</Typography>
+                            </Box>
+                        </>
+                    )}
 
                     {excedeSaldo && (
                         <Alert severity="warning" icon={false} sx={{ bgcolor: '#FDF0D5', color: '#8A5A00', mt: 2 }}>
