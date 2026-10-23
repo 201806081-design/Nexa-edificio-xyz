@@ -10,10 +10,11 @@ export const TASA_MORA = 0.10;
 // Configuracion de mora vigente.
 // Nota: el "diaVencimiento" NO vive aqui; se lee/escribe en configuracionMock.REGLAS_PERIODO
 // para mantenerlo sincronizado con la configuracion financiera de Expensas.
+// 'tipoCalculo' usa "Compuesto"/"Simple" (unificado con Configuracion financiera v2).
 export const CONFIG_MORA = {
     interesMensual: 10, // porcentaje
     aplicarMoraDesde: 'Dia siguiente a la fecha de vencimiento',
-    tipoCalculo: 'Acumulativo',
+    tipoCalculo: 'Compuesto',
     vigenteDesde: 'Noviembre 2026',
 };
 
@@ -22,7 +23,7 @@ export const APLICAR_MORA_DESDE = [
     'Fecha de vencimiento',
     'Periodo vencido',
 ];
-export const TIPOS_CALCULO = ['Acumulativo', 'Simple'];
+export const TIPOS_CALCULO = ['Compuesto', 'Simple'];
 export const VIGENTE_DESDE = ['Noviembre 2026', 'Diciembre 2026', 'Octubre 2026'];
 
 // Periodo sobre el que se actualizan los intereses

@@ -3,6 +3,7 @@ import {
     Table, TableHead, TableBody, TableRow, TableCell,
 } from '@mui/material';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import SavingsIcon from '@mui/icons-material/Savings';
 import { useNavigate, useLocation } from 'react-router-dom';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import { formatBs } from '../../constants/finanzasMock';
@@ -25,6 +26,9 @@ export default function PagoRegistrado() {
     }
 
     const colorEstado = d.estado === 'Completo' ? '#2E9D78' : '#B6802A';
+    const credito = Number(d.creditoAplicado) || 0;
+    const efectivo = Number(d.monto) || 0;
+    const total = Number(d.total) || (efectivo + credito);
 
     return (
         <DashboardLayout>
@@ -43,7 +47,7 @@ export default function PagoRegistrado() {
                 </Box>
 
                 {/* Resumen */}
-                <Box sx={{ border: '1px solid #CFDCEA', borderRadius: 2, p: 2, mb: 3, display: 'grid', gridTemplateColumns: { xs: '1fr 1fr', md: 'repeat(4, 1fr)' }, gap: 2 }}>
+                <Box sx={{ border: '1px solid #CFDCEA', borderRadius: 2, p: 2, mb: 2, display: 'grid', gridTemplateColumns: { xs: '1fr 1fr', md: 'repeat(4, 1fr)' }, gap: 2 }}>
                     <Box>
                         <Typography variant="body2" color="text.secondary">Departamento</Typography>
                         <Typography variant="body2" sx={{ fontWeight: 700 }}>{d.departamento}</Typography>
@@ -53,14 +57,36 @@ export default function PagoRegistrado() {
                         <Typography variant="body2" sx={{ fontWeight: 700 }}>{d.fecha}</Typography>
                     </Box>
                     <Box>
-                        <Typography variant="body2" color="text.secondary">Monto pagado</Typography>
-                        <Typography variant="body2" sx={{ fontWeight: 700 }}>{formatBs(d.monto)}</Typography>
+                        <Typography variant="body2" color="text.secondary">Total aplicado</Typography>
+                        <Typography variant="body2" sx={{ fontWeight: 700 }}>{formatBs(total)}</Typography>
                     </Box>
                     <Box>
                         <Typography variant="body2" color="text.secondary">Estado</Typography>
                         <Typography variant="body2" sx={{ fontWeight: 700, color: colorEstado }}>{d.estado}</Typography>
                     </Box>
                 </Box>
+
+                {/* Desglose del monto: efectivo + credito */}
+                {credito > 0 && (
+                    <Box sx={{ bgcolor: '#E4F4EE', border: '1px solid #C6E6D7', borderRadius: 2, p: 2, mb: 2 }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                            <SavingsIcon sx={{ color: '#2E9D78' }} fontSize="small" />
+                            <Typography variant="body2" sx={{ fontWeight: 700, color: '#2E9D78' }}>Composicion del pago</Typography>
+                        </Box>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', py: 0.5 }}>
+                            <Typography variant="body2" color="text.secondary">Pagado en efectivo ({d.medio})</Typography>
+                            <Typography variant="body2" sx={{ fontWeight: 600 }}>{formatBs(efectivo)}</Typography>
+                        </Box>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', py: 0.5 }}>
+                            <Typography variant="body2" color="text.secondary">Crédito aplicado (saldo a favor)</Typography>
+                            <Typography variant="body2" sx={{ fontWeight: 600, color: '#2E9D78' }}>{formatBs(credito)}</Typography>
+                        </Box>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', py: 0.5, borderTop: '1px dashed #C6E6D7', mt: 0.5, pt: 0.75 }}>
+                            <Typography variant="body2" sx={{ fontWeight: 700 }}>Total aplicado</Typography>
+                            <Typography variant="body2" sx={{ fontWeight: 700, color: '#2E9D78' }}>{formatBs(total)}</Typography>
+                        </Box>
+                    </Box>
+                )}
 
                 {/* Distribucion del pago */}
                 <Typography variant="body2" sx={{ fontWeight: 600, mb: 1 }}>Distribucion del pago</Typography>
