@@ -1137,6 +1137,379 @@
           "response": []
         }
       ]
+    },
+    {
+      "name": "Financiero · Bloques por categoria, agua y vistas (US2.2-2.4 · pizarra 22-oct)",
+      "item": [
+        {
+          "name": "Unidades · selector (con categoria A/B)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/financiero/unidades/selector",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "financiero",
+                "unidades",
+                "selector"
+              ]
+            },
+            "description": ""
+          },
+          "response": []
+        },
+        {
+          "name": "Generar bloque A · diciembre",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/financiero/periodos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "financiero",
+                "periodos"
+              ]
+            },
+            "description": "Primero los A. Crea el periodo si no existe.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"anio\": 2026,\n  \"mes\": 12,\n  \"montosPorCategoria\": {\n    \"A\": 300,\n    \"B\": 350\n  },\n  \"montosPorTipo\": {\n    \"PARQUEO\": 80,\n    \"BAULERA\": 40\n  },\n  \"categorias\": [\n    \"A\"\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Generar bloque B · diciembre",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/financiero/periodos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "financiero",
+                "periodos"
+              ]
+            },
+            "description": "Despues los B. Reutiliza el periodo; 409 si el bloque ya estaba.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"anio\": 2026,\n  \"mes\": 12,\n  \"montosPorCategoria\": {\n    \"A\": 300,\n    \"B\": 350\n  },\n  \"categorias\": [\n    \"B\"\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Generar el resto (parqueos y bauleras)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/financiero/periodos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "financiero",
+                "periodos"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"anio\": 2026,\n  \"mes\": 12,\n  \"montosPorCategoria\": {\n    \"A\": 300,\n    \"B\": 350\n  },\n  \"montosPorTipo\": {\n    \"PARQUEO\": 80,\n    \"BAULERA\": 40\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Vista previa bloque A (no escribe)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/financiero/periodos/vista-previa",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "financiero",
+                "periodos",
+                "vista-previa"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"anio\": 2027,\n  \"mes\": 1,\n  \"montosPorCategoria\": {\n    \"A\": 300,\n    \"B\": 350\n  },\n  \"categorias\": [\n    \"A\"\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Agua · pantalla del periodo",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/financiero/periodos/3/agua",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "financiero",
+                "periodos",
+                "3",
+                "agua"
+              ]
+            },
+            "description": "Una fila por unidad: fijo, agua, m3, total. Cambia el id del periodo."
+          },
+          "response": []
+        },
+        {
+          "name": "Agua · registrar Depto. 101 (uno por uno)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/financiero/periodos/3/agua/1",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "financiero",
+                "periodos",
+                "3",
+                "agua",
+                "1"
+              ]
+            },
+            "description": "Reemplaza el agua, recalcula total y saldo, asienta la diferencia.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"monto\": 35,\n  \"consumoM3\": 12.5\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Agua · corregir Depto. 201",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/financiero/periodos/3/agua/2",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "financiero",
+                "periodos",
+                "3",
+                "agua",
+                "2"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"monto\": 38\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Estado de cuenta · Depto. 301 (forma pantalla)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/financiero/estado-cuenta/3",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "financiero",
+                "estado-cuenta",
+                "3"
+              ]
+            },
+            "description": ""
+          },
+          "response": []
+        },
+        {
+          "name": "Estado de cuenta · Depto. 301 · solo noviembre",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/financiero/estado-cuenta/3?anio=2026&mes=11",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "financiero",
+                "estado-cuenta",
+                "3"
+              ],
+              "query": [
+                {
+                  "key": "anio",
+                  "value": "2026"
+                },
+                {
+                  "key": "mes",
+                  "value": "11"
+                }
+              ]
+            },
+            "description": ""
+          },
+          "response": []
+        },
+        {
+          "name": "Movimientos · ingresos y gastos (forma pantalla)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/financiero/movimientos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "financiero",
+                "movimientos"
+              ]
+            },
+            "description": ""
+          },
+          "response": []
+        },
+        {
+          "name": "Movimientos · solo gastos de septiembre",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/financiero/movimientos?anio=2026&mes=9&tipo=Gasto",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "financiero",
+                "movimientos"
+              ],
+              "query": [
+                {
+                  "key": "anio",
+                  "value": "2026"
+                },
+                {
+                  "key": "mes",
+                  "value": "9"
+                },
+                {
+                  "key": "tipo",
+                  "value": "Gasto"
+                }
+              ]
+            },
+            "description": ""
+          },
+          "response": []
+        },
+        {
+          "name": "Balance de comprobacion (cuadra tras bloques y agua)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/financiero/contabilidad/balance-comprobacion",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "financiero",
+                "contabilidad",
+                "balance-comprobacion"
+              ]
+            },
+            "description": ""
+          },
+          "response": []
+        }
+      ]
     }
   ],
   "auth": {
