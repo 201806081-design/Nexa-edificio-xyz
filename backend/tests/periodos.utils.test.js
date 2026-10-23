@@ -22,7 +22,7 @@ describe('validarDatosPeriodo', () => {
   });
 
   it('exige montoBase o montosPorTipo en modo FIJO', () => {
-    assert.throws(() => validarDatosPeriodo({ anio: 2026, mes: 10 }), /montoBase o montosPorTipo/);
+    assert.throws(() => validarDatosPeriodo({ anio: 2026, mes: 10 }), /montoBase, montosPorTipo o montosPorCategoria/);
   });
 
   it('exige presupuestoTotal en modo COEFICIENTE', () => {
