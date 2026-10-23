@@ -1,271 +1,193 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import {
-    Box, Typography, Select, MenuItem, Paper, Button, Chip, TextField, InputAdornment,
-    Table, TableHead, TableBody, TableRow, TableCell, Alert,
+    Box, Typography, Paper, Button, Select, MenuItem, Chip, Snackbar, Alert, Divider, Table, TableHead, TableBody, TableRow, TableCell,
 } from '@mui/material';
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import TaskAltIcon from '@mui/icons-material/TaskAlt';
+import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
+import OpacityIcon from '@mui/icons-material/Opacity';
 import { useNavigate } from 'react-router-dom';
 import DashboardLayout from '../../layouts/DashboardLayout';
-import { PERIODOS, DEPARTAMENTOS_ACTIVOS, EXPENSAS_MOCK } from '../../constants/expensasMock';
-import { EXPENSA_BASE, CONFIG_AGUA } from '../../constants/configuracionMock';
+import {
+    PERIODOS, ALICUOTAS, DEPARTAMENTOS_ACTIVOS, EXPENSAS_MOCK,
+} from '../../constants/expensasMock';
 import { formatBs } from '../../constants/finanzasMock';
-
-// 'Octubre 2026' -> {mes: 10, anio: 2026}
-const MES_IDX = {
-    enero: 1, febrero: 2, marzo: 3, abril: 4, mayo: 5, junio: 6,
-    julio: 7, agosto: 8, septiembre: 9, octubre: 10, noviembre: 11, diciembre: 12,
-};
-const parsePeriodo = (p) => {
-    const [mes, anio] = (p || '').toLowerCase().split(' ');
-    return { mes: MES_IDX[mes] || 0, anio: Number(anio) || 0 };
-};
-
-// Busca la lecturaActual mas reciente del depto en expensas PREVIAS al periodo seleccionado.
-// Asi la "anterior" de cada mes queda encadenada con la "actual" del mes previo.
-function buscarLecturaPrevia(depto, periodoSel) {
-    const pSel = parsePeriodo(periodoSel);
-    const previas = EXPENSAS_MOCK
-        .filter((e) => e.departamento === `Depto. ${depto}` && e.lecturaActual !== undefined)
-        .filter((e) => {
-            const pE = parsePeriodo(e.periodo);
-            return (pE.anio < pSel.anio) || (pE.anio === pSel.anio && pE.mes < pSel.mes);
-        })
-        .sort((a, b) => {
-            const pA = parsePeriodo(a.periodo);
-            const pB = parsePeriodo(b.periodo);
-            return (pB.anio - pA.anio) || (pB.mes - pA.mes);
-        });
-    return previas[0]?.lecturaActual;
-}
-
-// Cargo de agua automatico: consumo x precio, aplicando la tarifa minima
-function aguaAutomatica(consumo) {
-    const precio = Number(CONFIG_AGUA.precioM3) || 0;
-    const minimo = Number(CONFIG_AGUA.tarifaMinima) || 0;
-    const cargo = consumo * precio;
-    return cargo < minimo ? minimo : cargo;
-}
 
 export default function GenerarExpensas() {
     const navigate = useNavigate();
 
-    // Solo los periodos que todavia NO tienen expensas generadas
-    const periodosDisponibles = useMemo(() => {
-        const generados = new Set(EXPENSAS_MOCK.map((e) => e.periodo));
-        return PERIODOS.filter((p) => !generados.has(p));
+    // Periodos sin generar aun
+    const periodosDisponibles = useMemo(() =>
+        PERIODOS.filter((p) => !EXPENSAS_MOCK.some((e) => e.periodo === p)),
+        []);
+
+    const [periodo, setPeriodo] = useState(periodosDisponibles[0] || 'Noviembre 2026');
+    const [snack, setSnack] = useState({ open: false, msg: '', sev: 'success' });
+
+    // Agrupa deptos por tipo para el preview
+    const bloques = useMemo(() => {
+        const grupos = { A: [], B: [], C: [] };
+        DEPARTAMENTOS_ACTIVOS.forEach((d) => { if (grupos[d.tipo]) grupos[d.tipo].push(d); });
+        return [
+            { tipo: 'A', alicuota: ALICUOTAS.A, deptos: grupos.A },
+            { tipo: 'B', alicuota: ALICUOTAS.B, deptos: grupos.B },
+            { tipo: 'C', alicuota: ALICUOTAS.C, deptos: grupos.C },
+        ];
     }, []);
 
-    const [periodo, setPeriodo] = useState(periodosDisponibles[0] || '');
-    const [lecturas, setLecturas] = useState({});
-    const [aguaManual, setAguaManual] = useState({});
-    const [error, setError] = useState('');
+    const totalGeneracion = bloques.reduce((s, b) => s + b.alicuota * b.deptos.length, 0);
 
-    // Al cambiar de periodo, inicializa las lecturas actuales con la lectura previa encadenada
-    useEffect(() => {
-        if (!periodo) return;
-        const iniciales = Object.fromEntries(DEPARTAMENTOS_ACTIVOS.map((d) => {
-            const prev = buscarLecturaPrevia(d.departamento, periodo) ?? d.lecturaAnterior;
-            return [d.departamento, prev];
-        }));
-        setLecturas(iniciales);
-        setAguaManual({});
-        setError('');
-    }, [periodo]);
+    const yaGenerado = EXPENSAS_MOCK.some((e) => e.periodo === periodo);
 
-    // Si no hay periodos disponibles, mostramos un mensaje
-    if (periodosDisponibles.length === 0) {
-        return (
-            <DashboardLayout>
-                <Typography variant="h1" color="primary.main" sx={{ mb: 0.5 }}>Generar expensas mensuales</Typography>
-                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                    Combina la expensa fija del tipo de departamento con el consumo de agua
-                </Typography>
-                <Alert severity="info" sx={{ mb: 2 }}>
-                    <Typography variant="body2" sx={{ fontWeight: 700, mb: 0.5 }}>No hay periodos disponibles</Typography>
-                    <Typography variant="body2">
-                        Ya se generaron expensas para todos los periodos del sistema. Agrega periodos
-                        futuros en la configuracion para seguir generando.
-                    </Typography>
-                </Alert>
-                <Box sx={{ display: 'flex', justifyContent: { xs: 'stretch', md: 'flex-end' } }}>
-                    <Button variant="contained" onClick={() => navigate('/finanzas/expensas')} sx={{ width: { xs: '100%', md: 'auto' } }}>
-                        Volver a expensas
-                    </Button>
-                </Box>
-            </DashboardLayout>
-        );
-    }
-
-    const cambiarLectura = (dep, valor) => {
-        setLecturas((l) => ({ ...l, [dep]: valor }));
-        setAguaManual((a) => ({ ...a, [dep]: undefined }));
-        setError('');
-    };
-    const cambiarAgua = (dep, valor) => { setAguaManual((a) => ({ ...a, [dep]: valor })); setError(''); };
-
-    // Filas calculadas con lectura previa encadenada
-    const filas = DEPARTAMENTOS_ACTIVOS.map((d) => {
-        const base = EXPENSA_BASE[d.tipo] ?? d.base;
-        const lecturaAnterior = buscarLecturaPrevia(d.departamento, periodo) ?? d.lecturaAnterior;
-        const actualNum = Number(lecturas[d.departamento] ?? lecturaAnterior);
-        const consumo = Math.max(0, actualNum - lecturaAnterior);
-        const auto = aguaAutomatica(consumo);
-        const override = aguaManual[d.departamento];
-        const aguaVal = (override !== undefined && override !== '') ? Number(override) : auto;
-        const aguaInput = override !== undefined ? override : auto;
-        return { ...d, base, lecturaAnterior, actualNum, consumo, aguaVal, aguaInput, total: base + aguaVal };
-    });
-    const totalBase = filas.reduce((acc, f) => acc + f.base, 0);
-    const totalAgua = filas.reduce((acc, f) => acc + f.aguaVal, 0);
-    const totalGeneral = totalBase + totalAgua;
-
-    // Confirma la generacion: crea las expensas en EXPENSAS_MOCK (persiste en la sesion)
-    const generar = () => {
-        const siguienteId = Math.max(0, ...EXPENSAS_MOCK.map((e) => e.id || 0)) + 1;
-        filas.forEach((f, i) => {
-            EXPENSAS_MOCK.push({
-                id: siguienteId + i,
-                departamento: `Depto. ${f.departamento}`,
-                tipo: f.tipo,
-                periodo,
-                base: f.base,
-                agua: f.aguaVal,
-                monto: f.total,
-                estado: 'Pendiente',
-                lecturaAnterior: f.lecturaAnterior,
-                lecturaActual: f.actualNum, // se encadena para la siguiente generacion
+    const confirmarGeneracion = () => {
+        if (yaGenerado) {
+            setSnack({ open: true, msg: `Las expensas de ${periodo} ya fueron generadas.`, sev: 'warning' });
+            return;
+        }
+        const fecha = new Date().toLocaleDateString('es-BO');
+        let serie = EXPENSAS_MOCK.length;
+        bloques.forEach((b) => {
+            b.deptos.forEach((d) => {
+                serie += 1;
+                EXPENSAS_MOCK.push({
+                    id: `EX-${String(serie).padStart(4, '0')}`,
+                    depto: d.id, tipo: d.tipo, responsable: d.responsable,
+                    periodo,
+                    base: b.alicuota,
+                    agua: 0, m3: null, lecturaAnt: null, lecturaAct: null, aguaNota: '',
+                    total: b.alicuota,
+                    estado: 'Agua pendiente', pagado: 0,
+                    fechaGen: fecha, fechaAgua: null,
+                });
             });
         });
         navigate('/finanzas/expensas', {
-            state: { mensaje: `${filas.length} expensas generadas para ${periodo} por ${formatBs(totalGeneral)}` },
+            state: {
+                snack: { open: true, msg: `Expensas de ${periodo} generadas (${DEPARTAMENTOS_ACTIVOS.length} deptos). Falta registrar el agua.`, sev: 'success' },
+            },
         });
     };
 
-    const PRECIO_M3 = Number(CONFIG_AGUA.precioM3);
-    const TARIFA_MIN = Number(CONFIG_AGUA.tarifaMinima);
-
     return (
         <DashboardLayout>
-            <Typography variant="h1" color="primary.main" sx={{ mb: 0.5 }}>Generar expensas mensuales</Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                Combina la expensa fija del tipo de departamento con el consumo de agua
+            <Button startIcon={<ArrowBackIcon />} onClick={() => navigate('/finanzas/expensas')}
+                sx={{ color: '#1a2733', mb: 1 }}>
+                Volver a expensas
+            </Button>
+
+            <Typography variant="h1" color="primary.main" sx={{ mb: 0.5 }}>Generar expensa</Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+                Paso 1 de 2 — Este paso asigna el <strong>monto base por tipo</strong>.
+                El agua se registra despues, uno por uno, desde la lista de expensas.
             </Typography>
 
-            {/* Periodo + calculo automatico */}
-            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 2, mb: 2 }}>
-                <Paper sx={{ p: 3, borderRadius: 2 }}>
-                    <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Periodo mensual</Typography>
+            {/* Nota del flujo */}
+            <Paper sx={{ p: 2, borderRadius: 2, mb: 2, bgcolor: '#F1F5FA', display: 'flex', gap: 2, alignItems: 'center' }}>
+                <ReceiptLongIcon sx={{ color: '#1F5F8B' }} />
+                <Box>
+                    <Typography variant="body2" sx={{ fontWeight: 600 }}>¿Como funciona?</Typography>
+                    <Typography variant="caption" color="text.secondary">
+                        1) Confirmas el periodo y se genera una expensa por cada depto con el <strong>monto base de su tipo</strong>.
+                        Todas quedan en estado <strong>"Agua pendiente"</strong>. &nbsp;·&nbsp;
+                        2) Despues, en la lista de expensas, usas el boton <strong>"Agua"</strong> de cada fila para cargar el consumo
+                        del medidor. Hasta cargarla, el pago queda bloqueado.
+                    </Typography>
+                </Box>
+            </Paper>
+
+            {/* Selector de periodo */}
+            <Paper sx={{ p: 3, borderRadius: 2, mb: 2 }}>
+                <Typography variant="body2" sx={{ fontWeight: 700, mb: 1 }}>Periodo a generar</Typography>
+                {periodosDisponibles.length === 0 ? (
+                    <Alert severity="info" sx={{ mb: 1 }}>
+                        Todos los periodos del catalogo ya fueron generados. Agrega mas periodos en el mock de finanzas si necesitas probar otros.
+                    </Alert>
+                ) : (
                     <Select fullWidth value={periodo} onChange={(e) => setPeriodo(e.target.value)}>
                         {periodosDisponibles.map((p) => <MenuItem key={p} value={p}>{p}</MenuItem>)}
                     </Select>
-                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
-                        Solo se listan los periodos que todavia no tienen expensas generadas.
+                )}
+                {yaGenerado && (
+                    <Typography variant="caption" sx={{ color: '#D9534F', display: 'block', mt: 1 }}>
+                        ⚠ Este periodo ya fue generado anteriormente.
                     </Typography>
-                </Paper>
-                <Alert severity="info" icon={false} sx={{ bgcolor: '#E4EEF5', color: 'text.primary', alignItems: 'center' }}>
-                    <strong>Calculo automatico</strong><br />
-                    Expensa base + cargo de agua = total del periodo. La lectura anterior viene del periodo previo.
-                </Alert>
-            </Box>
+                )}
+            </Paper>
 
-            {/* Tarifas fijas vigentes */}
+            {/* Preview por bloque (A → B → C) */}
             <Paper sx={{ p: 3, borderRadius: 2, mb: 2 }}>
-                <Typography variant="body2" sx={{ fontWeight: 600, mb: 1.5 }}>Tarifas fijas vigentes</Typography>
-                <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, 1fr)' }, gap: 1.5, mb: 1.5 }}>
-                    {Object.entries(EXPENSA_BASE).map(([tipo, monto]) => (
-                        <Box key={tipo} sx={{ display: 'flex', alignItems: 'center', gap: 1.5, border: '1px solid #CFDCEA', boxShadow: '0 1px 3px rgba(19, 43, 62, 0.08), 0 4px 12px rgba(19, 43, 62, 0.08)', borderRadius: 2, p: 1.5 }}>
-                            <Chip label={tipo} sx={{ bgcolor: '#E4EEF5', color: 'primary.main', fontWeight: 700 }} />
-                            <Box>
-                                <Typography sx={{ fontWeight: 700 }}>{formatBs(monto)}</Typography>
-                                <Typography variant="body2" color="text.secondary">Por departamento</Typography>
-                            </Box>
+                <Typography variant="body2" sx={{ fontWeight: 700, mb: 2 }}>Vista previa de la generacion (por tipo)</Typography>
+                {bloques.map((b) => (
+                    <Box key={b.tipo} sx={{ mb: 2.5 }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1, flexWrap: 'wrap' }}>
+                            <Chip label={`Tipo ${b.tipo}`} size="small"
+                                sx={{ bgcolor: '#E4EEF5', color: '#1F5F8B', fontWeight: 700 }} />
+                            <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                                Alicuota {formatBs(b.alicuota)} · {b.deptos.length} depto{b.deptos.length !== 1 ? 's' : ''}
+                            </Typography>
+                            <Box sx={{ flex: 1 }} />
+                            <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                                Subtotal {formatBs(b.alicuota * b.deptos.length)}
+                            </Typography>
                         </Box>
-                    ))}
+                        <Box sx={{ overflowX: 'auto' }}>
+                            <Table size="small" sx={{ minWidth: 420 }}>
+                                <TableHead>
+                                    <TableRow sx={{ bgcolor: '#F8FAFC' }}>
+                                        <TableCell><strong>Depto.</strong></TableCell>
+                                        <TableCell><strong>Responsable</strong></TableCell>
+                                        <TableCell align="right"><strong>Monto base</strong></TableCell>
+                                    </TableRow>
+                                </TableHead>
+                                <TableBody>
+                                    {b.deptos.map((d) => (
+                                        <TableRow key={d.id}>
+                                            <TableCell>{d.id}</TableCell>
+                                            <TableCell>{d.responsable}</TableCell>
+                                            <TableCell align="right" sx={{ fontWeight: 600 }}>{formatBs(b.alicuota)}</TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        </Box>
+                    </Box>
+                ))}
+
+                <Divider sx={{ my: 2 }} />
+
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                        Total a generar ({DEPARTAMENTOS_ACTIVOS.length} deptos)
+                    </Typography>
+                    <Typography variant="h4" sx={{ fontWeight: 700, color: '#1F5F8B' }}>{formatBs(totalGeneracion)}</Typography>
                 </Box>
-                <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)' }, gap: 1.5 }}>
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid #CFDCEA', boxShadow: '0 1px 4px rgba(19, 43, 62, 0.06)', borderRadius: 2, p: 1.5 }}>
-                        <Typography variant="body2" color="text.secondary">Agua / m³</Typography>
-                        <Typography sx={{ fontWeight: 700 }}>{formatBs(PRECIO_M3)}</Typography>
-                    </Box>
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid #CFDCEA', boxShadow: '0 1px 4px rgba(19, 43, 62, 0.06)', borderRadius: 2, p: 1.5 }}>
-                        <Typography variant="body2" color="text.secondary">Tarifa minima agua</Typography>
-                        <Typography sx={{ fontWeight: 700 }}>{formatBs(TARIFA_MIN)}</Typography>
-                    </Box>
+
+                <Box sx={{ bgcolor: '#FDF0D5', borderRadius: 2, p: 1.5, mt: 2, display: 'flex', gap: 1, alignItems: 'center' }}>
+                    <OpacityIcon sx={{ color: '#B6802A' }} />
+                    <Typography variant="caption" color="text.secondary">
+                        El <strong>agua no se incluye</strong> en este paso. Se registra despues desde la lista, uno por uno con el medidor.
+                    </Typography>
                 </Box>
             </Paper>
 
-            {/* Lecturas y vista previa */}
-            <Paper sx={{ p: 3, borderRadius: 2, mb: 2 }}>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-                    <Typography variant="body2" sx={{ fontWeight: 600 }}>Lecturas y vista previa</Typography>
-                    <Typography variant="body2" color="text.secondary">{filas.length} departamentos activos</Typography>
-                </Box>
-                <Box sx={{ overflowX: 'auto' }}>
-                    <Table size="small" sx={{ minWidth: 760 }}>
-                        <TableHead>
-                            <TableRow sx={{ bgcolor: '#F1F5FA' }}>
-                                <TableCell><strong>Depto</strong></TableCell>
-                                <TableCell><strong>Tipo</strong></TableCell>
-                                <TableCell><strong>Base</strong></TableCell>
-                                <TableCell><strong>Anterior</strong></TableCell>
-                                <TableCell><strong>Actual</strong></TableCell>
-                                <TableCell><strong>Consumo</strong></TableCell>
-                                <TableCell><strong>Agua</strong></TableCell>
-                                <TableCell><strong>Total</strong></TableCell>
-                                <TableCell><strong>Estado</strong></TableCell>
-                            </TableRow>
-                        </TableHead>
-                        <TableBody>
-                            {filas.map((f) => (
-                                <TableRow key={f.departamento}>
-                                    <TableCell>{f.departamento}</TableCell>
-                                    <TableCell>{f.tipo}</TableCell>
-                                    <TableCell>{formatBs(f.base)}</TableCell>
-                                    <TableCell>{Number(f.lecturaAnterior).toLocaleString('es-BO')}</TableCell>
-                                    <TableCell>
-                                        <TextField size="small" type="number" value={lecturas[f.departamento] ?? ''}
-                                            onChange={(e) => cambiarLectura(f.departamento, e.target.value)}
-                                            sx={{ width: 100 }} />
-                                    </TableCell>
-                                    <TableCell>{f.consumo} m³</TableCell>
-                                    <TableCell>
-                                        <TextField size="small" type="number" value={f.aguaInput}
-                                            onChange={(e) => cambiarAgua(f.departamento, e.target.value)}
-                                            sx={{ width: 110 }}
-                                            slotProps={{ input: { startAdornment: <InputAdornment position="start">Bs</InputAdornment> } }} />
-                                    </TableCell>
-                                    <TableCell sx={{ fontWeight: 700 }}>{formatBs(f.total)}</TableCell>
-                                    <TableCell><Chip label={f.estado} size="small" sx={{ bgcolor: '#FDF0D5', color: '#B6802A' }} /></TableCell>
-                                </TableRow>
-                            ))}
-                        </TableBody>
-                    </Table>
-                </Box>
-            </Paper>
-
-            {/* Resumen del periodo */}
-            <Paper sx={{ p: 3, borderRadius: 2, mb: 2, bgcolor: '#E4EEF5' }}>
-                <Typography variant="body2" sx={{ fontWeight: 600, mb: 1 }}>Resumen del periodo</Typography>
-                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, justifyContent: 'space-between', alignItems: 'center' }}>
-                    <Typography variant="body2">Expensas base: <strong>{formatBs(totalBase)}</strong></Typography>
-                    <Typography variant="body2">Agua: <strong>{formatBs(totalAgua)}</strong></Typography>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <Typography variant="body2" color="text.secondary">Total a generar:</Typography>
-                        <Typography variant="h3" color="primary.main" sx={{ fontWeight: 700 }}>{formatBs(totalGeneral)}</Typography>
-                    </Box>
-                </Box>
-            </Paper>
-
-            {error && <Alert severity="warning" sx={{ mb: 2 }}>{error}</Alert>}
-
-            {/* Botones */}
-            <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column-reverse', md: 'row' }, justifyContent: { md: 'flex-end' } }}>
-                <Button variant="outlined" onClick={() => navigate('/finanzas/expensas')} sx={{ width: { xs: '100%', md: 'auto' } }}>
+            {/* Confirmar */}
+            <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end' }}>
+                <Button variant="outlined" onClick={() => navigate('/finanzas/expensas')}
+                    sx={{ color: '#1a2733', borderColor: '#cdd8e3' }}>
                     Cancelar
                 </Button>
-                <Button variant="contained" onClick={generar} sx={{ width: { xs: '100%', md: 'auto' } }}>
-                    Generar expensas
+                <Button variant="contained" startIcon={<TaskAltIcon />} onClick={confirmarGeneracion}
+                    disabled={yaGenerado || periodosDisponibles.length === 0}>
+                    Confirmar generacion
                 </Button>
             </Box>
+
+            <Snackbar open={snack.open} autoHideDuration={3500} onClose={() => setSnack({ ...snack, open: false })}
+                anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}>
+                <Alert severity={snack.sev} onClose={() => setSnack({ ...snack, open: false })} sx={{ width: '100%' }}>
+                    {snack.msg}
+                </Alert>
+            </Snackbar>
         </DashboardLayout>
     );
 }

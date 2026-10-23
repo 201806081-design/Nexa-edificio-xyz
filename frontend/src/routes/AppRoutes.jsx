@@ -34,10 +34,6 @@ import RegistrarMovimiento from '../pages/Finanzas/RegistrarMovimiento';
 import DetalleMovimiento from '../pages/Finanzas/DetalleMovimiento';
 import FlujoCaja from '../pages/Finanzas/FlujoCaja';
 import Mora from '../pages/Finanzas/Mora';
-// Expensas v2 (propuesta del Inge, 22-oct-2026) - rutas paralelas, no reemplazan a la v1
-import ExpensasV2 from '../pages/Finanzas/ExpensasV2';
-import GenerarExpensasV2 from '../pages/Finanzas/GenerarExpensasV2';
-import ConfiguracionFinancieraV2 from '../pages/Finanzas/ConfiguracionFinancieraV2';
 import ProtectedRoute from './ProtectedRoute';
 
 export default function AppRoutes() {
@@ -77,10 +73,6 @@ export default function AppRoutes() {
       <Route path="/finanzas/pagos/anticipo/registrado" element={<ProtectedRoute><AnticipoRegistrado /></ProtectedRoute>} />
       <Route path="/finanzas/configuracion" element={<ProtectedRoute><ConfiguracionFinanciera /></ProtectedRoute>} />
       <Route path="/finanzas/expensas/generar" element={<ProtectedRoute><GenerarExpensas /></ProtectedRoute>} />
-      {/* Expensas v2 (propuesta del Inge, 22-oct-2026) - rutas paralelas, no reemplazan a la v1 */}
-      <Route path="/finanzas/expensas-v2" element={<ProtectedRoute><ExpensasV2 /></ProtectedRoute>} />
-      <Route path="/finanzas/expensas-v2/generar" element={<ProtectedRoute><GenerarExpensasV2 /></ProtectedRoute>} />
-      <Route path="/finanzas/expensas-v2/configuracion" element={<ProtectedRoute><ConfiguracionFinancieraV2 /></ProtectedRoute>} />
       <Route path="/finanzas/estado-cuenta" element={<ProtectedRoute><EstadoCuenta /></ProtectedRoute>} />
       <Route path="/finanzas/ingresos-gastos" element={<ProtectedRoute><IngresosGastos /></ProtectedRoute>} />
       <Route path="/finanzas/ingresos-gastos/registrar" element={<ProtectedRoute><RegistrarMovimiento /></ProtectedRoute>} />
