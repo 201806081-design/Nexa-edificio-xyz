@@ -68,24 +68,31 @@ function buildDeptosDelSistema() {
     return [...map.values()].sort((a, b) => a.id.localeCompare(b.id));
 }
 
-// Total pagado para un depto en un periodo (sum de PAGOS_MOCK con periodoAplicado matching)
+// Total pagado para un depto en un periodo — SOLO para DEUDAS_VENCIDAS (meses
+// pasados que no estan en EXPENSAS_MOCK). Para EXPENSAS_MOCK usamos directamente
+// el campo e.pagado, que se mantiene sincronizado con RegistrarPago, aplicacion
+// de credito y pagos iniciales del mock.
 const pagadoParaPeriodo = (deptoId, periodo) => PAGOS_MOCK
     .filter((p) => p.depto === deptoId && periodoCoincide(p.periodoAplicado, periodo))
     .reduce((s, p) => s + (p.monto || 0), 0);
 
-// Computa el historial financiero cruzando EXPENSAS + DEUDAS_VENCIDAS + PAGOS
+// Computa el historial financiero cruzando EXPENSAS + DEUDAS_VENCIDAS
 function computeHistorial(deptoId) {
     const tasa = (Number(CONFIG_MORA.interesMensual) || 0) / 100;
 
-    // Expensas del mes (sin mora)
+    // Expensas del mes: usamos directamente e.pagado (fuente unica de verdad,
+    // sincronizada con RegistrarPago). Antes se recalculaba desde PAGOS_MOCK,
+    // lo que causaba desfases con Expensas y Pagos y sumaba dos veces cuando
+    // habia un pago regular + una aplicacion de credito a favor para el mismo depto.
     const desdeExpensas = EXPENSAS_MOCK
         .filter((e) => e.departamento === `Depto. ${deptoId}`)
         .map((e) => ({
             periodo: e.periodo, base: e.base, agua: e.agua, mora: 0,
-            pagado: pagadoParaPeriodo(deptoId, e.periodo),
+            pagado: e.pagado || 0,
         }));
 
-    // Deudas vencidas (con mora calculada segun CONFIG_MORA)
+    // Deudas vencidas (meses pasados que no estan en EXPENSAS_MOCK): aqui si
+    // seguimos usando PAGOS_MOCK porque DEUDAS_VENCIDAS no tiene campo pagado propio.
     const desdeMora = DEUDAS_VENCIDAS
         .filter((d) => d.depto === deptoId)
         .map((d) => {
