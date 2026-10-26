@@ -9,8 +9,24 @@ import DashboardLayout from '../../layouts/DashboardLayout';
 import {
     DEPARTAMENTOS_DEUDA, MEDIOS_PAGO, PAGOS_MOCK, HISTORIAL_ANTICIPOS,
 } from '../../constants/pagosMock';
-import { EXPENSAS_MOCK } from '../../constants/expensasMock';
+import { EXPENSAS_MOCK, DEPARTAMENTOS_ACTIVOS } from '../../constants/expensasMock';
+import { DEUDAS_VENCIDAS, CONFIG_MORA } from '../../constants/moraMock';
 import { formatBs } from '../../constants/finanzasMock';
+
+// Calcula el total con mora acumulada segun CONFIG_MORA (compuesto o simple)
+const calcularConMora = (deudaOriginal, meses) => {
+    const tasa = (Number(CONFIG_MORA.interesMensual) || 0) / 100;
+    const m = Math.max(0, Number(meses) || 0);
+    if (CONFIG_MORA.tipoCalculo === 'Simple') {
+        return Math.round(deudaOriginal * (1 + tasa * m) * 100) / 100;
+    }
+    return Math.round(deudaOriginal * ((1 + tasa) ** m) * 100) / 100;
+};
+
+// Pagos ya aplicados a un depto en un periodo (para descontar de DEUDAS_VENCIDAS)
+const pagadoDeudaVencida = (deptoId, periodo) => PAGOS_MOCK
+    .filter((p) => p.depto === deptoId && (p.periodoAplicado || '').toLowerCase().includes((periodo || '').toLowerCase().split(' ')[0]))
+    .reduce((s, p) => s + (p.monto || 0), 0);
 
 // Distribuye un monto entre las deudas, de la mas antigua a la mas nueva
 function distribuir(deudas, monto) {
@@ -72,7 +88,10 @@ export default function RegistrarPago() {
     const navigate = useNavigate();
     const location = useLocation();
 
-    // --- Lista unificada de deptos con deuda: DEPARTAMENTOS_DEUDA + EXPENSAS_MOCK pendientes ---
+    // --- Lista unificada de deptos con deuda ---
+    // Fuentes: DEPARTAMENTOS_DEUDA (legacy) + EXPENSAS_MOCK pendientes + DEUDAS_VENCIDAS (con mora)
+    // Esto asegura que el admin vea en Registrar pago TODAS las deudas del depto,
+    // incluyendo las moras acumuladas que aparecen en Estado de cuenta y en Mora e intereses.
     const deptosDisponibles = useMemo(() => {
         const mapa = new Map();
         // 1) Agregar los de DEPARTAMENTOS_DEUDA (ya traen deudas estructuradas con pagado/pendiente)
@@ -104,8 +123,48 @@ export default function RegistrarPago() {
                 });
             }
         });
-        // 3) Recalcular saldoPendiente de cada depto
+        // 3) Agregar DEUDAS_VENCIDAS (meses pasados con mora acumulada) — misma fuente que Mora
+        DEUDAS_VENCIDAS.forEach((dv) => {
+            const totalConMora = calcularConMora(dv.deudaOriginal, dv.meses);
+            const pagado = pagadoDeudaVencida(dv.depto, dv.periodo);
+            const pendiente = Math.max(0, totalConMora - pagado);
+            if (pendiente === 0) return;
+            if (!mapa.has(dv.depto)) {
+                // Buscar el nombre real del responsable en DEPARTAMENTOS_ACTIVOS
+                const activo = DEPARTAMENTOS_ACTIVOS.find((a) => a.id === dv.depto);
+                const nombre = activo ? activo.responsable : `Depto. ${dv.depto}`;
+                mapa.set(dv.depto, {
+                    id: dv.depto,
+                    etiqueta: `${dv.depto} — ${nombre}`,
+                    responsable: `${nombre} · Propietario`,
+                    saldoPendiente: 0,
+                    deudas: [],
+                });
+            }
+            const d = mapa.get(dv.depto);
+            if (!d.deudas.some((x) => x.periodo === dv.periodo)) {
+                d.deudas.push({
+                    periodo: dv.periodo,
+                    totalDeuda: totalConMora,
+                    pagado,
+                    pendiente,
+                    expensaId: null, // no esta en EXPENSAS_MOCK; es solo deuda vencida
+                    mora: Math.round((totalConMora - dv.deudaOriginal) * 100) / 100,
+                    meses: dv.meses,
+                });
+            }
+        });
+        // 4) Recalcular saldoPendiente y ordenar deudas por periodo (mas antiguo primero)
+        const MES_IDX = {
+            enero: 1, febrero: 2, marzo: 3, abril: 4, mayo: 5, junio: 6,
+            julio: 7, agosto: 8, septiembre: 9, octubre: 10, noviembre: 11, diciembre: 12
+        };
+        const periodoKey = (p) => {
+            const [mes, anio] = (p || '').toLowerCase().split(' ');
+            return (Number(anio) || 0) * 100 + (MES_IDX[mes] || 0);
+        };
         mapa.forEach((d) => {
+            d.deudas.sort((a, b) => periodoKey(a.periodo) - periodoKey(b.periodo));
             d.saldoPendiente = d.deudas.reduce((s, x) => s + x.pendiente, 0);
         });
         return Array.from(mapa.values()).sort((a, b) => String(a.id).localeCompare(String(b.id)));
@@ -499,7 +558,16 @@ export default function RegistrarPago() {
                                             const ap = aplicaciones.find((a) => a.periodo === d.periodo);
                                             return (
                                                 <TableRow key={d.periodo}>
-                                                    <TableCell sx={{ fontWeight: 600 }}>{d.periodo}</TableCell>
+                                                    <TableCell sx={{ fontWeight: 600 }}>
+                                                        {d.periodo}
+                                                        {d.mora > 0 && (
+                                                            <Chip
+                                                                size="small"
+                                                                label={`+ ${formatBs(d.mora)} mora (${d.meses}m)`}
+                                                                sx={{ ml: 1, bgcolor: '#FDE7E6', color: '#D9534F', fontWeight: 600, height: 22 }}
+                                                            />
+                                                        )}
+                                                    </TableCell>
                                                     <TableCell>{formatBs(d.totalDeuda)}</TableCell>
                                                     <TableCell sx={{ color: '#2E9D78' }}>{formatBs(d.pagado)}</TableCell>
                                                     <TableCell>
