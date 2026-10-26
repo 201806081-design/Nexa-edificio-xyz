@@ -10,7 +10,6 @@ import MoreVertIcon from '@mui/icons-material/MoreVert';
 import AccountBalanceOutlinedIcon from '@mui/icons-material/AccountBalanceOutlined';
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
 import PrintOutlinedIcon from '@mui/icons-material/PrintOutlined';
-import CancelOutlinedIcon from '@mui/icons-material/CancelOutlined';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
 import SavingsIcon from '@mui/icons-material/Savings';
@@ -193,7 +192,6 @@ export default function Pagos() {
     const [menuAnchor, setMenuAnchor] = useState(null);
     const [pagoSel, setPagoSel] = useState(null);
     const [detalleAbierto, setDetalleAbierto] = useState(false);
-    const [anularAbierto, setAnularAbierto] = useState(false);
     const [snack, setSnack] = useState({ open: false, msg: '', sev: 'success' });
 
     const [anticipoSel, setAnticipoSel] = useState(null);
@@ -206,24 +204,9 @@ export default function Pagos() {
         setSnack({ open: true, msg: `Recibo del pago ${pagoSel?.id} enviado a impresion`, sev: 'success' });
         cerrarMenu();
     };
-    const abrirAnular = () => { setAnularAbierto(true); cerrarMenu(); };
 
     const abrirAnticipo = (a) => { setAnticipoSel(a); setAnticipoAbierto(true); };
     const cerrarAnticipo = () => { setAnticipoAbierto(false); };
-
-    const confirmarAnular = () => {
-        const idx = PAGOS_MOCK.findIndex((p) => p.id === pagoSel.id);
-        if (idx >= 0) {
-            const p = PAGOS_MOCK[idx];
-            PAGOS_MOCK.splice(idx, 1);
-            const depto = DEPARTAMENTOS_DEUDA.find((d) => d.id === p.depto);
-            if (depto) depto.saldoPendiente = (depto.saldoPendiente || 0) + p.monto;
-            setSnack({ open: true, msg: `Pago ${p.id} anulado. Se restauraron ${formatBs(p.monto)} al saldo del depto ${p.depto}.`, sev: 'warning' });
-        }
-        setAnularAbierto(false);
-        setPagoSel(null);
-        setTick((t) => t + 1);
-    };
 
     const resumenExp = useMemo(() => {
         const pagosDelMes = PAGOS_MOCK.filter((p) => fechaEnPeriodo(p.fecha, periodo));
@@ -539,10 +522,6 @@ export default function Pagos() {
                     <PrintOutlinedIcon fontSize="small" sx={{ mr: 1, color: '#1F5F8B' }} />
                     Imprimir recibo
                 </MenuItem>
-                <MenuItem onClick={abrirAnular} sx={{ color: '#D9534F' }}>
-                    <CancelOutlinedIcon fontSize="small" sx={{ mr: 1 }} />
-                    Anular pago
-                </MenuItem>
             </Menu>
 
             {/* ============================================================ */}
@@ -645,24 +624,6 @@ export default function Pagos() {
                 </DialogContent>
                 <DialogActions>
                     <Button onClick={() => setDetalleAbierto(false)}>Cerrar</Button>
-                </DialogActions>
-            </Dialog>
-
-            {/* Dialog: Confirmar anulacion */}
-            <Dialog open={anularAbierto} onClose={() => setAnularAbierto(false)} maxWidth="xs" fullWidth>
-                <DialogTitle sx={{ fontWeight: 700 }}>Anular pago</DialogTitle>
-                <DialogContent dividers>
-                    <Typography variant="body2" sx={{ mb: 1 }}>
-                        ¿Confirmas la anulacion del pago <strong>{pagoSel?.id}</strong>?
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                        Se eliminara del historial y los <strong>{formatBs(pagoSel?.monto || 0)}</strong> se devolveran al saldo pendiente del
-                        departamento <strong>{pagoSel?.depto}</strong>. Esta accion es util cuando se registra un pago por error.
-                    </Typography>
-                </DialogContent>
-                <DialogActions>
-                    <Button onClick={() => setAnularAbierto(false)}>Cancelar</Button>
-                    <Button color="error" variant="contained" onClick={confirmarAnular}>Anular</Button>
                 </DialogActions>
             </Dialog>
 
