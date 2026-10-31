@@ -125,6 +125,19 @@ function computeHistorial(deptoId) {
         return round2(raw);
     };
 
+    // Calcula la mora de una fila. Si ya se pago mas que el original, consideramos
+    // que lo excedente fue mora cobrada (asi el total mostrado coincide con lo pagado).
+    // Si no, calculamos la mora acumulada actual segun la fecha del sistema.
+    const moraFila = (original, periodo, pagado) => {
+        if (pagado >= original && pagado > 0) {
+            // Pagada: la mora cobrada es lo excedente del original
+            return round2(Math.max(0, pagado - original));
+        }
+        const meses = calcularMesesVencidos(periodo, refHoy, diaVenc);
+        const totalConMora = calcMora(original, meses);
+        return round2(totalConMora - original);
+    };
+
     // Expensas del mes: usamos directamente e.pagado (fuente unica de verdad,
     // sincronizada con RegistrarPago). Si una expensa ya paso el dia de
     // vencimiento y no esta pagada al 100%, calculamos tambien su mora acumulada.
@@ -135,12 +148,7 @@ function computeHistorial(deptoId) {
             const agua = Number(e.agua) || 0;
             const original = base + agua;
             const pagado = round2(Number(e.pagado) || 0);
-            // Si no esta pagada al 100% y ya paso su dia de vencimiento, acumula mora
-            const meses = pagado >= original
-                ? 0
-                : calcularMesesVencidos(e.periodo, refHoy, diaVenc);
-            const totalConMora = calcMora(original, meses);
-            const mora = round2(totalConMora - original);
+            const mora = moraFila(original, e.periodo, pagado);
             return { periodo: e.periodo, base, agua, mora, pagado };
         });
 
@@ -150,12 +158,7 @@ function computeHistorial(deptoId) {
         .filter((d) => d.depto === deptoId)
         .map((d) => {
             const pagado = round2(pagadoParaPeriodo(deptoId, d.periodo));
-            // Si ya se pago al menos la deuda original, no sigue acumulando mora
-            const meses = pagado >= d.deudaOriginal
-                ? 0
-                : calcularMesesVencidos(d.periodo, refHoy, diaVenc);
-            const totalConMora = calcMora(d.deudaOriginal, meses);
-            const mora = round2(totalConMora - d.deudaOriginal);
+            const mora = moraFila(d.deudaOriginal, d.periodo, pagado);
             return {
                 periodo: d.periodo, base: d.expensaBase, agua: d.agua, mora, pagado,
             };

@@ -11,6 +11,7 @@ import {
 } from '../../constants/pagosMock';
 import { EXPENSAS_MOCK, DEPARTAMENTOS_ACTIVOS } from '../../constants/expensasMock';
 import { DEUDAS_VENCIDAS, CONFIG_MORA } from '../../constants/moraMock';
+import { REGLAS_PERIODO } from '../../constants/configuracionMock';
 import { formatBs } from '../../constants/finanzasMock';
 
 // Calcula el total con mora acumulada segun CONFIG_MORA (compuesto o simple)
@@ -23,10 +24,39 @@ const calcularConMora = (deudaOriginal, meses) => {
     return Math.round(deudaOriginal * ((1 + tasa) ** m) * 100) / 100;
 };
 
-// Pagos ya aplicados a un depto en un periodo (para descontar de DEUDAS_VENCIDAS)
+// Meses vencidos entre el periodo de la deuda y la fecha de referencia (reloj
+// del sistema). Misma formula que Mora.jsx y EstadoCuenta.jsx para que las tres
+// pantallas muestren los mismos numeros.
+const MESES_ES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+    'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+const calcularMesesVencidos = (periodoTexto, fechaHoy, diaVenc) => {
+    if (!periodoTexto || !fechaHoy) return 0;
+    const [mesNombre, anio] = periodoTexto.split(' ');
+    const idxMes = MESES_ES.indexOf(mesNombre);
+    if (idxMes < 0 || !anio) return 0;
+    const anioV = idxMes === 11 ? Number(anio) + 1 : Number(anio);
+    const mesV = idxMes === 11 ? 0 : idxMes + 1;
+    const fechaVenc = new Date(anioV, mesV, Number(diaVenc) || 10);
+    if (fechaHoy < fechaVenc) return 0;
+    let count = 0;
+    const f = new Date(fechaVenc);
+    while (f <= fechaHoy) {
+        count++;
+        f.setMonth(f.getMonth() + 1);
+    }
+    return count;
+};
+
+// Pagos ya aplicados a un depto en un periodo (efectivo + credito aplicado).
+// Usa p.total del formato nuevo; cae a p.monto + p.creditoAplicado del viejo.
 const pagadoDeudaVencida = (deptoId, periodo) => PAGOS_MOCK
-    .filter((p) => p.depto === deptoId && (p.periodoAplicado || '').toLowerCase().includes((periodo || '').toLowerCase().split(' ')[0]))
-    .reduce((s, p) => s + (p.monto || 0), 0);
+    .filter((p) => p.depto === deptoId
+        && (p.periodoAplicado || '').toLowerCase().includes((periodo || '').toLowerCase().split(' ')[0]))
+    .reduce((s, p) => {
+        const totalPago = Number(p.total)
+            || (Number(p.monto) || 0) + (Number(p.creditoAplicado) || 0);
+        return s + totalPago;
+    }, 0);
 
 // Distribuye un monto entre las deudas, de la mas antigua a la mas nueva
 function distribuir(deudas, monto) {
@@ -98,11 +128,23 @@ export default function RegistrarPago() {
         DEPARTAMENTOS_DEUDA.forEach((d) => {
             mapa.set(d.id, { ...d, deudas: d.deudas.map((x) => ({ ...x })) });
         });
-        // 2) Agregar los de EXPENSAS_MOCK que tengan saldo pendiente y no esten en el mapa
+        // Fecha de referencia y dia de vencimiento (compartidos con Mora y EstadoCuenta)
+        const refHoy = new Date();
+        const diaVenc = REGLAS_PERIODO.diaVencimiento;
+
+        // 2) Agregar los de EXPENSAS_MOCK que tengan saldo pendiente, calculando
+        //    la mora acumulada si ya paso el dia de vencimiento (igual que Mora).
         EXPENSAS_MOCK.forEach((e) => {
             if (e.estado === 'Pagada') return;
-            const pendiente = Math.max(0, (e.total || e.monto || 0) - (e.pagado || 0));
-            if (pendiente === 0) return;
+            const original = Number(e.total || e.monto) || 0;
+            const pagado = Number(e.pagado) || 0;
+            // Si ya se pago al menos la deuda original, no sigue acumulando mora
+            const meses = pagado >= original
+                ? 0
+                : calcularMesesVencidos(e.periodo, refHoy, diaVenc);
+            const totalConMora = calcularConMora(original, meses);
+            const pendiente = Math.max(0, Math.round((totalConMora - pagado) * 100) / 100);
+            if (pendiente < 0.01) return;
             if (!mapa.has(e.depto)) {
                 mapa.set(e.depto, {
                     id: e.depto,
@@ -116,19 +158,26 @@ export default function RegistrarPago() {
             if (!d.deudas.some((x) => x.periodo === e.periodo)) {
                 d.deudas.push({
                     periodo: e.periodo,
-                    totalDeuda: e.total || e.monto || 0,
-                    pagado: e.pagado || 0,
+                    totalDeuda: totalConMora,
+                    pagado,
                     pendiente,
                     expensaId: e.id,
+                    mora: Math.round((totalConMora - original) * 100) / 100,
+                    meses,
                 });
             }
         });
-        // 3) Agregar DEUDAS_VENCIDAS (meses pasados con mora acumulada) — misma fuente que Mora
+        // 3) Agregar DEUDAS_VENCIDAS (meses pasados con mora acumulada) — misma fuente que Mora.
+        //    Tambien recalculamos meses con la fecha del sistema para que escale cuando
+        //    el admin cambia la fecha del Windows.
         DEUDAS_VENCIDAS.forEach((dv) => {
-            const totalConMora = calcularConMora(dv.deudaOriginal, dv.meses);
             const pagado = pagadoDeudaVencida(dv.depto, dv.periodo);
-            const pendiente = Math.max(0, totalConMora - pagado);
-            if (pendiente === 0) return;
+            const meses = pagado >= dv.deudaOriginal
+                ? 0
+                : calcularMesesVencidos(dv.periodo, refHoy, diaVenc);
+            const totalConMora = calcularConMora(dv.deudaOriginal, meses);
+            const pendiente = Math.max(0, Math.round((totalConMora - pagado) * 100) / 100);
+            if (pendiente < 0.01) return;
             if (!mapa.has(dv.depto)) {
                 // Buscar el nombre real del responsable en DEPARTAMENTOS_ACTIVOS
                 const activo = DEPARTAMENTOS_ACTIVOS.find((a) => a.id === dv.depto);
@@ -150,7 +199,7 @@ export default function RegistrarPago() {
                     pendiente,
                     expensaId: null, // no esta en EXPENSAS_MOCK; es solo deuda vencida
                     mora: Math.round((totalConMora - dv.deudaOriginal) * 100) / 100,
-                    meses: dv.meses,
+                    meses,
                 });
             }
         });
