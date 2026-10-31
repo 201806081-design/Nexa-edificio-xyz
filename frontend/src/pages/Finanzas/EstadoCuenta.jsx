@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import {
     Box, Typography, Select, MenuItem, Paper, Button, Chip, Alert,
     Table, TableHead, TableBody, TableRow, TableCell, Snackbar,
@@ -17,11 +17,15 @@ import { PERIODOS, formatBs } from '../../constants/finanzasMock';
 import { EXPENSAS_MOCK } from '../../constants/expensasMock';
 import { PAGOS_MOCK, HISTORIAL_ANTICIPOS, DEPARTAMENTOS_DEUDA } from '../../constants/pagosMock';
 import { DEUDAS_VENCIDAS, CONFIG_MORA } from '../../constants/moraMock';
+import { REGLAS_PERIODO } from '../../constants/configuracionMock';
 
 const MES_IDX = {
     enero: 1, febrero: 2, marzo: 3, abril: 4, mayo: 5, junio: 6,
     julio: 7, agosto: 8, septiembre: 9, octubre: 10, noviembre: 11, diciembre: 12,
 };
+const MESES_ES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+    'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+
 const parsePeriodo = (p) => {
     const [mes, anio] = (p || '').toLowerCase().split(' ');
     return { mes: MES_IDX[mes] || 0, anio: Number(anio) || 0 };
@@ -31,6 +35,31 @@ const periodoCoincide = (periodoAplicado, periodoSel) => {
     const corto = (mesSel || '').slice(0, 3);
     const p = (periodoAplicado || '').toLowerCase();
     return (p.includes(mesSel) || p.includes(corto)) && p.includes(anioSel || '');
+};
+
+// Redondeo a 2 decimales para evitar errores de precision de punto flotante
+// (ej. 360 * 1.10 = 395.9999999999996 en JS, lo que hace que el saldo nunca
+// quede en 0 exacto y el estado nunca pase a "Pagado").
+const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
+
+// Cuenta cuantas fechas de vencimiento pasaron desde que vencio por primera vez
+// la deuda hasta la fecha de referencia (misma logica que Mora.jsx).
+const calcularMesesVencidos = (periodoTexto, fechaHoy, diaVenc) => {
+    if (!periodoTexto || !fechaHoy) return 0;
+    const [mesNombre, anio] = periodoTexto.split(' ');
+    const idxMes = MESES_ES.indexOf(mesNombre);
+    if (idxMes < 0 || !anio) return 0;
+    const anioV = idxMes === 11 ? Number(anio) + 1 : Number(anio);
+    const mesV = idxMes === 11 ? 0 : idxMes + 1;
+    const fechaVenc = new Date(anioV, mesV, Number(diaVenc) || 10);
+    if (fechaHoy < fechaVenc) return 0;
+    let count = 0;
+    const f = new Date(fechaVenc);
+    while (f <= fechaHoy) {
+        count++;
+        f.setMonth(f.getMonth() + 1);
+    }
+    return count;
 };
 
 const PERIODOS_CUENTA = ['Todos los periodos', ...PERIODOS];
@@ -72,37 +101,63 @@ function buildDeptosDelSistema() {
 // pasados que no estan en EXPENSAS_MOCK). Para EXPENSAS_MOCK usamos directamente
 // el campo e.pagado, que se mantiene sincronizado con RegistrarPago, aplicacion
 // de credito y pagos iniciales del mock.
+// Suma efectivo + credito aplicado: usa p.total del formato nuevo (ya incluye
+// ambos); si no existe, cae al formato viejo (p.monto + p.creditoAplicado).
 const pagadoParaPeriodo = (deptoId, periodo) => PAGOS_MOCK
     .filter((p) => p.depto === deptoId && periodoCoincide(p.periodoAplicado, periodo))
-    .reduce((s, p) => s + (p.monto || 0), 0);
+    .reduce((s, p) => {
+        const totalPago = Number(p.total)
+            || (Number(p.monto) || 0) + (Number(p.creditoAplicado) || 0);
+        return s + totalPago;
+    }, 0);
 
-// Computa el historial financiero cruzando EXPENSAS + DEUDAS_VENCIDAS
+// Computa el historial financiero cruzando EXPENSAS + DEUDAS_VENCIDAS.
+// La mora se recalcula dinamicamente con la fecha del sistema (new Date()),
+// igual que en Mora.jsx, para mantener coherencia visual entre pantallas.
 function computeHistorial(deptoId) {
     const tasa = (Number(CONFIG_MORA.interesMensual) || 0) / 100;
+    const refHoy = new Date();
+    const diaVenc = REGLAS_PERIODO.diaVencimiento;
+    const calcMora = (original, meses) => {
+        const raw = CONFIG_MORA.tipoCalculo === 'Simple'
+            ? original * (1 + tasa * meses)
+            : original * (1 + tasa) ** meses;
+        return round2(raw);
+    };
 
     // Expensas del mes: usamos directamente e.pagado (fuente unica de verdad,
-    // sincronizada con RegistrarPago). Antes se recalculaba desde PAGOS_MOCK,
-    // lo que causaba desfases con Expensas y Pagos y sumaba dos veces cuando
-    // habia un pago regular + una aplicacion de credito a favor para el mismo depto.
+    // sincronizada con RegistrarPago). Si una expensa ya paso el dia de
+    // vencimiento y no esta pagada al 100%, calculamos tambien su mora acumulada.
     const desdeExpensas = EXPENSAS_MOCK
         .filter((e) => e.departamento === `Depto. ${deptoId}`)
-        .map((e) => ({
-            periodo: e.periodo, base: e.base, agua: e.agua, mora: 0,
-            pagado: e.pagado || 0,
-        }));
+        .map((e) => {
+            const base = Number(e.base) || 0;
+            const agua = Number(e.agua) || 0;
+            const original = base + agua;
+            const pagado = round2(Number(e.pagado) || 0);
+            // Si no esta pagada al 100% y ya paso su dia de vencimiento, acumula mora
+            const meses = pagado >= original
+                ? 0
+                : calcularMesesVencidos(e.periodo, refHoy, diaVenc);
+            const totalConMora = calcMora(original, meses);
+            const mora = round2(totalConMora - original);
+            return { periodo: e.periodo, base, agua, mora, pagado };
+        });
 
     // Deudas vencidas (meses pasados que no estan en EXPENSAS_MOCK): aqui si
     // seguimos usando PAGOS_MOCK porque DEUDAS_VENCIDAS no tiene campo pagado propio.
     const desdeMora = DEUDAS_VENCIDAS
         .filter((d) => d.depto === deptoId)
         .map((d) => {
-            const deudaConMora = CONFIG_MORA.tipoCalculo === 'Simple'
-                ? d.deudaOriginal * (1 + tasa * d.meses)
-                : d.deudaOriginal * (1 + tasa) ** d.meses;
-            const mora = Math.round((deudaConMora - d.deudaOriginal) * 100) / 100;
+            const pagado = round2(pagadoParaPeriodo(deptoId, d.periodo));
+            // Si ya se pago al menos la deuda original, no sigue acumulando mora
+            const meses = pagado >= d.deudaOriginal
+                ? 0
+                : calcularMesesVencidos(d.periodo, refHoy, diaVenc);
+            const totalConMora = calcMora(d.deudaOriginal, meses);
+            const mora = round2(totalConMora - d.deudaOriginal);
             return {
-                periodo: d.periodo, base: d.expensaBase, agua: d.agua, mora,
-                pagado: pagadoParaPeriodo(deptoId, d.periodo),
+                periodo: d.periodo, base: d.expensaBase, agua: d.agua, mora, pagado,
             };
         });
 
@@ -115,10 +170,11 @@ function computeHistorial(deptoId) {
 
     return [...porPeriodo.values()]
         .map((h) => {
-            const total = h.base + h.agua + h.mora;
-            const saldo = Math.max(0, total - h.pagado);
+            const total = round2(h.base + h.agua + h.mora);
+            const saldo = Math.max(0, round2(total - h.pagado));
             let estado;
-            if (h.pagado >= total && total > 0) estado = 'Pagado';
+            // Umbral de 1 centavo para evitar errores de precision
+            if (saldo < 0.01 && total > 0) estado = 'Pagado';
             else if (h.mora > 0) estado = 'Vencido';
             else estado = 'Pendiente';
             return { ...h, total, saldo, estado };
@@ -168,13 +224,31 @@ function computeEstadoCuenta(deptoId, deptos, periodoFiltro) {
 export default function EstadoCuenta() {
     const [seleccion, setSeleccion] = useState('');
     const [periodo, setPeriodo] = useState(PERIODOS_CUENTA[0]);
-    const [consultado, setConsultado] = useState(null);
     const [snack, setSnack] = useState(false);
+
+    // Tick que fuerza re-render cada 5s para que la mora acumulada se actualice
+    // sola si cambia la fecha del sistema (igual que en Mora.jsx).
+    const [tick, setTick] = useState(0);
+    useEffect(() => {
+        const id = setInterval(() => setTick((t) => t + 1), 5000);
+        return () => clearInterval(id);
+    }, []);
 
     const deptosDisponibles = useMemo(() => buildDeptosDelSistema(), []);
 
+    // El estado consultado ahora es derivado (useMemo), no un useState aparte,
+    // asi se recalcula al toque cuando cambia la seleccion, el periodo, los
+    // pagos registrados en PAGOS_MOCK, o la fecha del sistema (via tick).
+    const consultado = useMemo(() => {
+        if (!seleccion) return null;
+        return computeEstadoCuenta(seleccion, deptosDisponibles, periodo);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [seleccion, periodo, deptosDisponibles, tick]);
+
     const consultar = () => {
-        if (seleccion) setConsultado(computeEstadoCuenta(seleccion, deptosDisponibles, periodo));
+        // Mantenido por compatibilidad con el boton; en la practica el useMemo
+        // ya recalcula al cambiar la seleccion. Forzamos un tick para refrescar.
+        if (seleccion) setTick((t) => t + 1);
     };
 
     const RESUMEN = consultado ? [
