@@ -124,11 +124,14 @@ export default function Mora() {
     const irARegistrarPago = () => {
         const f = filaSel;
         cerrarMenu();
+        // Redondeo a 2 decimales antes de pasarlo para evitar que RegistrarPago
+        // precargue algo tipo "395.9999999999996" en el campo de monto.
+        const montoRedondo = Math.round(((f.pendiente ?? f.deudaActual) || 0) * 100) / 100;
         navigate('/finanzas/pagos/registrar', {
             state: {
                 deptoPrecargado: f.depto,
                 periodoPrecargado: f.periodo,
-                montoPendiente: f.deudaActual, // incluye la mora acumulada ya calculada
+                montoPendiente: montoRedondo,
             },
         });
     };
@@ -140,6 +143,11 @@ export default function Mora() {
     // que ya pasaron el dia de vencimiento y no estan pagadas al 100%. Asi,
     // cuando se generan expensas nuevas y pasa el tiempo, aparecen aqui solas.
     const tasa = (Number(config.interesMensual) || 0) / 100;
+    // Redondeo a 2 decimales para evitar errores de precision de punto flotante
+    // (ej. 360 * 1.10 = 395.9999999999996 en JS). Sin esto el pendiente nunca
+    // llega a 0 exacto y la fila nunca se filtra despues de pagar.
+    const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
+
     // Helper para sumar lo pagado para un (depto + periodo) desde PAGOS_MOCK
     const sumPagado = (deptoId, periodo) => {
         const corto = (periodo || '').toLowerCase().split(' ')[0];
@@ -152,9 +160,12 @@ export default function Mora() {
                 return s + totalPago;
             }, 0);
     };
-    const calcMora = (original, meses) => config.tipoCalculo === 'Simple'
-        ? original * (1 + tasa * meses)
-        : original * (1 + tasa) ** meses;
+    const calcMora = (original, meses) => {
+        const raw = config.tipoCalculo === 'Simple'
+            ? original * (1 + tasa * meses)
+            : original * (1 + tasa) ** meses;
+        return round2(raw);
+    };
 
     const filas = useMemo(() => {
         const refHoy = new Date(); // reloj del sistema operativo
@@ -162,15 +173,14 @@ export default function Mora() {
         const desdeMora = DEUDAS_VENCIDAS.map((d) => {
             const meses = calcularMesesVencidos(d.periodo, refHoy, diaVencimiento);
             const deudaActual = calcMora(d.deudaOriginal, meses);
-            const pagoRegistrado = sumPagado(d.depto, d.periodo);
-            const pagado = pagoRegistrado; // DEUDAS_VENCIDAS no trae pagado propio
+            const pagado = round2(sumPagado(d.depto, d.periodo));
             return {
                 id: `DV-${d.id}`, origen: 'mora',
                 depto: d.depto, tipo: d.tipo, periodo: d.periodo,
                 expensaBase: d.expensaBase, agua: d.agua,
                 deudaOriginal: d.deudaOriginal, meses,
-                interes: deudaActual - d.deudaOriginal, deudaActual,
-                pagado, pendiente: Math.max(0, deudaActual - pagado),
+                interes: round2(deudaActual - d.deudaOriginal), deudaActual,
+                pagado, pendiente: Math.max(0, round2(deudaActual - pagado)),
             };
         });
         // 2) Expensas de EXPENSAS_MOCK que ya vencieron (dia de vencimiento pasado)
@@ -184,18 +194,19 @@ export default function Mora() {
                 if (meses === 0) return null; // aun no esta vencida -> no es mora
                 const original = Number(e.total || e.monto) || 0;
                 const deudaActual = calcMora(original, meses);
-                const pagado = Number(e.pagado) || 0;
+                const pagado = round2(Number(e.pagado) || 0);
                 return {
                     id: `EX-${e.id}`, origen: 'expensa',
                     depto: e.depto, tipo: e.tipo, periodo: e.periodo,
                     expensaBase: e.base, agua: e.agua,
                     deudaOriginal: original, meses,
-                    interes: deudaActual - original, deudaActual,
-                    pagado, pendiente: Math.max(0, deudaActual - pagado),
+                    interes: round2(deudaActual - original), deudaActual,
+                    pagado, pendiente: Math.max(0, round2(deudaActual - pagado)),
                 };
             })
             .filter(Boolean);
-        return [...desdeMora, ...desdeExpensas].filter((f) => f.pendiente > 0);
+        // Filtro: pendiente >= 0.01 (menor a 1 centavo es practicamente 0)
+        return [...desdeMora, ...desdeExpensas].filter((f) => f.pendiente >= 0.01);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [diaVencimiento, config.tipoCalculo, tasa, tick]);
     // Total vencido = suma de los pendientes (no de la deuda actual total)
@@ -273,28 +284,6 @@ export default function Mora() {
                 <Typography variant="body2">{REGLA_MORA.texto}</Typography>
                 <Typography variant="body2">{REGLA_MORA.ejemplo}</Typography>
             </Alert>
-
-            {/* Fecha actual del sistema (se usa para calcular meses vencidos y escalar moras) */}
-            <Paper sx={{ p: 2, borderRadius: 2, mb: 2, border: '1px solid #CFDCEA' }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
-                    <Box sx={{
-                        width: 40, height: 40, borderRadius: '50%',
-                        bgcolor: '#E4EEF5', color: '#1F5F8B',
-                        display: 'grid', placeItems: 'center', flexShrink: 0,
-                    }}>
-                        <CalendarMonthIcon />
-                    </Box>
-                    <Box sx={{ minWidth: 0, flex: 1 }}>
-                        <Typography variant="body2" sx={{ fontWeight: 700 }}>
-                            Fecha actual: {new Date().toLocaleDateString('es-BO', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
-                        </Typography>
-                        <Typography variant="caption" color="text.secondary">
-                            Las moras se recalculan automaticamente segun esta fecha. Si cambia la fecha del sistema,
-                            las deudas vencidas y las expensas que pasen el dia de vencimiento acumularan mora al refrescar.
-                        </Typography>
-                    </Box>
-                </Box>
-            </Paper>
 
             {/* Deudas vencidas */}
             <Paper sx={{ p: 3, borderRadius: 2, mb: 2 }}>
