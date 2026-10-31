@@ -7,7 +7,7 @@ import SavingsIcon from '@mui/icons-material/Savings';
 import { useNavigate, useLocation } from 'react-router-dom';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import {
-    DEPARTAMENTOS_DEUDA, MEDIOS_PAGO, PAGOS_MOCK, HISTORIAL_ANTICIPOS,
+    MEDIOS_PAGO, PAGOS_MOCK, HISTORIAL_ANTICIPOS,
 } from '../../constants/pagosMock';
 import { EXPENSAS_MOCK, DEPARTAMENTOS_ACTIVOS } from '../../constants/expensasMock';
 import { DEUDAS_VENCIDAS, CONFIG_MORA } from '../../constants/moraMock';
@@ -119,20 +119,19 @@ export default function RegistrarPago() {
     const location = useLocation();
 
     // --- Lista unificada de deptos con deuda ---
-    // Fuentes: DEPARTAMENTOS_DEUDA (legacy) + EXPENSAS_MOCK pendientes + DEUDAS_VENCIDAS (con mora)
-    // Esto asegura que el admin vea en Registrar pago TODAS las deudas del depto,
-    // incluyendo las moras acumuladas que aparecen en Estado de cuenta y en Mora e intereses.
+    // Fuentes de verdad: EXPENSAS_MOCK + DEUDAS_VENCIDAS (ambas con mora dinamica).
+    // Antes tambien se leia DEPARTAMENTOS_DEUDA (lista legacy del pagosMock), pero
+    // ese mock no estaba sincronizado con EXPENSAS_MOCK: mostraba periodos y montos
+    // que no coincidian con Estado de cuenta ni con Mora e intereses. Se quito para
+    // que las tres pantallas (Registrar pago, Estado de cuenta y Mora) muestren
+    // siempre las mismas deudas.
     const deptosDisponibles = useMemo(() => {
         const mapa = new Map();
-        // 1) Agregar los de DEPARTAMENTOS_DEUDA (ya traen deudas estructuradas con pagado/pendiente)
-        DEPARTAMENTOS_DEUDA.forEach((d) => {
-            mapa.set(d.id, { ...d, deudas: d.deudas.map((x) => ({ ...x })) });
-        });
         // Fecha de referencia y dia de vencimiento (compartidos con Mora y EstadoCuenta)
         const refHoy = new Date();
         const diaVenc = REGLAS_PERIODO.diaVencimiento;
 
-        // 2) Agregar los de EXPENSAS_MOCK que tengan saldo pendiente, calculando
+        // 1) Agregar los de EXPENSAS_MOCK que tengan saldo pendiente, calculando
         //    la mora acumulada si ya paso el dia de vencimiento (igual que Mora).
         EXPENSAS_MOCK.forEach((e) => {
             if (e.estado === 'Pagada') return;
@@ -167,7 +166,7 @@ export default function RegistrarPago() {
                 });
             }
         });
-        // 3) Agregar DEUDAS_VENCIDAS (meses pasados con mora acumulada) — misma fuente que Mora.
+        // 2) Agregar DEUDAS_VENCIDAS (meses pasados con mora acumulada) — misma fuente que Mora.
         //    Tambien recalculamos meses con la fecha del sistema para que escale cuando
         //    el admin cambia la fecha del Windows.
         DEUDAS_VENCIDAS.forEach((dv) => {
@@ -203,7 +202,7 @@ export default function RegistrarPago() {
                 });
             }
         });
-        // 4) Recalcular saldoPendiente y ordenar deudas por periodo (mas antiguo primero)
+        // 3) Recalcular saldoPendiente y ordenar deudas por periodo (mas antiguo primero)
         const MES_IDX = {
             enero: 1, febrero: 2, marzo: 3, abril: 4, mayo: 5, junio: 6,
             julio: 7, agosto: 8, septiembre: 9, octubre: 10, noviembre: 11, diciembre: 12
@@ -377,18 +376,7 @@ export default function RegistrarPago() {
             estado,
         });
 
-        // 2) Actualizar DEPARTAMENTOS_DEUDA (si el depto esta ahi)
-        const deptoOriginal = DEPARTAMENTOS_DEUDA.find((x) => x.id === depto.id);
-        if (deptoOriginal) {
-            deptoOriginal.deudas.forEach((d) => {
-                const ap = Number((aplicaciones.find((a) => a.periodo === d.periodo) || {}).aplicar) || 0;
-                d.pagado += ap;
-                d.pendiente -= ap;
-            });
-            deptoOriginal.saldoPendiente = Math.max(0, (deptoOriginal.saldoPendiente || 0) - totalAplicado);
-        }
-
-        // 3) Marcar expensas en EXPENSAS_MOCK como Pagada cuando corresponde
+        // 2) Marcar expensas en EXPENSAS_MOCK como Pagada cuando corresponde
         aplicaciones.forEach((a) => {
             if (!a.expensaId || !a.aplicar) return;
             const exp = EXPENSAS_MOCK.find((e) => e.id === a.expensaId);
@@ -398,7 +386,7 @@ export default function RegistrarPago() {
             if (exp.pagado >= totalExp) exp.estado = 'Pagada';
         });
 
-        // 4) Descontar credito aplicado del HISTORIAL_ANTICIPOS (mas antiguos primero)
+        // 3) Descontar credito aplicado del HISTORIAL_ANTICIPOS (mas antiguos primero)
         if (creditoReal > 0) {
             let restante = creditoReal;
             HISTORIAL_ANTICIPOS
