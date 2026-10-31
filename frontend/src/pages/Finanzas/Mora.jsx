@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import {
     Box, Typography, Paper, Button, TextField, Select, MenuItem, Alert,
     InputAdornment, IconButton, Table, TableHead, TableBody, TableRow, TableCell,
@@ -14,8 +14,6 @@ import CalculateIcon from '@mui/icons-material/Calculate';
 import CalendarMonthIcon from '@mui/icons-material/CalendarMonth';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 import PaidIcon from '@mui/icons-material/Paid';
-import RestoreIcon from '@mui/icons-material/Restore';
-import ScienceIcon from '@mui/icons-material/Science';
 import { useNavigate } from 'react-router-dom';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import {
@@ -24,6 +22,7 @@ import {
 } from '../../constants/moraMock';
 import { REGLAS_PERIODO, DIAS_VENCIMIENTO } from '../../constants/configuracionMock';
 import { PAGOS_MOCK } from '../../constants/pagosMock';
+import { EXPENSAS_MOCK } from '../../constants/expensasMock';
 import { formatBs } from '../../constants/finanzasMock';
 
 // Helpers de conversion mes "YYYY-MM" <-> "Octubre 2026"
@@ -43,11 +42,6 @@ const yyyyMmToTexto = (yyyyMm) => {
     return `${MESES_ES[Number(m) - 1]} ${y}`;
 };
 
-// Fecha de hoy real en formato YYYY-MM-DD (para el modo simulacion)
-const hoyIso = () => {
-    const d = new Date();
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-};
 
 // Cuenta cuantas fechas de vencimiento (dia X de cada mes) pasaron desde que
 // vencio por primera vez la deuda de ese periodo hasta la fecha de referencia.
@@ -110,11 +104,16 @@ export default function Mora() {
     const [actualizando, setActualizando] = useState(false);
     const [exitoMsg, setExitoMsg] = useState('');
 
-    // Fecha de referencia para calcular los meses vencidos. Por defecto, la fecha
-    // real del sistema. El admin (o el docente en la demo) puede moverla hacia
-    // adelante para simular como escalan las moras mes a mes sin esperar al tiempo real.
-    const [fechaSimulada, setFechaSimulada] = useState(hoyIso());
-    const esSimulacion = fechaSimulada !== hoyIso();
+    // La fecha de referencia la toma SIEMPRE del reloj del sistema operativo
+    // (new Date()). Si el admin cambia la fecha de la computadora, el tick de
+    // abajo fuerza un re-render cada 5 segundos y los calculos se actualizan solos:
+    // las moras de las deudas vencidas escalan, y cualquier expensa nueva que ya
+    // haya pasado el dia de vencimiento aparece aqui con su mora acumulada.
+    const [tick, setTick] = useState(0);
+    useEffect(() => {
+        const id = setInterval(() => setTick((t) => t + 1), 5000);
+        return () => clearInterval(id);
+    }, []);
 
     // Menu de acciones por fila (ver detalle / registrar pago)
     const [menuAnchor, setMenuAnchor] = useState(null);
@@ -135,34 +134,70 @@ export default function Mora() {
     };
 
     // Calculo de la deuda segun la configuracion vigente Y la fecha simulada.
-    // Al mover `fechaSimulada`, los meses vencidos de cada deuda se recalculan,
-    // y la deuda actual escala segun CONFIG_MORA (compuesto o simple).
-    // Ademas descontamos lo que ya se pago para esa deuda (desde PAGOS_MOCK) y
-    // ocultamos las deudas que ya se cubrieron al 100% desde Registrar pago.
+    // Las moras se recalculan automaticamente con la fecha del reloj del sistema.
+    // Si el admin cambia la fecha de la computadora, el tick (cada 5s) recomputa
+    // esto. Ademas de DEUDAS_VENCIDAS, incluimos las expensas de EXPENSAS_MOCK
+    // que ya pasaron el dia de vencimiento y no estan pagadas al 100%. Asi,
+    // cuando se generan expensas nuevas y pasa el tiempo, aparecen aqui solas.
     const tasa = (Number(config.interesMensual) || 0) / 100;
+    // Helper para sumar lo pagado para un (depto + periodo) desde PAGOS_MOCK
+    const sumPagado = (deptoId, periodo) => {
+        const corto = (periodo || '').toLowerCase().split(' ')[0];
+        return PAGOS_MOCK
+            .filter((p) => p.depto === deptoId
+                && (p.periodoAplicado || '').toLowerCase().includes(corto))
+            .reduce((s, p) => {
+                const totalPago = Number(p.total)
+                    || (Number(p.monto) || 0) + (Number(p.creditoAplicado) || 0);
+                return s + totalPago;
+            }, 0);
+    };
+    const calcMora = (original, meses) => config.tipoCalculo === 'Simple'
+        ? original * (1 + tasa * meses)
+        : original * (1 + tasa) ** meses;
+
     const filas = useMemo(() => {
-        const refHoy = new Date(`${fechaSimulada}T12:00:00`);
-        return DEUDAS_VENCIDAS.map((d) => {
+        const refHoy = new Date(); // reloj del sistema operativo
+        // 1) Deudas vencidas iniciales (hardcoded en moraMock)
+        const desdeMora = DEUDAS_VENCIDAS.map((d) => {
             const meses = calcularMesesVencidos(d.periodo, refHoy, diaVencimiento);
-            const deudaActual = config.tipoCalculo === 'Simple'
-                ? d.deudaOriginal * (1 + tasa * meses)
-                : d.deudaOriginal * (1 + tasa) ** meses;
-            // Total aplicado a esta deuda (efectivo + credito aplicado) desde Pagos.
-            // `p.total` del formato nuevo ya suma monto + creditoAplicado; si no
-            // existe, caemos al formato viejo (solo p.monto).
-            const periodoCorto = (d.periodo || '').toLowerCase().split(' ')[0];
-            const pagado = PAGOS_MOCK
-                .filter((p) => p.depto === d.depto
-                    && (p.periodoAplicado || '').toLowerCase().includes(periodoCorto))
-                .reduce((s, p) => {
-                    const totalPago = Number(p.total)
-                        || (Number(p.monto) || 0) + (Number(p.creditoAplicado) || 0);
-                    return s + totalPago;
-                }, 0);
-            const pendiente = Math.max(0, deudaActual - pagado);
-            return { ...d, meses, interes: deudaActual - d.deudaOriginal, deudaActual, pagado, pendiente };
-        }).filter((f) => f.pendiente > 0); // ocultar las deudas ya pagadas al 100%
-    }, [fechaSimulada, diaVencimiento, config.tipoCalculo, tasa]);
+            const deudaActual = calcMora(d.deudaOriginal, meses);
+            const pagoRegistrado = sumPagado(d.depto, d.periodo);
+            const pagado = pagoRegistrado; // DEUDAS_VENCIDAS no trae pagado propio
+            return {
+                id: `DV-${d.id}`, origen: 'mora',
+                depto: d.depto, tipo: d.tipo, periodo: d.periodo,
+                expensaBase: d.expensaBase, agua: d.agua,
+                deudaOriginal: d.deudaOriginal, meses,
+                interes: deudaActual - d.deudaOriginal, deudaActual,
+                pagado, pendiente: Math.max(0, deudaActual - pagado),
+            };
+        });
+        // 2) Expensas de EXPENSAS_MOCK que ya vencieron (dia de vencimiento pasado)
+        //    y aun no estan pagadas al 100%. Dedup por (depto + periodo) con DEUDAS_VENCIDAS.
+        const yaEnMora = new Set(desdeMora.map((f) => `${f.depto}|${f.periodo}`));
+        const desdeExpensas = EXPENSAS_MOCK
+            .filter((e) => e.estado !== 'Pagada')
+            .filter((e) => !yaEnMora.has(`${e.depto}|${e.periodo}`))
+            .map((e) => {
+                const meses = calcularMesesVencidos(e.periodo, refHoy, diaVencimiento);
+                if (meses === 0) return null; // aun no esta vencida -> no es mora
+                const original = Number(e.total || e.monto) || 0;
+                const deudaActual = calcMora(original, meses);
+                const pagado = Number(e.pagado) || 0;
+                return {
+                    id: `EX-${e.id}`, origen: 'expensa',
+                    depto: e.depto, tipo: e.tipo, periodo: e.periodo,
+                    expensaBase: e.base, agua: e.agua,
+                    deudaOriginal: original, meses,
+                    interes: deudaActual - original, deudaActual,
+                    pagado, pendiente: Math.max(0, deudaActual - pagado),
+                };
+            })
+            .filter(Boolean);
+        return [...desdeMora, ...desdeExpensas].filter((f) => f.pendiente > 0);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [diaVencimiento, config.tipoCalculo, tasa, tick]);
     // Total vencido = suma de los pendientes (no de la deuda actual total)
     const totalVencido = filas.reduce((acc, f) => acc + f.pendiente, 0);
 
@@ -239,44 +274,25 @@ export default function Mora() {
                 <Typography variant="body2">{REGLA_MORA.ejemplo}</Typography>
             </Alert>
 
-            {/* Fecha de referencia (modo simulacion para demo) */}
-            <Paper sx={{
-                p: 2, borderRadius: 2, mb: 2,
-                bgcolor: esSimulacion ? '#FDF0D5' : '#fff',
-                border: esSimulacion ? '1px solid #E5A33B' : '1px solid #CFDCEA',
-            }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flex: 1, minWidth: 0 }}>
-                        <Box sx={{
-                            width: 40, height: 40, borderRadius: '50%',
-                            bgcolor: esSimulacion ? '#F7E0B0' : '#E4EEF5',
-                            color: esSimulacion ? '#8A5A00' : '#1F5F8B',
-                            display: 'grid', placeItems: 'center', flexShrink: 0,
-                        }}>
-                            {esSimulacion ? <ScienceIcon /> : <CalendarMonthIcon />}
-                        </Box>
-                        <Box sx={{ minWidth: 0 }}>
-                            <Typography variant="body2" sx={{ fontWeight: 700 }}>
-                                Fecha de referencia {esSimulacion && '— modo simulacion'}
-                            </Typography>
-                            <Typography variant="caption" color="text.secondary">
-                                {esSimulacion
-                                    ? 'Las moras se recalculan con esta fecha. Util para simular como escalan los intereses mes a mes.'
-                                    : 'Fecha actual del sistema. Cambialo para simular el paso del tiempo sin esperar.'}
-                            </Typography>
-                        </Box>
+            {/* Fecha actual del sistema (se usa para calcular meses vencidos y escalar moras) */}
+            <Paper sx={{ p: 2, borderRadius: 2, mb: 2, border: '1px solid #CFDCEA' }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
+                    <Box sx={{
+                        width: 40, height: 40, borderRadius: '50%',
+                        bgcolor: '#E4EEF5', color: '#1F5F8B',
+                        display: 'grid', placeItems: 'center', flexShrink: 0,
+                    }}>
+                        <CalendarMonthIcon />
                     </Box>
-                    <TextField type="date" size="small" value={fechaSimulada}
-                        onChange={(e) => setFechaSimulada(e.target.value || hoyIso())}
-                        sx={{ width: { xs: '100%', sm: 180 } }}
-                        slotProps={{ inputLabel: { shrink: true } }} />
-                    {esSimulacion && (
-                        <Button variant="outlined" size="small" startIcon={<RestoreIcon />}
-                            onClick={() => setFechaSimulada(hoyIso())}
-                            sx={{ color: '#8A5A00', borderColor: '#E5A33B' }}>
-                            Volver a hoy
-                        </Button>
-                    )}
+                    <Box sx={{ minWidth: 0, flex: 1 }}>
+                        <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                            Fecha actual: {new Date().toLocaleDateString('es-BO', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                            Las moras se recalculan automaticamente segun esta fecha. Si cambia la fecha del sistema,
+                            las deudas vencidas y las expensas que pasen el dia de vencimiento acumularan mora al refrescar.
+                        </Typography>
+                    </Box>
                 </Box>
             </Paper>
 
