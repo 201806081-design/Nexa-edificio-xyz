@@ -23,6 +23,7 @@ import {
     REGLA_MORA, DEUDAS_VENCIDAS,
 } from '../../constants/moraMock';
 import { REGLAS_PERIODO, DIAS_VENCIMIENTO } from '../../constants/configuracionMock';
+import { PAGOS_MOCK } from '../../constants/pagosMock';
 import { formatBs } from '../../constants/finanzasMock';
 
 // Helpers de conversion mes "YYYY-MM" <-> "Octubre 2026"
@@ -136,6 +137,8 @@ export default function Mora() {
     // Calculo de la deuda segun la configuracion vigente Y la fecha simulada.
     // Al mover `fechaSimulada`, los meses vencidos de cada deuda se recalculan,
     // y la deuda actual escala segun CONFIG_MORA (compuesto o simple).
+    // Ademas descontamos lo que ya se pago para esa deuda (desde PAGOS_MOCK) y
+    // ocultamos las deudas que ya se cubrieron al 100% desde Registrar pago.
     const tasa = (Number(config.interesMensual) || 0) / 100;
     const filas = useMemo(() => {
         const refHoy = new Date(`${fechaSimulada}T12:00:00`);
@@ -144,10 +147,24 @@ export default function Mora() {
             const deudaActual = config.tipoCalculo === 'Simple'
                 ? d.deudaOriginal * (1 + tasa * meses)
                 : d.deudaOriginal * (1 + tasa) ** meses;
-            return { ...d, meses, interes: deudaActual - d.deudaOriginal, deudaActual };
-        });
+            // Total aplicado a esta deuda (efectivo + credito aplicado) desde Pagos.
+            // `p.total` del formato nuevo ya suma monto + creditoAplicado; si no
+            // existe, caemos al formato viejo (solo p.monto).
+            const periodoCorto = (d.periodo || '').toLowerCase().split(' ')[0];
+            const pagado = PAGOS_MOCK
+                .filter((p) => p.depto === d.depto
+                    && (p.periodoAplicado || '').toLowerCase().includes(periodoCorto))
+                .reduce((s, p) => {
+                    const totalPago = Number(p.total)
+                        || (Number(p.monto) || 0) + (Number(p.creditoAplicado) || 0);
+                    return s + totalPago;
+                }, 0);
+            const pendiente = Math.max(0, deudaActual - pagado);
+            return { ...d, meses, interes: deudaActual - d.deudaOriginal, deudaActual, pagado, pendiente };
+        }).filter((f) => f.pendiente > 0); // ocultar las deudas ya pagadas al 100%
     }, [fechaSimulada, diaVencimiento, config.tipoCalculo, tasa]);
-    const totalVencido = filas.reduce((acc, f) => acc + f.deudaActual, 0);
+    // Total vencido = suma de los pendientes (no de la deuda actual total)
+    const totalVencido = filas.reduce((acc, f) => acc + f.pendiente, 0);
 
     const abrirConfig = () => {
         // Siempre leer el ultimo valor compartido (por si lo cambiaron en ConfiguracionFinanciera o v2)
@@ -281,7 +298,13 @@ export default function Mora() {
                             </TableRow>
                         </TableHead>
                         <TableBody>
-                            {filas.map((f) => (
+                            {filas.length === 0 ? (
+                                <TableRow>
+                                    <TableCell colSpan={8} align="center" sx={{ color: '#2E9D78', fontWeight: 600, py: 3 }}>
+                                        ✓ Sin deudas vencidas pendientes. Todas las moras fueron cubiertas.
+                                    </TableCell>
+                                </TableRow>
+                            ) : filas.map((f) => (
                                 <TableRow key={f.id}>
                                     <TableCell>{f.depto}</TableCell>
                                     <TableCell>{f.periodo}</TableCell>
@@ -289,7 +312,14 @@ export default function Mora() {
                                     <TableCell>{f.meses}</TableCell>
                                     <TableCell>{config.interesMensual} %</TableCell>
                                     <TableCell sx={{ color: '#D9534F', fontWeight: 600 }}>{formatBs(f.interes)}</TableCell>
-                                    <TableCell sx={{ color: '#D9534F', fontWeight: 700 }}>{formatBs(f.deudaActual)}</TableCell>
+                                    <TableCell sx={{ color: '#D9534F', fontWeight: 700 }}>
+                                        {formatBs(f.deudaActual)}
+                                        {f.pagado > 0 && (
+                                            <Typography variant="caption" sx={{ display: 'block', color: '#2E9D78', fontWeight: 600 }}>
+                                                − {formatBs(f.pagado)} pagado
+                                            </Typography>
+                                        )}
+                                    </TableCell>
                                     <TableCell align="center">
                                         <IconButton onClick={(e) => abrirMenu(e, f)}>
                                             <MoreVertIcon />

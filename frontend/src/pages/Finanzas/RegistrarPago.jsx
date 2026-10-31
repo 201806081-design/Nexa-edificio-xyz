@@ -201,11 +201,18 @@ export default function RegistrarPago() {
     const sumarAplicaciones = (arr) => arr.reduce((s, a) => s + (Number(a.aplicar) || 0), 0);
     const totalAplicado = sumarAplicaciones(aplicaciones);
     const excedeSaldo = totalEfectivo > saldoPendiente;
-    const distribuidoOk = depto && totalEfectivo > 0 && totalAplicado === totalEfectivo && !excedeSaldo;
     const nuevoSaldo = saldoPendiente - totalAplicado;
 
     // Pago 100% con credito: no hay efectivo, solo se aplica saldo a favor del depto
     const soloCredito = depto && efectivoNum === 0 && creditoReal > 0;
+
+    // Si hay efectivo y el medio exige referencia (Transferencia, QR, Cheque), la
+    // referencia es obligatoria. Para Efectivo es opcional (recibo interno).
+    const refObligatoria = !REF_CONFIG[medio]?.opcional;
+    const faltaReferencia = !soloCredito && efectivoNum > 0 && refObligatoria && !referencia.trim();
+
+    const distribuidoOk = depto && totalEfectivo > 0 && totalAplicado === totalEfectivo
+        && !excedeSaldo && !faltaReferencia;
 
     // Cambiar depto: reinicia aplicaciones, precarga pagadoPor, resetea credito
     const cambiarDepto = (id) => {
@@ -517,6 +524,15 @@ export default function RegistrarPago() {
                         <Alert severity="warning" icon={false} sx={{ bgcolor: '#FDF0D5', color: '#8A5A00', mt: 2 }}>
                             <Typography variant="body2" sx={{ fontWeight: 700 }}>El pago supera el saldo pendiente.</Typography>
                             <Typography variant="body2">Ajusta el monto o aplica un anticipo.</Typography>
+                        </Alert>
+                    )}
+
+                    {faltaReferencia && (
+                        <Alert severity="warning" icon={false} sx={{ bgcolor: '#FDF0D5', color: '#8A5A00', mt: 2 }}>
+                            <Typography variant="body2" sx={{ fontWeight: 700 }}>Falta el {refCfg.label}.</Typography>
+                            <Typography variant="body2">
+                                Para registrar un pago en {medio} se requiere su número de referencia.
+                            </Typography>
                         </Alert>
                     )}
                 </Paper>
