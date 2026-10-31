@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import {
     Box, Typography, Paper, Button, TextField, Select, MenuItem, Alert,
     InputAdornment, IconButton, Table, TableHead, TableBody, TableRow, TableCell,
     Dialog, DialogTitle, DialogContent, DialogActions, Divider, CircularProgress, Snackbar,
+    Menu,
 } from '@mui/material';
 import SettingsIcon from '@mui/icons-material/Settings';
 import PercentIcon from '@mui/icons-material/Percent';
@@ -11,6 +12,11 @@ import VisibilityIcon from '@mui/icons-material/Visibility';
 import EventIcon from '@mui/icons-material/Event';
 import CalculateIcon from '@mui/icons-material/Calculate';
 import CalendarMonthIcon from '@mui/icons-material/CalendarMonth';
+import MoreVertIcon from '@mui/icons-material/MoreVert';
+import PaidIcon from '@mui/icons-material/Paid';
+import RestoreIcon from '@mui/icons-material/Restore';
+import ScienceIcon from '@mui/icons-material/Science';
+import { useNavigate } from 'react-router-dom';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import {
     CONFIG_MORA, APLICAR_MORA_DESDE, TIPOS_CALCULO, PERIODO_ACTUAL_MORA,
@@ -36,6 +42,35 @@ const yyyyMmToTexto = (yyyyMm) => {
     return `${MESES_ES[Number(m) - 1]} ${y}`;
 };
 
+// Fecha de hoy real en formato YYYY-MM-DD (para el modo simulacion)
+const hoyIso = () => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+
+// Cuenta cuantas fechas de vencimiento (dia X de cada mes) pasaron desde que
+// vencio por primera vez la deuda de ese periodo hasta la fecha de referencia.
+// Ejemplo: deuda de "Septiembre 2026" con dia venc 10 vence el 10/oct/2026.
+// Si fechaHoy = 30/oct/2026 -> 1 mes vencido. Si fechaHoy = 15/dic/2026 -> 3 meses.
+const calcularMesesVencidos = (periodoTexto, fechaHoy, diaVenc) => {
+    if (!periodoTexto || !fechaHoy) return 0;
+    const [mesNombre, anio] = periodoTexto.split(' ');
+    const idxMes = MESES_ES.indexOf(mesNombre);
+    if (idxMes < 0 || !anio) return 0;
+    // Primera fecha de vencimiento = dia diaVenc del mes siguiente al periodo
+    const anioV = idxMes === 11 ? Number(anio) + 1 : Number(anio);
+    const mesV = idxMes === 11 ? 0 : idxMes + 1;
+    const fechaVenc = new Date(anioV, mesV, Number(diaVenc) || 10);
+    if (fechaHoy < fechaVenc) return 0;
+    let count = 0;
+    const f = new Date(fechaVenc);
+    while (f <= fechaHoy) {
+        count++;
+        f.setMonth(f.getMonth() + 1);
+    }
+    return count;
+};
+
 // Dato de la regla vigente (solo lectura, en recuadro con icono y color semantico)
 function DatoRegla({ etiqueta, valor, icon, color, bg }) {
     return (
@@ -58,6 +93,7 @@ function DatoRegla({ etiqueta, valor, icon, color, bg }) {
 }
 
 export default function Mora() {
+    const navigate = useNavigate();
     const [config, setConfig] = useState({ ...CONFIG_MORA });
     // El dia de vencimiento es compartido con Configuracion financiera de Expensas.
     const [diaVencimiento, setDiaVencimiento] = useState(REGLAS_PERIODO.diaVencimiento);
@@ -73,14 +109,44 @@ export default function Mora() {
     const [actualizando, setActualizando] = useState(false);
     const [exitoMsg, setExitoMsg] = useState('');
 
-    // Calculo de la deuda segun la configuracion vigente
+    // Fecha de referencia para calcular los meses vencidos. Por defecto, la fecha
+    // real del sistema. El admin (o el docente en la demo) puede moverla hacia
+    // adelante para simular como escalan las moras mes a mes sin esperar al tiempo real.
+    const [fechaSimulada, setFechaSimulada] = useState(hoyIso());
+    const esSimulacion = fechaSimulada !== hoyIso();
+
+    // Menu de acciones por fila (ver detalle / registrar pago)
+    const [menuAnchor, setMenuAnchor] = useState(null);
+    const [filaSel, setFilaSel] = useState(null);
+    const abrirMenu = (e, f) => { setMenuAnchor(e.currentTarget); setFilaSel(f); };
+    const cerrarMenu = () => setMenuAnchor(null);
+    const verDetalle = () => { setDetalle(filaSel); cerrarMenu(); };
+    const irARegistrarPago = () => {
+        const f = filaSel;
+        cerrarMenu();
+        navigate('/finanzas/pagos/registrar', {
+            state: {
+                deptoPrecargado: f.depto,
+                periodoPrecargado: f.periodo,
+                montoPendiente: f.deudaActual, // incluye la mora acumulada ya calculada
+            },
+        });
+    };
+
+    // Calculo de la deuda segun la configuracion vigente Y la fecha simulada.
+    // Al mover `fechaSimulada`, los meses vencidos de cada deuda se recalculan,
+    // y la deuda actual escala segun CONFIG_MORA (compuesto o simple).
     const tasa = (Number(config.interesMensual) || 0) / 100;
-    const filas = DEUDAS_VENCIDAS.map((d) => {
-        const deudaActual = config.tipoCalculo === 'Simple'
-            ? d.deudaOriginal * (1 + tasa * d.meses)
-            : d.deudaOriginal * (1 + tasa) ** d.meses;
-        return { ...d, interes: deudaActual - d.deudaOriginal, deudaActual };
-    });
+    const filas = useMemo(() => {
+        const refHoy = new Date(`${fechaSimulada}T12:00:00`);
+        return DEUDAS_VENCIDAS.map((d) => {
+            const meses = calcularMesesVencidos(d.periodo, refHoy, diaVencimiento);
+            const deudaActual = config.tipoCalculo === 'Simple'
+                ? d.deudaOriginal * (1 + tasa * meses)
+                : d.deudaOriginal * (1 + tasa) ** meses;
+            return { ...d, meses, interes: deudaActual - d.deudaOriginal, deudaActual };
+        });
+    }, [fechaSimulada, diaVencimiento, config.tipoCalculo, tasa]);
     const totalVencido = filas.reduce((acc, f) => acc + f.deudaActual, 0);
 
     const abrirConfig = () => {
@@ -156,6 +222,47 @@ export default function Mora() {
                 <Typography variant="body2">{REGLA_MORA.ejemplo}</Typography>
             </Alert>
 
+            {/* Fecha de referencia (modo simulacion para demo) */}
+            <Paper sx={{
+                p: 2, borderRadius: 2, mb: 2,
+                bgcolor: esSimulacion ? '#FDF0D5' : '#fff',
+                border: esSimulacion ? '1px solid #E5A33B' : '1px solid #CFDCEA',
+            }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flex: 1, minWidth: 0 }}>
+                        <Box sx={{
+                            width: 40, height: 40, borderRadius: '50%',
+                            bgcolor: esSimulacion ? '#F7E0B0' : '#E4EEF5',
+                            color: esSimulacion ? '#8A5A00' : '#1F5F8B',
+                            display: 'grid', placeItems: 'center', flexShrink: 0,
+                        }}>
+                            {esSimulacion ? <ScienceIcon /> : <CalendarMonthIcon />}
+                        </Box>
+                        <Box sx={{ minWidth: 0 }}>
+                            <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                                Fecha de referencia {esSimulacion && '— modo simulacion'}
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary">
+                                {esSimulacion
+                                    ? 'Las moras se recalculan con esta fecha. Util para simular como escalan los intereses mes a mes.'
+                                    : 'Fecha actual del sistema. Cambialo para simular el paso del tiempo sin esperar.'}
+                            </Typography>
+                        </Box>
+                    </Box>
+                    <TextField type="date" size="small" value={fechaSimulada}
+                        onChange={(e) => setFechaSimulada(e.target.value || hoyIso())}
+                        sx={{ width: { xs: '100%', sm: 180 } }}
+                        slotProps={{ inputLabel: { shrink: true } }} />
+                    {esSimulacion && (
+                        <Button variant="outlined" size="small" startIcon={<RestoreIcon />}
+                            onClick={() => setFechaSimulada(hoyIso())}
+                            sx={{ color: '#8A5A00', borderColor: '#E5A33B' }}>
+                            Volver a hoy
+                        </Button>
+                    )}
+                </Box>
+            </Paper>
+
             {/* Deudas vencidas */}
             <Paper sx={{ p: 3, borderRadius: 2, mb: 2 }}>
                 <Typography variant="body2" sx={{ fontWeight: 600, mb: 1 }}>Deudas vencidas</Typography>
@@ -184,7 +291,9 @@ export default function Mora() {
                                     <TableCell sx={{ color: '#D9534F', fontWeight: 600 }}>{formatBs(f.interes)}</TableCell>
                                     <TableCell sx={{ color: '#D9534F', fontWeight: 700 }}>{formatBs(f.deudaActual)}</TableCell>
                                     <TableCell align="center">
-                                        <IconButton color="primary" onClick={() => setDetalle(f)}><VisibilityIcon /></IconButton>
+                                        <IconButton onClick={(e) => abrirMenu(e, f)}>
+                                            <MoreVertIcon />
+                                        </IconButton>
                                     </TableCell>
                                 </TableRow>
                             ))}
@@ -369,6 +478,18 @@ export default function Mora() {
                     </>
                 )}
             </Dialog>
+
+            {/* Menu de acciones por fila (ver detalle / registrar pago) */}
+            <Menu anchorEl={menuAnchor} open={Boolean(menuAnchor)} onClose={cerrarMenu}>
+                <MenuItem onClick={verDetalle}>
+                    <VisibilityIcon fontSize="small" sx={{ mr: 1, color: '#1F5F8B' }} />
+                    Ver detalle
+                </MenuItem>
+                <MenuItem onClick={irARegistrarPago}>
+                    <PaidIcon fontSize="small" sx={{ mr: 1, color: '#2E9D78' }} />
+                    Registrar pago
+                </MenuItem>
+            </Menu>
 
             <Snackbar open={!!exitoMsg} autoHideDuration={3000} onClose={() => setExitoMsg('')}
                 anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}>
