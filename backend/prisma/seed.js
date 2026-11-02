@@ -172,6 +172,7 @@ async function main() {
 
   // ---------- Empleado ----------
   await prisma.empleado.create({ data: { nombres: 'Juan', apellidos: 'Mamani Choque', ci: '3456789 CB', cargo: 'Portero', salarioBase: D('2500.00'), fechaIngreso: fecha('2022-05-01') } });
+  await prisma.empleado.create({ data: { nombres: 'Rosa', apellidos: 'Quispe Flores', ci: '7654321 CB', cargo: 'Limpieza', salarioBase: D('2200.00'), fechaIngreso: fecha('2024-03-01') } });
 
   // ---------- Resumen ----------
   const cuentas = await prisma.cuenta.findMany({ orderBy: { id: 'asc' } });

@@ -4,6 +4,7 @@ const env = require('./config/env');
 const healthRoutes = require('./shared/health.routes');
 const authRoutes = require('./modules/auth/auth.routes');
 const financieroRoutes = require('./modules/financiero/financiero.routes');
+const nominaRoutes = require('./modules/nomina/nomina.routes');
 const { notFound, errorHandler } = require('./shared/middlewares/error.middleware');
 
 const app = express();
@@ -16,6 +17,7 @@ app.use('/health', healthRoutes);
 app.use('/api/health', healthRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/financiero', financieroRoutes);
+app.use('/api/nomina', nominaRoutes);
 
 app.use(notFound);
 app.use(errorHandler);
