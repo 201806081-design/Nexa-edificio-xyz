@@ -21,6 +21,9 @@ import ScheduleIcon from '@mui/icons-material/Schedule';
 import WorkIcon from '@mui/icons-material/Work';
 import BadgeIcon from '@mui/icons-material/Badge';
 import PaidIcon from '@mui/icons-material/Paid';
+import CampaignIcon from '@mui/icons-material/Campaign';
+import EditIcon from '@mui/icons-material/Edit';
+import SendIcon from '@mui/icons-material/Send';
 import ExpandLess from '@mui/icons-material/ExpandLess';
 import ExpandMore from '@mui/icons-material/ExpandMore';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -58,6 +61,15 @@ const OPCIONES = {
       { nombre: 'Empleados', icon: <BadgeIcon />, ruta: '/personal/empleados' },
       { nombre: 'Planilla', icon: <PaidIcon />, ruta: '/personal/planilla' },
       { nombre: 'Historial de pagos', icon: <ScheduleIcon />, ruta: '/personal/historial-pagos' },
+    ],
+  },
+  // HU-CO-01 Comunicados: elaborar + ver enviados (admin-only via MENU_POR_ROL)
+  Comunicados: {
+    icon: <CampaignIcon />,
+    prefijo: '/comunicados',
+    subopciones: [
+      { nombre: 'Elaborar', icon: <EditIcon />, ruta: '/comunicados/elaborar' },
+      { nombre: 'Enviados', icon: <SendIcon />, ruta: '/comunicados/enviados' },
     ],
   },
 };
@@ -116,7 +128,7 @@ function ContenidoMenu({ onNavegar }) {
           const opcion = OPCIONES[nombre];
           if (!opcion) return null;
 
-          // Opcion con submenu (Finanzas, Personal, ...)
+          // Opcion con submenu (Finanzas, Personal, Comunicados...)
           if (opcion.subopciones) {
             const algunoActivo = location.pathname.startsWith(opcion.prefijo);
             const abierto = !!submenusAbiertos[nombre];

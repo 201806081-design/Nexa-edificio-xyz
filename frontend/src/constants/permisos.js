@@ -60,8 +60,11 @@ export const PERMISOS_POR_ROL = {
 // Admin ve todas las opciones; Directorio y Consulta ven Inicio, Copropietarios, Unidades y Finanzas.
 // 'Personal' (HU-AP-01) solo es visible para Administrador porque es el unico que tiene
 // permiso 'total' sobre 'Administracion de personal' en PERMISOS_POR_ROL (los demas: 'ninguno').
+// 'Comunicados' (HU-CO-01) solo es visible para Administrador en esta entrega:
+// el alcance de la historia cubre las pantallas Elaborar + Enviados que son de administracion;
+// mas adelante se puede ampliar a Directorio (tambien tiene 'total') y a Consulta (tiene 'consulta').
 export const MENU_POR_ROL = {
-  [ROLES.ADMINISTRADOR]: ['Inicio', 'Usuarios y roles', 'Permisos por rol', 'Copropietarios', 'Unidades', 'Finanzas', 'Personal'],
+  [ROLES.ADMINISTRADOR]: ['Inicio', 'Usuarios y roles', 'Permisos por rol', 'Copropietarios', 'Unidades', 'Finanzas', 'Personal', 'Comunicados'],
   [ROLES.DIRECTORIO]: ['Inicio', 'Copropietarios', 'Unidades', 'Finanzas'],
   [ROLES.CONSULTA]: ['Inicio', 'Copropietarios', 'Unidades', 'Finanzas'],
 };
