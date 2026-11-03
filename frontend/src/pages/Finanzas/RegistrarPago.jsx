@@ -7,10 +7,56 @@ import SavingsIcon from '@mui/icons-material/Savings';
 import { useNavigate, useLocation } from 'react-router-dom';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import {
-    DEPARTAMENTOS_DEUDA, MEDIOS_PAGO, PAGOS_MOCK, HISTORIAL_ANTICIPOS,
+    MEDIOS_PAGO, PAGOS_MOCK, HISTORIAL_ANTICIPOS,
 } from '../../constants/pagosMock';
-import { EXPENSAS_MOCK } from '../../constants/expensasMock';
+import { EXPENSAS_MOCK, DEPARTAMENTOS_ACTIVOS } from '../../constants/expensasMock';
+import { DEUDAS_VENCIDAS, CONFIG_MORA } from '../../constants/moraMock';
+import { REGLAS_PERIODO } from '../../constants/configuracionMock';
 import { formatBs } from '../../constants/finanzasMock';
+
+// Calcula el total con mora acumulada segun CONFIG_MORA (compuesto o simple)
+const calcularConMora = (deudaOriginal, meses) => {
+    const tasa = (Number(CONFIG_MORA.interesMensual) || 0) / 100;
+    const m = Math.max(0, Number(meses) || 0);
+    if (CONFIG_MORA.tipoCalculo === 'Simple') {
+        return Math.round(deudaOriginal * (1 + tasa * m) * 100) / 100;
+    }
+    return Math.round(deudaOriginal * ((1 + tasa) ** m) * 100) / 100;
+};
+
+// Meses vencidos entre el periodo de la deuda y la fecha de referencia (reloj
+// del sistema). Misma formula que Mora.jsx y EstadoCuenta.jsx para que las tres
+// pantallas muestren los mismos numeros.
+const MESES_ES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+    'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+const calcularMesesVencidos = (periodoTexto, fechaHoy, diaVenc) => {
+    if (!periodoTexto || !fechaHoy) return 0;
+    const [mesNombre, anio] = periodoTexto.split(' ');
+    const idxMes = MESES_ES.indexOf(mesNombre);
+    if (idxMes < 0 || !anio) return 0;
+    const anioV = idxMes === 11 ? Number(anio) + 1 : Number(anio);
+    const mesV = idxMes === 11 ? 0 : idxMes + 1;
+    const fechaVenc = new Date(anioV, mesV, Number(diaVenc) || 10);
+    if (fechaHoy < fechaVenc) return 0;
+    let count = 0;
+    const f = new Date(fechaVenc);
+    while (f <= fechaHoy) {
+        count++;
+        f.setMonth(f.getMonth() + 1);
+    }
+    return count;
+};
+
+// Pagos ya aplicados a un depto en un periodo (efectivo + credito aplicado).
+// Usa p.total del formato nuevo; cae a p.monto + p.creditoAplicado del viejo.
+const pagadoDeudaVencida = (deptoId, periodo) => PAGOS_MOCK
+    .filter((p) => p.depto === deptoId
+        && (p.periodoAplicado || '').toLowerCase().includes((periodo || '').toLowerCase().split(' ')[0]))
+    .reduce((s, p) => {
+        const totalPago = Number(p.total)
+            || (Number(p.monto) || 0) + (Number(p.creditoAplicado) || 0);
+        return s + totalPago;
+    }, 0);
 
 // Distribuye un monto entre las deudas, de la mas antigua a la mas nueva
 function distribuir(deudas, monto) {
@@ -72,18 +118,32 @@ export default function RegistrarPago() {
     const navigate = useNavigate();
     const location = useLocation();
 
-    // --- Lista unificada de deptos con deuda: DEPARTAMENTOS_DEUDA + EXPENSAS_MOCK pendientes ---
+    // --- Lista unificada de deptos con deuda ---
+    // Fuentes de verdad: EXPENSAS_MOCK + DEUDAS_VENCIDAS (ambas con mora dinamica).
+    // Antes tambien se leia DEPARTAMENTOS_DEUDA (lista legacy del pagosMock), pero
+    // ese mock no estaba sincronizado con EXPENSAS_MOCK: mostraba periodos y montos
+    // que no coincidian con Estado de cuenta ni con Mora e intereses. Se quito para
+    // que las tres pantallas (Registrar pago, Estado de cuenta y Mora) muestren
+    // siempre las mismas deudas.
     const deptosDisponibles = useMemo(() => {
         const mapa = new Map();
-        // 1) Agregar los de DEPARTAMENTOS_DEUDA (ya traen deudas estructuradas con pagado/pendiente)
-        DEPARTAMENTOS_DEUDA.forEach((d) => {
-            mapa.set(d.id, { ...d, deudas: d.deudas.map((x) => ({ ...x })) });
-        });
-        // 2) Agregar los de EXPENSAS_MOCK que tengan saldo pendiente y no esten en el mapa
+        // Fecha de referencia y dia de vencimiento (compartidos con Mora y EstadoCuenta)
+        const refHoy = new Date();
+        const diaVenc = REGLAS_PERIODO.diaVencimiento;
+
+        // 1) Agregar los de EXPENSAS_MOCK que tengan saldo pendiente, calculando
+        //    la mora acumulada si ya paso el dia de vencimiento (igual que Mora).
         EXPENSAS_MOCK.forEach((e) => {
             if (e.estado === 'Pagada') return;
-            const pendiente = Math.max(0, (e.total || e.monto || 0) - (e.pagado || 0));
-            if (pendiente === 0) return;
+            const original = Number(e.total || e.monto) || 0;
+            const pagado = Number(e.pagado) || 0;
+            // Si ya se pago al menos la deuda original, no sigue acumulando mora
+            const meses = pagado >= original
+                ? 0
+                : calcularMesesVencidos(e.periodo, refHoy, diaVenc);
+            const totalConMora = calcularConMora(original, meses);
+            const pendiente = Math.max(0, Math.round((totalConMora - pagado) * 100) / 100);
+            if (pendiente < 0.01) return;
             if (!mapa.has(e.depto)) {
                 mapa.set(e.depto, {
                     id: e.depto,
@@ -97,15 +157,62 @@ export default function RegistrarPago() {
             if (!d.deudas.some((x) => x.periodo === e.periodo)) {
                 d.deudas.push({
                     periodo: e.periodo,
-                    totalDeuda: e.total || e.monto || 0,
-                    pagado: e.pagado || 0,
+                    totalDeuda: totalConMora,
+                    pagado,
                     pendiente,
                     expensaId: e.id,
+                    mora: Math.round((totalConMora - original) * 100) / 100,
+                    meses,
                 });
             }
         });
-        // 3) Recalcular saldoPendiente de cada depto
+        // 2) Agregar DEUDAS_VENCIDAS (meses pasados con mora acumulada) — misma fuente que Mora.
+        //    Tambien recalculamos meses con la fecha del sistema para que escale cuando
+        //    el admin cambia la fecha del Windows.
+        DEUDAS_VENCIDAS.forEach((dv) => {
+            const pagado = pagadoDeudaVencida(dv.depto, dv.periodo);
+            const meses = pagado >= dv.deudaOriginal
+                ? 0
+                : calcularMesesVencidos(dv.periodo, refHoy, diaVenc);
+            const totalConMora = calcularConMora(dv.deudaOriginal, meses);
+            const pendiente = Math.max(0, Math.round((totalConMora - pagado) * 100) / 100);
+            if (pendiente < 0.01) return;
+            if (!mapa.has(dv.depto)) {
+                // Buscar el nombre real del responsable en DEPARTAMENTOS_ACTIVOS
+                const activo = DEPARTAMENTOS_ACTIVOS.find((a) => a.id === dv.depto);
+                const nombre = activo ? activo.responsable : `Depto. ${dv.depto}`;
+                mapa.set(dv.depto, {
+                    id: dv.depto,
+                    etiqueta: `${dv.depto} — ${nombre}`,
+                    responsable: `${nombre} · Propietario`,
+                    saldoPendiente: 0,
+                    deudas: [],
+                });
+            }
+            const d = mapa.get(dv.depto);
+            if (!d.deudas.some((x) => x.periodo === dv.periodo)) {
+                d.deudas.push({
+                    periodo: dv.periodo,
+                    totalDeuda: totalConMora,
+                    pagado,
+                    pendiente,
+                    expensaId: null, // no esta en EXPENSAS_MOCK; es solo deuda vencida
+                    mora: Math.round((totalConMora - dv.deudaOriginal) * 100) / 100,
+                    meses,
+                });
+            }
+        });
+        // 3) Recalcular saldoPendiente y ordenar deudas por periodo (mas antiguo primero)
+        const MES_IDX = {
+            enero: 1, febrero: 2, marzo: 3, abril: 4, mayo: 5, junio: 6,
+            julio: 7, agosto: 8, septiembre: 9, octubre: 10, noviembre: 11, diciembre: 12
+        };
+        const periodoKey = (p) => {
+            const [mes, anio] = (p || '').toLowerCase().split(' ');
+            return (Number(anio) || 0) * 100 + (MES_IDX[mes] || 0);
+        };
         mapa.forEach((d) => {
+            d.deudas.sort((a, b) => periodoKey(a.periodo) - periodoKey(b.periodo));
             d.saldoPendiente = d.deudas.reduce((s, x) => s + x.pendiente, 0);
         });
         return Array.from(mapa.values()).sort((a, b) => String(a.id).localeCompare(String(b.id)));
@@ -142,11 +249,18 @@ export default function RegistrarPago() {
     const sumarAplicaciones = (arr) => arr.reduce((s, a) => s + (Number(a.aplicar) || 0), 0);
     const totalAplicado = sumarAplicaciones(aplicaciones);
     const excedeSaldo = totalEfectivo > saldoPendiente;
-    const distribuidoOk = depto && totalEfectivo > 0 && totalAplicado === totalEfectivo && !excedeSaldo;
     const nuevoSaldo = saldoPendiente - totalAplicado;
 
     // Pago 100% con credito: no hay efectivo, solo se aplica saldo a favor del depto
     const soloCredito = depto && efectivoNum === 0 && creditoReal > 0;
+
+    // Si hay efectivo y el medio exige referencia (Transferencia, QR, Cheque), la
+    // referencia es obligatoria. Para Efectivo es opcional (recibo interno).
+    const refObligatoria = !REF_CONFIG[medio]?.opcional;
+    const faltaReferencia = !soloCredito && efectivoNum > 0 && refObligatoria && !referencia.trim();
+
+    const distribuidoOk = depto && totalEfectivo > 0 && totalAplicado === totalEfectivo
+        && !excedeSaldo && !faltaReferencia;
 
     // Cambiar depto: reinicia aplicaciones, precarga pagadoPor, resetea credito
     const cambiarDepto = (id) => {
@@ -262,18 +376,7 @@ export default function RegistrarPago() {
             estado,
         });
 
-        // 2) Actualizar DEPARTAMENTOS_DEUDA (si el depto esta ahi)
-        const deptoOriginal = DEPARTAMENTOS_DEUDA.find((x) => x.id === depto.id);
-        if (deptoOriginal) {
-            deptoOriginal.deudas.forEach((d) => {
-                const ap = Number((aplicaciones.find((a) => a.periodo === d.periodo) || {}).aplicar) || 0;
-                d.pagado += ap;
-                d.pendiente -= ap;
-            });
-            deptoOriginal.saldoPendiente = Math.max(0, (deptoOriginal.saldoPendiente || 0) - totalAplicado);
-        }
-
-        // 3) Marcar expensas en EXPENSAS_MOCK como Pagada cuando corresponde
+        // 2) Marcar expensas en EXPENSAS_MOCK como Pagada cuando corresponde
         aplicaciones.forEach((a) => {
             if (!a.expensaId || !a.aplicar) return;
             const exp = EXPENSAS_MOCK.find((e) => e.id === a.expensaId);
@@ -283,7 +386,7 @@ export default function RegistrarPago() {
             if (exp.pagado >= totalExp) exp.estado = 'Pagada';
         });
 
-        // 4) Descontar credito aplicado del HISTORIAL_ANTICIPOS (mas antiguos primero)
+        // 3) Descontar credito aplicado del HISTORIAL_ANTICIPOS (mas antiguos primero)
         if (creditoReal > 0) {
             let restante = creditoReal;
             HISTORIAL_ANTICIPOS
@@ -460,6 +563,15 @@ export default function RegistrarPago() {
                             <Typography variant="body2">Ajusta el monto o aplica un anticipo.</Typography>
                         </Alert>
                     )}
+
+                    {faltaReferencia && (
+                        <Alert severity="warning" icon={false} sx={{ bgcolor: '#FDF0D5', color: '#8A5A00', mt: 2 }}>
+                            <Typography variant="body2" sx={{ fontWeight: 700 }}>Falta el {refCfg.label}.</Typography>
+                            <Typography variant="body2">
+                                Para registrar un pago en {medio} se requiere su número de referencia.
+                            </Typography>
+                        </Alert>
+                    )}
                 </Paper>
 
                 {/* Aplicacion del pago */}
@@ -499,7 +611,16 @@ export default function RegistrarPago() {
                                             const ap = aplicaciones.find((a) => a.periodo === d.periodo);
                                             return (
                                                 <TableRow key={d.periodo}>
-                                                    <TableCell sx={{ fontWeight: 600 }}>{d.periodo}</TableCell>
+                                                    <TableCell sx={{ fontWeight: 600 }}>
+                                                        {d.periodo}
+                                                        {d.mora > 0 && (
+                                                            <Chip
+                                                                size="small"
+                                                                label={`+ ${formatBs(d.mora)} mora (${d.meses}m)`}
+                                                                sx={{ ml: 1, bgcolor: '#FDE7E6', color: '#D9534F', fontWeight: 600, height: 22 }}
+                                                            />
+                                                        )}
+                                                    </TableCell>
                                                     <TableCell>{formatBs(d.totalDeuda)}</TableCell>
                                                     <TableCell sx={{ color: '#2E9D78' }}>{formatBs(d.pagado)}</TableCell>
                                                     <TableCell>

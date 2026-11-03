@@ -89,15 +89,17 @@ export const calcularAgua = (m3, tarifa = CONFIG_AGUA.tarifaPorM3) => {
 // que Pagos.jsx y otras pantallas sigan funcionando sin cambios.
 export const EXPENSAS_MOCK = [
     // --- Octubre 2026 ---
+    // 101 Octubre: ya pagada por PG-0041 (Transferencia Bs 315)
     {
         id: 'EX-0001', depto: '101', departamento: 'Depto. 101', tipo: 'A', responsable: 'Ana Lopez', periodo: 'Octubre 2026',
         base: 300, agua: 15, m3: 3, lecturaAnt: 100, lecturaAct: 103, lecturaAnterior: 100, lecturaActual: 103,
-        monto: 315, total: 315, estado: 'Lista', pagado: 0, aguaNota: '', fechaGen: '01/10/2026', fechaAgua: '02/10/2026'
+        monto: 315, total: 315, estado: 'Pagada', pagado: 315, aguaNota: '', fechaGen: '01/10/2026', fechaAgua: '02/10/2026'
     },
+    // 102 Octubre: pago parcial por PG-0039 (Efectivo Bs 200 de 365)
     {
         id: 'EX-0002', depto: '102', departamento: 'Depto. 102', tipo: 'B', responsable: 'Luis Garcia', periodo: 'Octubre 2026',
         base: 350, agua: 15, m3: 5, lecturaAnt: 115, lecturaAct: 120, lecturaAnterior: 115, lecturaActual: 120,
-        monto: 365, total: 365, estado: 'Pagada', pagado: 365, aguaNota: '', fechaGen: '01/10/2026', fechaAgua: '03/10/2026'
+        monto: 365, total: 365, estado: 'Lista', pagado: 200, aguaNota: '', fechaGen: '01/10/2026', fechaAgua: '03/10/2026'
     },
     {
         id: 'EX-0003', depto: '103', departamento: 'Depto. 103', tipo: 'A', responsable: 'Pedro Mamani', periodo: 'Octubre 2026',
@@ -109,10 +111,11 @@ export const EXPENSAS_MOCK = [
         base: 300, agua: 0, m3: null, lecturaAnt: null, lecturaAct: null, lecturaAnterior: null, lecturaActual: null,
         monto: 300, total: 300, estado: 'Agua pendiente', pagado: 0, aguaNota: '', fechaGen: '01/10/2026', fechaAgua: null
     },
+    // 202 Octubre: pagada con anticipo PA-0010 (aplicacion de credito a favor Bs 365)
     {
         id: 'EX-0005', depto: '202', departamento: 'Depto. 202', tipo: 'B', responsable: 'Luis Perez', periodo: 'Octubre 2026',
         base: 350, agua: 15, m3: 4, lecturaAnt: 200, lecturaAct: 204, lecturaAnterior: 200, lecturaActual: 204,
-        monto: 365, total: 365, estado: 'Lista', pagado: 0, aguaNota: '', fechaGen: '01/10/2026', fechaAgua: '02/10/2026'
+        monto: 365, total: 365, estado: 'Pagada', pagado: 365, aguaNota: '', fechaGen: '01/10/2026', fechaAgua: '02/10/2026'
     },
     {
         id: 'EX-0006', depto: '203', departamento: 'Depto. 203', tipo: 'B', responsable: 'Carlos Mendoza', periodo: 'Octubre 2026',
@@ -124,10 +127,11 @@ export const EXPENSAS_MOCK = [
         base: 400, agua: 0, m3: null, lecturaAnt: null, lecturaAct: null, lecturaAnterior: null, lecturaActual: null,
         monto: 400, total: 400, estado: 'Agua pendiente', pagado: 0, aguaNota: '', fechaGen: '01/10/2026', fechaAgua: null
     },
+    // 302 Octubre: ya pagada por PG-0040 (QR Bs 415)
     {
         id: 'EX-0008', depto: '302', departamento: 'Depto. 302', tipo: 'C', responsable: 'Maria Rojas', periodo: 'Octubre 2026',
         base: 400, agua: 15, m3: 3, lecturaAnt: 150, lecturaAct: 153, lecturaAnterior: 150, lecturaActual: 153,
-        monto: 415, total: 415, estado: 'Lista', pagado: 0, aguaNota: '', fechaGen: '01/10/2026', fechaAgua: '02/10/2026'
+        monto: 415, total: 415, estado: 'Pagada', pagado: 415, aguaNota: '', fechaGen: '01/10/2026', fechaAgua: '02/10/2026'
     },
     {
         id: 'EX-0009', depto: '303', departamento: 'Depto. 303', tipo: 'C', responsable: 'Rafael Cruz', periodo: 'Octubre 2026',

@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import {
     Box, Typography, Paper, Button, TextField, Select, MenuItem, Alert,
     InputAdornment, IconButton, Table, TableHead, TableBody, TableRow, TableCell,
     Dialog, DialogTitle, DialogContent, DialogActions, Divider, CircularProgress, Snackbar,
+    Menu,
 } from '@mui/material';
 import SettingsIcon from '@mui/icons-material/Settings';
 import PercentIcon from '@mui/icons-material/Percent';
@@ -11,12 +12,17 @@ import VisibilityIcon from '@mui/icons-material/Visibility';
 import EventIcon from '@mui/icons-material/Event';
 import CalculateIcon from '@mui/icons-material/Calculate';
 import CalendarMonthIcon from '@mui/icons-material/CalendarMonth';
+import MoreVertIcon from '@mui/icons-material/MoreVert';
+import PaidIcon from '@mui/icons-material/Paid';
+import { useNavigate } from 'react-router-dom';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import {
     CONFIG_MORA, APLICAR_MORA_DESDE, TIPOS_CALCULO, PERIODO_ACTUAL_MORA,
     REGLA_MORA, DEUDAS_VENCIDAS,
 } from '../../constants/moraMock';
 import { REGLAS_PERIODO, DIAS_VENCIMIENTO } from '../../constants/configuracionMock';
+import { PAGOS_MOCK } from '../../constants/pagosMock';
+import { EXPENSAS_MOCK } from '../../constants/expensasMock';
 import { formatBs } from '../../constants/finanzasMock';
 
 // Helpers de conversion mes "YYYY-MM" <-> "Octubre 2026"
@@ -34,6 +40,30 @@ const yyyyMmToTexto = (yyyyMm) => {
     if (!yyyyMm) return '';
     const [y, m] = yyyyMm.split('-');
     return `${MESES_ES[Number(m) - 1]} ${y}`;
+};
+
+
+// Cuenta cuantas fechas de vencimiento (dia X de cada mes) pasaron desde que
+// vencio por primera vez la deuda de ese periodo hasta la fecha de referencia.
+// Ejemplo: deuda de "Septiembre 2026" con dia venc 10 vence el 10/oct/2026.
+// Si fechaHoy = 30/oct/2026 -> 1 mes vencido. Si fechaHoy = 15/dic/2026 -> 3 meses.
+const calcularMesesVencidos = (periodoTexto, fechaHoy, diaVenc) => {
+    if (!periodoTexto || !fechaHoy) return 0;
+    const [mesNombre, anio] = periodoTexto.split(' ');
+    const idxMes = MESES_ES.indexOf(mesNombre);
+    if (idxMes < 0 || !anio) return 0;
+    // Primera fecha de vencimiento = dia diaVenc del mes siguiente al periodo
+    const anioV = idxMes === 11 ? Number(anio) + 1 : Number(anio);
+    const mesV = idxMes === 11 ? 0 : idxMes + 1;
+    const fechaVenc = new Date(anioV, mesV, Number(diaVenc) || 10);
+    if (fechaHoy < fechaVenc) return 0;
+    let count = 0;
+    const f = new Date(fechaVenc);
+    while (f <= fechaHoy) {
+        count++;
+        f.setMonth(f.getMonth() + 1);
+    }
+    return count;
 };
 
 // Dato de la regla vigente (solo lectura, en recuadro con icono y color semantico)
@@ -58,6 +88,7 @@ function DatoRegla({ etiqueta, valor, icon, color, bg }) {
 }
 
 export default function Mora() {
+    const navigate = useNavigate();
     const [config, setConfig] = useState({ ...CONFIG_MORA });
     // El dia de vencimiento es compartido con Configuracion financiera de Expensas.
     const [diaVencimiento, setDiaVencimiento] = useState(REGLAS_PERIODO.diaVencimiento);
@@ -73,15 +104,113 @@ export default function Mora() {
     const [actualizando, setActualizando] = useState(false);
     const [exitoMsg, setExitoMsg] = useState('');
 
-    // Calculo de la deuda segun la configuracion vigente
+    // La fecha de referencia la toma SIEMPRE del reloj del sistema operativo
+    // (new Date()). Si el admin cambia la fecha de la computadora, el tick de
+    // abajo fuerza un re-render cada 5 segundos y los calculos se actualizan solos:
+    // las moras de las deudas vencidas escalan, y cualquier expensa nueva que ya
+    // haya pasado el dia de vencimiento aparece aqui con su mora acumulada.
+    const [tick, setTick] = useState(0);
+    useEffect(() => {
+        const id = setInterval(() => setTick((t) => t + 1), 5000);
+        return () => clearInterval(id);
+    }, []);
+
+    // Menu de acciones por fila (ver detalle / registrar pago)
+    const [menuAnchor, setMenuAnchor] = useState(null);
+    const [filaSel, setFilaSel] = useState(null);
+    const abrirMenu = (e, f) => { setMenuAnchor(e.currentTarget); setFilaSel(f); };
+    const cerrarMenu = () => setMenuAnchor(null);
+    const verDetalle = () => { setDetalle(filaSel); cerrarMenu(); };
+    const irARegistrarPago = () => {
+        const f = filaSel;
+        cerrarMenu();
+        // Redondeo a 2 decimales antes de pasarlo para evitar que RegistrarPago
+        // precargue algo tipo "395.9999999999996" en el campo de monto.
+        const montoRedondo = Math.round(((f.pendiente ?? f.deudaActual) || 0) * 100) / 100;
+        navigate('/finanzas/pagos/registrar', {
+            state: {
+                deptoPrecargado: f.depto,
+                periodoPrecargado: f.periodo,
+                montoPendiente: montoRedondo,
+            },
+        });
+    };
+
+    // Calculo de la deuda segun la configuracion vigente Y la fecha simulada.
+    // Las moras se recalculan automaticamente con la fecha del reloj del sistema.
+    // Si el admin cambia la fecha de la computadora, el tick (cada 5s) recomputa
+    // esto. Ademas de DEUDAS_VENCIDAS, incluimos las expensas de EXPENSAS_MOCK
+    // que ya pasaron el dia de vencimiento y no estan pagadas al 100%. Asi,
+    // cuando se generan expensas nuevas y pasa el tiempo, aparecen aqui solas.
     const tasa = (Number(config.interesMensual) || 0) / 100;
-    const filas = DEUDAS_VENCIDAS.map((d) => {
-        const deudaActual = config.tipoCalculo === 'Simple'
-            ? d.deudaOriginal * (1 + tasa * d.meses)
-            : d.deudaOriginal * (1 + tasa) ** d.meses;
-        return { ...d, interes: deudaActual - d.deudaOriginal, deudaActual };
-    });
-    const totalVencido = filas.reduce((acc, f) => acc + f.deudaActual, 0);
+    // Redondeo a 2 decimales para evitar errores de precision de punto flotante
+    // (ej. 360 * 1.10 = 395.9999999999996 en JS). Sin esto el pendiente nunca
+    // llega a 0 exacto y la fila nunca se filtra despues de pagar.
+    const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
+
+    // Helper para sumar lo pagado para un (depto + periodo) desde PAGOS_MOCK
+    const sumPagado = (deptoId, periodo) => {
+        const corto = (periodo || '').toLowerCase().split(' ')[0];
+        return PAGOS_MOCK
+            .filter((p) => p.depto === deptoId
+                && (p.periodoAplicado || '').toLowerCase().includes(corto))
+            .reduce((s, p) => {
+                const totalPago = Number(p.total)
+                    || (Number(p.monto) || 0) + (Number(p.creditoAplicado) || 0);
+                return s + totalPago;
+            }, 0);
+    };
+    const calcMora = (original, meses) => {
+        const raw = config.tipoCalculo === 'Simple'
+            ? original * (1 + tasa * meses)
+            : original * (1 + tasa) ** meses;
+        return round2(raw);
+    };
+
+    const filas = useMemo(() => {
+        const refHoy = new Date(); // reloj del sistema operativo
+        // 1) Deudas vencidas iniciales (hardcoded en moraMock)
+        const desdeMora = DEUDAS_VENCIDAS.map((d) => {
+            const meses = calcularMesesVencidos(d.periodo, refHoy, diaVencimiento);
+            const deudaActual = calcMora(d.deudaOriginal, meses);
+            const pagado = round2(sumPagado(d.depto, d.periodo));
+            return {
+                id: `DV-${d.id}`, origen: 'mora',
+                depto: d.depto, tipo: d.tipo, periodo: d.periodo,
+                expensaBase: d.expensaBase, agua: d.agua,
+                deudaOriginal: d.deudaOriginal, meses,
+                interes: round2(deudaActual - d.deudaOriginal), deudaActual,
+                pagado, pendiente: Math.max(0, round2(deudaActual - pagado)),
+            };
+        });
+        // 2) Expensas de EXPENSAS_MOCK que ya vencieron (dia de vencimiento pasado)
+        //    y aun no estan pagadas al 100%. Dedup por (depto + periodo) con DEUDAS_VENCIDAS.
+        const yaEnMora = new Set(desdeMora.map((f) => `${f.depto}|${f.periodo}`));
+        const desdeExpensas = EXPENSAS_MOCK
+            .filter((e) => e.estado !== 'Pagada')
+            .filter((e) => !yaEnMora.has(`${e.depto}|${e.periodo}`))
+            .map((e) => {
+                const meses = calcularMesesVencidos(e.periodo, refHoy, diaVencimiento);
+                if (meses === 0) return null; // aun no esta vencida -> no es mora
+                const original = Number(e.total || e.monto) || 0;
+                const deudaActual = calcMora(original, meses);
+                const pagado = round2(Number(e.pagado) || 0);
+                return {
+                    id: `EX-${e.id}`, origen: 'expensa',
+                    depto: e.depto, tipo: e.tipo, periodo: e.periodo,
+                    expensaBase: e.base, agua: e.agua,
+                    deudaOriginal: original, meses,
+                    interes: round2(deudaActual - original), deudaActual,
+                    pagado, pendiente: Math.max(0, round2(deudaActual - pagado)),
+                };
+            })
+            .filter(Boolean);
+        // Filtro: pendiente >= 0.01 (menor a 1 centavo es practicamente 0)
+        return [...desdeMora, ...desdeExpensas].filter((f) => f.pendiente >= 0.01);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [diaVencimiento, config.tipoCalculo, tasa, tick]);
+    // Total vencido = suma de los pendientes (no de la deuda actual total)
+    const totalVencido = filas.reduce((acc, f) => acc + f.pendiente, 0);
 
     const abrirConfig = () => {
         // Siempre leer el ultimo valor compartido (por si lo cambiaron en ConfiguracionFinanciera o v2)
@@ -174,7 +303,13 @@ export default function Mora() {
                             </TableRow>
                         </TableHead>
                         <TableBody>
-                            {filas.map((f) => (
+                            {filas.length === 0 ? (
+                                <TableRow>
+                                    <TableCell colSpan={8} align="center" sx={{ color: '#2E9D78', fontWeight: 600, py: 3 }}>
+                                        ✓ Sin deudas vencidas pendientes. Todas las moras fueron cubiertas.
+                                    </TableCell>
+                                </TableRow>
+                            ) : filas.map((f) => (
                                 <TableRow key={f.id}>
                                     <TableCell>{f.depto}</TableCell>
                                     <TableCell>{f.periodo}</TableCell>
@@ -182,9 +317,18 @@ export default function Mora() {
                                     <TableCell>{f.meses}</TableCell>
                                     <TableCell>{config.interesMensual} %</TableCell>
                                     <TableCell sx={{ color: '#D9534F', fontWeight: 600 }}>{formatBs(f.interes)}</TableCell>
-                                    <TableCell sx={{ color: '#D9534F', fontWeight: 700 }}>{formatBs(f.deudaActual)}</TableCell>
+                                    <TableCell sx={{ color: '#D9534F', fontWeight: 700 }}>
+                                        {formatBs(f.deudaActual)}
+                                        {f.pagado > 0 && (
+                                            <Typography variant="caption" sx={{ display: 'block', color: '#2E9D78', fontWeight: 600 }}>
+                                                − {formatBs(f.pagado)} pagado
+                                            </Typography>
+                                        )}
+                                    </TableCell>
                                     <TableCell align="center">
-                                        <IconButton color="primary" onClick={() => setDetalle(f)}><VisibilityIcon /></IconButton>
+                                        <IconButton onClick={(e) => abrirMenu(e, f)}>
+                                            <MoreVertIcon />
+                                        </IconButton>
                                     </TableCell>
                                 </TableRow>
                             ))}
@@ -369,6 +513,18 @@ export default function Mora() {
                     </>
                 )}
             </Dialog>
+
+            {/* Menu de acciones por fila (ver detalle / registrar pago) */}
+            <Menu anchorEl={menuAnchor} open={Boolean(menuAnchor)} onClose={cerrarMenu}>
+                <MenuItem onClick={verDetalle}>
+                    <VisibilityIcon fontSize="small" sx={{ mr: 1, color: '#1F5F8B' }} />
+                    Ver detalle
+                </MenuItem>
+                <MenuItem onClick={irARegistrarPago}>
+                    <PaidIcon fontSize="small" sx={{ mr: 1, color: '#2E9D78' }} />
+                    Registrar pago
+                </MenuItem>
+            </Menu>
 
             <Snackbar open={!!exitoMsg} autoHideDuration={3000} onClose={() => setExitoMsg('')}
                 anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}>

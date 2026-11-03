@@ -342,15 +342,20 @@ export default function Expensas() {
             </Paper>
 
             {/* Menu de acciones (solo cuando ya hay agua) */}
+            {/* "Editar agua" NO aparece cuando la expensa ya esta Pagada: cambiar la */}
+            {/* lectura despues del cobro reabriria la expensa como pendiente y seria */}
+            {/* inconsistente con el pago ya registrado. Solo editable mientras no se cobre. */}
             <Menu anchorEl={menuAnchor} open={Boolean(menuAnchor)} onClose={cerrarMenu}>
                 <MenuItem onClick={verDetalle}>
                     <VisibilityOutlinedIcon fontSize="small" sx={{ mr: 1, color: '#1F5F8B' }} />
                     Ver detalle
                 </MenuItem>
-                <MenuItem onClick={() => abrirAgua(filaSel)}>
-                    <OpacityIcon fontSize="small" sx={{ mr: 1, color: '#1F5F8B' }} />
-                    Editar agua
-                </MenuItem>
+                {filaSel?.estado !== 'Pagada' && (
+                    <MenuItem onClick={() => abrirAgua(filaSel)}>
+                        <OpacityIcon fontSize="small" sx={{ mr: 1, color: '#1F5F8B' }} />
+                        Editar agua
+                    </MenuItem>
+                )}
                 {filaSel?.estado === 'Lista' && (
                     <MenuItem onClick={irARegistrarPago}>
                         <PaidIcon fontSize="small" sx={{ mr: 1, color: '#2E9D78' }} />
