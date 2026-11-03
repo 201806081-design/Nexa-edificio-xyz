@@ -212,6 +212,30 @@ export default function HistorialPagos() {
             return { ...prev, concepto, monto };
         });
     };
+    const cambiarPeriodoDraft = (nuevoPeriodo) => {
+        setPagoDraft((prev) => {
+            let monto = prev.monto;
+            if (prev.concepto === 'Salario' && prev.empleadoId) {
+                const fp = PLANILLA_MOCK.find((p) => p.empleadoId === prev.empleadoId && p.periodo === nuevoPeriodo);
+                monto = fp ? fp.neto : 0;
+            }
+            return { ...prev, periodo: nuevoPeriodo, monto };
+        });
+    };
+
+    // Guard: ¿el empleado seleccionado ya tiene un pago (concepto Salario) para
+    // este periodo? Si si, no se permite registrar otro pago (evita duplicados).
+    const yaPagadoSalario = useMemo(() => {
+        if (!pagoDraft.empleadoId || pagoDraft.concepto !== 'Salario') return null;
+        const periodoCortoStr = periodoCorto(pagoDraft.periodo);
+        return PAGOS_PERSONAL_MOCK.find(
+            (p) => p.empleadoId === pagoDraft.empleadoId
+                && p.periodo === periodoCortoStr
+                && p.estado === 'Pagado'
+                && p.concepto === 'Salario'
+        ) || null;
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [pagoDraft, tick]);
     const confirmarRegistrar = () => {
         const { empleadoId, concepto, periodo: periodoDraft, monto, fecha, medio, referencia, motivo } = pagoDraft;
         const montoNum = Number(monto) || 0;
@@ -230,6 +254,24 @@ export default function HistorialPagos() {
         if ((concepto === 'Anticipo' || concepto === 'Bono') && !motivo.trim()) {
             setSnack({ open: true, msg: `El motivo del ${concepto.toLowerCase()} es obligatorio`, sev: 'warning' });
             return;
+        }
+
+        // Guard anti-doble-pago: si ya hay un Salario pagado para este empleado+periodo, abortar
+        if (concepto === 'Salario') {
+            const yaExiste = PAGOS_PERSONAL_MOCK.find(
+                (p) => p.empleadoId === empleadoId
+                    && p.periodo === periodoCorto(periodoDraft)
+                    && p.estado === 'Pagado'
+                    && p.concepto === 'Salario'
+            );
+            if (yaExiste) {
+                setSnack({
+                    open: true,
+                    msg: `${nombreEmpleado(empleadoId)} ya tiene su salario pagado (${yaExiste.id}) en ${periodoDraft}`,
+                    sev: 'error',
+                });
+                return;
+            }
         }
 
         const codigo = siguienteCodigoPago();
@@ -491,11 +533,26 @@ export default function HistorialPagos() {
                         <Box sx={{ flex: 1, minWidth: 160 }}>
                             <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Periodo</Typography>
                             <Select fullWidth size="small" value={pagoDraft.periodo}
-                                onChange={(e) => setPagoDraft((p) => ({ ...p, periodo: e.target.value }))}>
+                                onChange={(e) => cambiarPeriodoDraft(e.target.value)}>
                                 {PERIODOS_PAGOS.map((p) => <MenuItem key={p} value={p}>{p}</MenuItem>)}
                             </Select>
                         </Box>
                     </Box>
+
+                    {/* Alerta: evitar doble pago de salario para el mismo periodo */}
+                    {yaPagadoSalario && (
+                        <Alert severity="error" icon={false} sx={{ bgcolor: '#FBEAE9', color: '#D9534F', mb: 2 }}>
+                            <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                                Este empleado ya cobro su salario de {pagoDraft.periodo}
+                            </Typography>
+                            <Typography variant="body2">
+                                Pago registrado: <strong>{yaPagadoSalario.id}</strong> · {yaPagadoSalario.fecha} ·
+                                {' '}{yaPagadoSalario.medio} · {formatBs(yaPagadoSalario.montoNeto)}.
+                                No se puede registrar un segundo pago para el mismo periodo. Si queres cambiar algo,
+                                cambia el periodo o elige otro empleado.
+                            </Typography>
+                        </Alert>
+                    )}
 
                     <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>
                         {pagoDraft.concepto === 'Salario' ? 'Monto neto a pagar' : `Monto del ${pagoDraft.concepto.toLowerCase()}`}
@@ -558,7 +615,9 @@ export default function HistorialPagos() {
                 </DialogContent>
                 <DialogActions sx={{ p: 2 }}>
                     <Button variant="outlined" onClick={() => setRegistrarAbierto(false)}>Cancelar</Button>
-                    <Button variant="contained" onClick={confirmarRegistrar}>Confirmar pago</Button>
+                    <Button variant="contained" onClick={confirmarRegistrar} disabled={!!yaPagadoSalario}>
+                        Confirmar pago
+                    </Button>
                 </DialogActions>
             </Dialog>
 
