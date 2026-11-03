@@ -57,9 +57,11 @@ export const PERMISOS_POR_ROL = {
 };
 
 // Opciones del menu lateral que ve cada rol
-// Admin ve todas las opciones; Directorio y Consulta ven Inicio, Copropietarios, Unidades y Finanzas
+// Admin ve todas las opciones; Directorio y Consulta ven Inicio, Copropietarios, Unidades y Finanzas.
+// 'Personal' (HU-AP-01) solo es visible para Administrador porque es el unico que tiene
+// permiso 'total' sobre 'Administracion de personal' en PERMISOS_POR_ROL (los demas: 'ninguno').
 export const MENU_POR_ROL = {
-  [ROLES.ADMINISTRADOR]: ['Inicio', 'Usuarios y roles', 'Permisos por rol', 'Copropietarios', 'Unidades', 'Finanzas'],
+  [ROLES.ADMINISTRADOR]: ['Inicio', 'Usuarios y roles', 'Permisos por rol', 'Copropietarios', 'Unidades', 'Finanzas', 'Personal'],
   [ROLES.DIRECTORIO]: ['Inicio', 'Copropietarios', 'Unidades', 'Finanzas'],
   [ROLES.CONSULTA]: ['Inicio', 'Copropietarios', 'Unidades', 'Finanzas'],
 };
