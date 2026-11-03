@@ -34,6 +34,10 @@ import RegistrarMovimiento from '../pages/Finanzas/RegistrarMovimiento';
 import DetalleMovimiento from '../pages/Finanzas/DetalleMovimiento';
 import FlujoCaja from '../pages/Finanzas/FlujoCaja';
 import Mora from '../pages/Finanzas/Mora';
+// HU-AP-01 Administracion de personal
+import Empleados from '../pages/Personal/Empleados';
+import Planilla from '../pages/Personal/Planilla';
+import HistorialPagos from '../pages/Personal/HistorialPagos';
 import ProtectedRoute from './ProtectedRoute';
 
 export default function AppRoutes() {
@@ -79,6 +83,11 @@ export default function AppRoutes() {
       <Route path="/finanzas/ingresos-gastos/:id" element={<ProtectedRoute><DetalleMovimiento /></ProtectedRoute>} />
       <Route path="/finanzas/flujo-caja" element={<ProtectedRoute><FlujoCaja /></ProtectedRoute>} />
       <Route path="/finanzas/mora" element={<ProtectedRoute><Mora /></ProtectedRoute>} />
+
+      {/* HU-AP-01 Administracion de personal */}
+      <Route path="/personal/empleados" element={<ProtectedRoute><Empleados /></ProtectedRoute>} />
+      <Route path="/personal/planilla" element={<ProtectedRoute><Planilla /></ProtectedRoute>} />
+      <Route path="/personal/historial-pagos" element={<ProtectedRoute><HistorialPagos /></ProtectedRoute>} />
 
       <Route path="*" element={<Navigate to="/login" replace />} />
     </Routes>

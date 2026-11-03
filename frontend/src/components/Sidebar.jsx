@@ -18,6 +18,9 @@ import PaymentIcon from '@mui/icons-material/Payment';
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
 import BarChartIcon from '@mui/icons-material/BarChart';
 import ScheduleIcon from '@mui/icons-material/Schedule';
+import WorkOutlineIcon from '@mui/icons-material/WorkOutline';
+import BadgeOutlinedIcon from '@mui/icons-material/BadgeOutlined';
+import PaymentsOutlinedIcon from '@mui/icons-material/PaymentsOutlined';
 import ExpandLess from '@mui/icons-material/ExpandLess';
 import ExpandMore from '@mui/icons-material/ExpandMore';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -32,9 +35,12 @@ const OPCIONES = {
   'Permisos por rol': { icon: <ShieldIcon />, ruta: '/permisos' },
   Copropietarios: { icon: <PeopleIcon />, ruta: '/copropietarios' },
   Unidades: { icon: <DomainIcon />, ruta: '/unidades' },
-  // Opcion con submenu desplegable (fiel al mockup)
+  // Opciones con submenu desplegable (fieles al mockup).
+  // 'prefijo' se usa para marcar la opcion como activa cuando la ruta actual
+  // esta dentro de ese prefijo (ej: /finanzas/pagos -> Finanzas activo).
   Finanzas: {
     icon: <AccountBalanceWalletIcon />,
+    prefijo: '/finanzas',
     subopciones: [
       { nombre: 'Resumen', icon: <DescriptionIcon />, ruta: '/finanzas' },
       { nombre: 'Dashboard', icon: <BarChartIcon />, ruta: '/finanzas/dashboard' },
@@ -43,6 +49,15 @@ const OPCIONES = {
       { nombre: 'Estado de cuenta', icon: <ReceiptLongIcon />, ruta: '/finanzas/estado-cuenta' },
       { nombre: 'Ingresos y gastos', icon: <BarChartIcon />, ruta: '/finanzas/ingresos-gastos' },
       { nombre: 'Mora e intereses', icon: <ScheduleIcon />, ruta: '/finanzas/mora' },
+    ],
+  },
+  Personal: {
+    icon: <WorkOutlineIcon />,
+    prefijo: '/personal',
+    subopciones: [
+      { nombre: 'Empleados', icon: <BadgeOutlinedIcon />, ruta: '/personal/empleados' },
+      { nombre: 'Planilla', icon: <PaymentsOutlinedIcon />, ruta: '/personal/planilla' },
+      { nombre: 'Historial de pagos', icon: <ScheduleIcon />, ruta: '/personal/historial-pagos' },
     ],
   },
 };
@@ -56,7 +71,16 @@ function ContenidoMenu({ onNavegar }) {
   const rol = user?.rol ?? 'Consulta';
   const opciones = MENU_POR_ROL[rol] ?? ['Inicio'];
 
-  const [finanzasAbierto, setFinanzasAbierto] = useState(location.pathname.startsWith('/finanzas'));
+  // Un unico diccionario de submenus abiertos (clave = nombre de la opcion).
+  // Arranca abierto el submenu cuya ruta coincida con la URL actual.
+  const [submenusAbiertos, setSubmenusAbiertos] = useState(() => {
+    const inicial = {};
+    Object.entries(OPCIONES).forEach(([nombre, cfg]) => {
+      if (cfg.subopciones) inicial[nombre] = location.pathname.startsWith(cfg.prefijo);
+    });
+    return inicial;
+  });
+  const toggleSubmenu = (nombre) => setSubmenusAbiertos((prev) => ({ ...prev, [nombre]: !prev[nombre] }));
 
   const ir = (e, ruta) => {
     // Soltar el focus para evitar que el estilo "activo" quede pegado en movil
@@ -92,17 +116,18 @@ function ContenidoMenu({ onNavegar }) {
           const opcion = OPCIONES[nombre];
           if (!opcion) return null;
 
-          // Opcion con submenu (Finanzas)
+          // Opcion con submenu (Finanzas, Personal, ...)
           if (opcion.subopciones) {
-            const algunoActivo = location.pathname.startsWith('/finanzas');
+            const algunoActivo = location.pathname.startsWith(opcion.prefijo);
+            const abierto = !!submenusAbiertos[nombre];
             return (
               <Box key={nombre}>
-                <ListItemButton onClick={() => setFinanzasAbierto((o) => !o)} sx={estiloItem(algunoActivo && !finanzasAbierto)}>
+                <ListItemButton onClick={() => toggleSubmenu(nombre)} sx={estiloItem(algunoActivo && !abierto)}>
                   <ListItemIcon sx={{ color: '#fff', minWidth: 40 }}>{opcion.icon}</ListItemIcon>
                   <ListItemText primary={nombre} />
-                  {finanzasAbierto ? <ExpandLess /> : <ExpandMore />}
+                  {abierto ? <ExpandLess /> : <ExpandMore />}
                 </ListItemButton>
-                <Collapse in={finanzasAbierto} timeout="auto" unmountOnExit>
+                <Collapse in={abierto} timeout="auto" unmountOnExit>
                   <List disablePadding sx={{ pl: 1 }}>
                     {opcion.subopciones.map((sub) => {
                       const activo = location.pathname === sub.ruta;
