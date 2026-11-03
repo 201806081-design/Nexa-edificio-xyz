@@ -34,6 +34,23 @@ const iconoCanal = (id) => {
     return <NotificationsActiveIcon />;
 };
 
+// Texto del radio "enviar a todos" segun el grupo elegido (en lugar del generico "del grupo").
+const etiquetaTodosGrupo = (grupo) => {
+    if (!grupo) return 'Enviar a todos';
+    const n = grupo.count;
+    switch (grupo.id) {
+        case 'todos': return `Enviar a los ${n} copropietarios`;
+        case 'piso-1': return `Enviar a todos los del piso 1 (${n})`;
+        case 'piso-2': return `Enviar a todos los del piso 2 (${n})`;
+        case 'piso-3': return `Enviar a todos los del piso 3 (${n})`;
+        case 'morosos': return n === 1 ? 'Enviar al moroso' : `Enviar a los ${n} morosos`;
+        case 'personal': return `Enviar a todo el personal del edificio (${n})`;
+        case 'directorio': return n === 1 ? 'Enviar al directorio' : `Enviar a los ${n} miembros del directorio`;
+        case 'admins': return n === 1 ? 'Enviar al administrador del sistema' : `Enviar a los ${n} administradores del sistema`;
+        default: return `Enviar a todos los ${n} del grupo`;
+    }
+};
+
 export default function Elaborar() {
     const navigate = useNavigate();
     const location = useLocation();
@@ -52,10 +69,18 @@ export default function Elaborar() {
     const [mensaje, setMensaje] = useState(borradorInicial?.mensaje ?? '');
     const [adjunto, setAdjunto] = useState(null);
     const [previewAdjunto, setPreviewAdjunto] = useState(false);
+    // Arranca solo con App tildado. Si venimos de un borrador, respetamos sus canales,
+    // pero filtramos los que ya no son seleccionables (ej. correo si el backend lo deshabilita).
     const [canalesSel, setCanalesSel] = useState(() => {
         const base = { app: true, correo: false, whatsapp: false, sms: false };
-        (borradorInicial?.canalesIds ?? []).forEach((c) => { base[c] = true; });
-        return borradorInicial ? base : { app: true, correo: true, whatsapp: false, sms: false };
+        if (borradorInicial?.canalesIds) {
+            // Resetear app a false si el borrador no lo tenia
+            base.app = false;
+            borradorInicial.canalesIds.forEach((c) => {
+                if (canalEstaDisponible(c)) base[c] = true;
+            });
+        }
+        return base;
     });
     const [programarAhora, setProgramarAhora] = useState('ahora');
     const [fechaProgramada, setFechaProgramada] = useState('');
@@ -221,7 +246,7 @@ export default function Elaborar() {
                             }}
                         >
                             <FormControlLabel value="todos" control={<Radio size="small" />}
-                                label={<Typography variant="body2">Enviar a todos los {grupo?.count ?? 0} del grupo</Typography>} />
+                                label={<Typography variant="body2">{etiquetaTodosGrupo(grupo)}</Typography>} />
                             <FormControlLabel value="especificos" control={<Radio size="small" />}
                                 label={<Typography variant="body2">Seleccionar destinatarios especificos</Typography>} />
                         </RadioGroup>

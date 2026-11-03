@@ -11,7 +11,7 @@ import MoreVertIcon from '@mui/icons-material/MoreVert';
 import SendIcon from '@mui/icons-material/Send';
 import ScheduleIcon from '@mui/icons-material/Schedule';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
-import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
+import ErrorIcon from '@mui/icons-material/Error';
 import AddIcon from '@mui/icons-material/Add';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import ReplayIcon from '@mui/icons-material/Replay';
@@ -167,7 +167,7 @@ export default function Enviados() {
                 <Card titulo="Tasa de entrega" valor={`${resumen.porcentajeEntrega}%`} extra={`${resumen.destinatariosAlcanzados} destinatarios alcanzados`}
                     icono={<TrendingUpIcon />} color="#2E9D78" />
                 <Card titulo="Parciales / Fallidos" valor={resumen.pendientesOFallidos} extra="Requieren revision"
-                    icono={<ErrorOutlineIcon />} color="#D9534F" />
+                    icono={<ErrorIcon />} color="#D9534F" />
             </Box>
 
             {/* Filtros */}
