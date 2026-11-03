@@ -18,9 +18,9 @@ import PaymentIcon from '@mui/icons-material/Payment';
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
 import BarChartIcon from '@mui/icons-material/BarChart';
 import ScheduleIcon from '@mui/icons-material/Schedule';
-import WorkOutlineIcon from '@mui/icons-material/WorkOutline';
-import BadgeOutlinedIcon from '@mui/icons-material/BadgeOutlined';
-import PaymentsOutlinedIcon from '@mui/icons-material/PaymentsOutlined';
+import WorkIcon from '@mui/icons-material/Work';
+import BadgeIcon from '@mui/icons-material/Badge';
+import PaidIcon from '@mui/icons-material/Paid';
 import ExpandLess from '@mui/icons-material/ExpandLess';
 import ExpandMore from '@mui/icons-material/ExpandMore';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -52,11 +52,11 @@ const OPCIONES = {
     ],
   },
   Personal: {
-    icon: <WorkOutlineIcon />,
+    icon: <WorkIcon />,
     prefijo: '/personal',
     subopciones: [
-      { nombre: 'Empleados', icon: <BadgeOutlinedIcon />, ruta: '/personal/empleados' },
-      { nombre: 'Planilla', icon: <PaymentsOutlinedIcon />, ruta: '/personal/planilla' },
+      { nombre: 'Empleados', icon: <BadgeIcon />, ruta: '/personal/empleados' },
+      { nombre: 'Planilla', icon: <PaidIcon />, ruta: '/personal/planilla' },
       { nombre: 'Historial de pagos', icon: <ScheduleIcon />, ruta: '/personal/historial-pagos' },
     ],
   },

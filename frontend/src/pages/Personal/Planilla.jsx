@@ -8,9 +8,9 @@ import FilterListIcon from '@mui/icons-material/FilterList';
 import DownloadIcon from '@mui/icons-material/Download';
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
-import PaymentsOutlinedIcon from '@mui/icons-material/PaymentsOutlined';
-import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
-import RemoveCircleOutlineIcon from '@mui/icons-material/RemoveCircleOutline';
+import PaidIcon from '@mui/icons-material/Paid';
+import AddCircleIcon from '@mui/icons-material/AddCircle';
+import RemoveCircleIcon from '@mui/icons-material/RemoveCircle';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import {
     PLANILLA_MOCK, RESUMEN_PLANILLA, ESTADOS_PLANILLA,
@@ -81,7 +81,7 @@ export default function Planilla() {
             <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, 1fr)' }, gap: 2, mb: 2 }}>
                 <Paper sx={{ p: 2.5, borderRadius: 2, bgcolor: '#E4EEF5', display: 'flex', alignItems: 'center', gap: 2 }}>
                     <Box sx={{ width: 48, height: 48, color: 'primary.main', display: 'grid', placeItems: 'center' }}>
-                        <PaymentsOutlinedIcon fontSize="large" />
+                        <PaidIcon fontSize="large" />
                     </Box>
                     <Box>
                         <Typography variant="body2" color="text.secondary">Total planilla</Typography>
@@ -91,7 +91,7 @@ export default function Planilla() {
                 </Paper>
                 <Paper sx={{ p: 2.5, borderRadius: 2, bgcolor: '#E4F4EE', display: 'flex', alignItems: 'center', gap: 2 }}>
                     <Box sx={{ width: 48, height: 48, color: '#2E9D78', display: 'grid', placeItems: 'center' }}>
-                        <AddCircleOutlineIcon fontSize="large" />
+                        <AddCircleIcon fontSize="large" />
                     </Box>
                     <Box>
                         <Typography variant="body2" color="text.secondary">Bonos</Typography>
@@ -101,7 +101,7 @@ export default function Planilla() {
                 </Paper>
                 <Paper sx={{ p: 2.5, borderRadius: 2, bgcolor: '#FDF0D5', display: 'flex', alignItems: 'center', gap: 2 }}>
                     <Box sx={{ width: 48, height: 48, color: '#B6802A', display: 'grid', placeItems: 'center' }}>
-                        <RemoveCircleOutlineIcon fontSize="large" />
+                        <RemoveCircleIcon fontSize="large" />
                     </Box>
                     <Box>
                         <Typography variant="body2" color="text.secondary">Anticipos descontados</Typography>

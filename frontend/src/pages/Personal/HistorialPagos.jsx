@@ -10,7 +10,7 @@ import AddIcon from '@mui/icons-material/Add';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import ScheduleIcon from '@mui/icons-material/Schedule';
-import DescriptionOutlinedIcon from '@mui/icons-material/DescriptionOutlined';
+import DescriptionIcon from '@mui/icons-material/Description';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import {
     PAGOS_PERSONAL_MOCK, RESUMEN_PAGOS_PERSONAL, ESTADOS_PAGO_PERSONAL,
@@ -108,7 +108,7 @@ export default function HistorialPagos() {
                 </Paper>
                 <Paper sx={{ p: 2.5, borderRadius: 2, bgcolor: '#E4EEF5', display: 'flex', alignItems: 'center', gap: 2 }}>
                     <Box sx={{ width: 48, height: 48, color: 'primary.main', display: 'grid', placeItems: 'center' }}>
-                        <DescriptionOutlinedIcon fontSize="large" />
+                        <DescriptionIcon fontSize="large" />
                     </Box>
                     <Box>
                         <Typography variant="body2" color="text.secondary">Comprobantes</Typography>
