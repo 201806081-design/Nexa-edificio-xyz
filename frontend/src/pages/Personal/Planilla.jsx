@@ -5,18 +5,20 @@ import {
     Dialog, DialogTitle, DialogContent, DialogActions, Menu, Divider,
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
-import FilterListIcon from '@mui/icons-material/FilterList';
 import DownloadIcon from '@mui/icons-material/Download';
 import AddIcon from '@mui/icons-material/Add';
 import PaidIcon from '@mui/icons-material/Paid';
 import AddCircleIcon from '@mui/icons-material/AddCircle';
 import RemoveCircleIcon from '@mui/icons-material/RemoveCircle';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
-import EditIcon from '@mui/icons-material/Edit';
+import VisibilityIcon from '@mui/icons-material/Visibility';
+import SavingsIcon from '@mui/icons-material/Savings';
+import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
+import { useNavigate } from 'react-router-dom';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import {
     PLANILLA_MOCK, PAGOS_PERSONAL_MOCK, RESUMEN_PLANILLA, RESUMEN_PAGOS_PERSONAL,
-    ESTADOS_PLANILLA, EMPLEADOS_MOCK, MEDIOS_PAGO_PERSONAL,
+    ESTADOS_PLANILLA, EMPLEADOS_MOCK, TIPOS_DESCUENTO,
     nombreEmpleado, cargoEmpleado, salarioDesdeCargo,
 } from '../../constants/personalMock';
 import { PERIODOS, formatBs } from '../../constants/finanzasMock';
@@ -30,7 +32,7 @@ const estadoChipSx = (estado) => {
     return { bgcolor: '#FDF0D5', color: '#B6802A' }; // Borrador
 };
 
-// "Noviembre 2026" -> "Nov. 2026" (para los pagos del historial)
+// "Noviembre 2026" -> "Nov. 2026" (formato de PAGOS_PERSONAL_MOCK)
 const periodoCorto = (p) => {
     if (!p) return '';
     const abr = {
@@ -40,18 +42,6 @@ const periodoCorto = (p) => {
     };
     const [mes, anio] = p.split(' ');
     return `${abr[mes] || mes} ${anio}`;
-};
-
-// Siguiente PE-XXXX para el historial
-const siguienteCodigoPago = () => {
-    const nums = PAGOS_PERSONAL_MOCK.map((p) => Number(String(p.id || '').replace(/\D/g, '')) || 0);
-    const next = (nums.length ? Math.max(...nums) : 0) + 1;
-    return `PE-${String(next).padStart(4, '0')}`;
-};
-const fechaHoyBonita = () => {
-    const d = new Date();
-    const p = (n) => String(n).padStart(2, '0');
-    return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()}`;
 };
 
 // Recalcula los resumenes globales (compartidos con HistorialPagos)
@@ -71,6 +61,7 @@ const recalcularResumenes = () => {
 };
 
 export default function Planilla() {
+    const navigate = useNavigate();
     const [periodo, setPeriodo] = useState('Noviembre 2026');
     const [estado, setEstado] = useState('Todos');
     const [busqueda, setBusqueda] = useState('');
@@ -84,13 +75,15 @@ export default function Planilla() {
     const cerrarMenu = () => setMenuAnchor(null);
 
     // Modales
-    const [pagarAbierto, setPagarAbierto] = useState(false);
-    const [pagoDraft, setPagoDraft] = useState({ medio: 'Transferencia', referencia: '', fecha: '' });
+    const [anticipoAbierto, setAnticipoAbierto] = useState(false);
+    const [anticipoDraft, setAnticipoDraft] = useState({ monto: 0, motivo: '' });
 
-    const [editarAbierto, setEditarAbierto] = useState(false);
-    const [editarDraft, setEditarDraft] = useState({ bonos: 0, anticipos: 0, otrosDesc: 0 });
+    const [descAbierto, setDescAbierto] = useState(false);
+    const [descDraft, setDescDraft] = useState({ monto: 0, tipo: 'Rotura/dano', motivo: '' });
 
-    // Filas filtradas: tick fuerza recomputo tras mutaciones
+    const [detalleAbierto, setDetalleAbierto] = useState(false);
+
+    // Filas filtradas (reactivas al tick tras mutaciones del mock)
     const filas = useMemo(() => {
         const q = busqueda.trim().toLowerCase();
         return PLANILLA_MOCK
@@ -105,8 +98,7 @@ export default function Planilla() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [periodo, estado, busqueda, tick]);
 
-    // Totales reactivos al periodo seleccionado (NO usamos RESUMEN_PLANILLA porque
-    // ese se calcula una sola vez; aqui recalculamos para cualquier periodo).
+    // Totales reactivos al periodo seleccionado
     const resumenPeriodo = useMemo(() => {
         const filasPeriodo = PLANILLA_MOCK.filter((p) => p.periodo === periodo);
         return {
@@ -122,7 +114,7 @@ export default function Planilla() {
 
     const totalNeto = filas.reduce((s, f) => s + (f.neto || 0), 0);
 
-    // --- Generar planilla (si el periodo no tiene filas, las crea para todos los empleados activos) ---
+    // --- Generar planilla ---
     const generarPlanilla = () => {
         const yaTiene = PLANILLA_MOCK.some((p) => p.periodo === periodo);
         if (yaTiene) {
@@ -147,74 +139,79 @@ export default function Planilla() {
     const exportar = () => {
         setSnack({ open: true, msg: `Planilla de ${periodo} exportada a Excel (simulado)`, sev: 'success' });
     };
-    const filtrar = () => {
-        setSnack({ open: true, msg: `${filas.length} empleados coinciden con los filtros aplicados`, sev: 'success' });
+
+    // --- Pagar: redirige a HistorialPagos con precarga ---
+    const irAPagar = () => {
+        const f = filaSel;
+        cerrarMenu();
+        navigate('/personal/historial-pagos', {
+            state: {
+                registrarPrecargado: {
+                    empleadoId: f.empleadoId,
+                    empleado: f.empleado,
+                    cargo: f.cargo,
+                    periodo: periodoCorto(f.periodo),
+                    periodoPlanilla: f.periodo,
+                    concepto: 'Salario',
+                    montoNeto: f.neto,
+                },
+            },
+        });
     };
 
-    // --- Pagar fila ---
-    const abrirPagar = () => {
+    // --- Registrar anticipo (suma al campo anticipos y recalcula neto) ---
+    const abrirAnticipo = () => {
         cerrarMenu();
-        setPagoDraft({ medio: 'Transferencia', referencia: '', fecha: fechaHoyBonita() });
-        setPagarAbierto(true);
+        setAnticipoDraft({ monto: 0, motivo: '' });
+        setAnticipoAbierto(true);
     };
-    const confirmarPago = () => {
-        if (pagoDraft.medio !== 'Efectivo' && !pagoDraft.referencia.trim()) {
-            setSnack({ open: true, msg: `Falta la referencia (N.º de ${pagoDraft.medio.toLowerCase()})`, sev: 'warning' });
+    const confirmarAnticipo = () => {
+        const monto = Number(anticipoDraft.monto) || 0;
+        if (monto <= 0) {
+            setSnack({ open: true, msg: 'Ingresa un monto valido para el anticipo', sev: 'warning' });
             return;
         }
-        const codigo = siguienteCodigoPago();
-        // 1) Buscar si ya hay una fila pendiente en el historial para ese empleado+periodo
-        const pagoExistente = PAGOS_PERSONAL_MOCK.find(
-            (p) => p.empleadoId === filaSel.empleadoId
-                && periodoCorto(filaSel.periodo) === p.periodo
-                && p.estado === 'Pendiente'
-        );
-        if (pagoExistente) {
-            pagoExistente.id = codigo;
-            pagoExistente.fecha = pagoDraft.fecha;
-            pagoExistente.medio = pagoDraft.medio;
-            pagoExistente.referencia = pagoDraft.referencia || null;
-            pagoExistente.montoNeto = filaSel.neto;
-            pagoExistente.estado = 'Pagado';
-        } else {
-            PAGOS_PERSONAL_MOCK.push({
-                id: codigo, fecha: pagoDraft.fecha, empleadoId: filaSel.empleadoId,
-                empleado: filaSel.empleado, periodo: periodoCorto(filaSel.periodo),
-                concepto: 'Salario', medio: pagoDraft.medio, referencia: pagoDraft.referencia,
-                montoNeto: filaSel.neto, estado: 'Pagado',
-            });
-        }
-        // 2) Marcar la fila de la planilla como Pagada
-        const fp = PLANILLA_MOCK.find((p) => p.empleadoId === filaSel.empleadoId && p.periodo === filaSel.periodo);
-        if (fp) fp.estado = 'Pagada';
-
-        recalcularResumenes();
-        setPagarAbierto(false);
-        setTick((t) => t + 1);
-        setSnack({ open: true, msg: `Pago ${codigo} registrado para ${filaSel.empleado}`, sev: 'success' });
-    };
-
-    // --- Editar fila (bonos, anticipos, otros descuentos) ---
-    const abrirEditar = () => {
-        cerrarMenu();
-        setEditarDraft({
-            bonos: filaSel.bonos || 0,
-            anticipos: filaSel.anticipos || 0,
-            otrosDesc: filaSel.otrosDesc || 0,
-        });
-        setEditarAbierto(true);
-    };
-    const confirmarEditar = () => {
         const fp = PLANILLA_MOCK.find((p) => p.empleadoId === filaSel.empleadoId && p.periodo === filaSel.periodo);
         if (!fp) return;
-        fp.bonos = Number(editarDraft.bonos) || 0;
-        fp.anticipos = Number(editarDraft.anticipos) || 0;
-        fp.otrosDesc = Number(editarDraft.otrosDesc) || 0;
-        fp.neto = (fp.salarioBase || 0) + fp.bonos - fp.anticipos - fp.otrosDesc;
+        fp.anticipos = (fp.anticipos || 0) + monto;
+        fp.neto = (fp.salarioBase || 0) + (fp.bonos || 0) - (fp.anticipos || 0) - (fp.otrosDesc || 0);
         recalcularResumenes();
-        setEditarAbierto(false);
+        setAnticipoAbierto(false);
         setTick((t) => t + 1);
-        setSnack({ open: true, msg: `Planilla de ${filaSel.empleado} actualizada`, sev: 'success' });
+        const motivoTxt = anticipoDraft.motivo.trim() ? ` (${anticipoDraft.motivo.trim()})` : '';
+        setSnack({ open: true, msg: `Anticipo de ${formatBs(monto)} aplicado a ${filaSel.empleado}${motivoTxt}`, sev: 'success' });
+    };
+
+    // --- Registrar descuento (suma al campo otrosDesc y recalcula neto) ---
+    const abrirDescuento = () => {
+        cerrarMenu();
+        setDescDraft({ monto: 0, tipo: 'Rotura/dano', motivo: '' });
+        setDescAbierto(true);
+    };
+    const confirmarDescuento = () => {
+        const monto = Number(descDraft.monto) || 0;
+        if (monto <= 0) {
+            setSnack({ open: true, msg: 'Ingresa un monto valido para el descuento', sev: 'warning' });
+            return;
+        }
+        if (!descDraft.motivo.trim()) {
+            setSnack({ open: true, msg: 'El motivo del descuento es obligatorio', sev: 'warning' });
+            return;
+        }
+        const fp = PLANILLA_MOCK.find((p) => p.empleadoId === filaSel.empleadoId && p.periodo === filaSel.periodo);
+        if (!fp) return;
+        fp.otrosDesc = (fp.otrosDesc || 0) + monto;
+        fp.neto = (fp.salarioBase || 0) + (fp.bonos || 0) - (fp.anticipos || 0) - (fp.otrosDesc || 0);
+        recalcularResumenes();
+        setDescAbierto(false);
+        setTick((t) => t + 1);
+        setSnack({ open: true, msg: `Descuento de ${formatBs(monto)} (${descDraft.tipo}) aplicado a ${filaSel.empleado}`, sev: 'success' });
+    };
+
+    // --- Ver detalle ---
+    const verDetalle = () => {
+        cerrarMenu();
+        setDetalleAbierto(true);
     };
 
     const periodoYaGenerado = PLANILLA_MOCK.some((p) => p.periodo === periodo);
@@ -235,7 +232,7 @@ export default function Planilla() {
                 </Button>
             </Box>
 
-            {/* Tarjetas de resumen (REACTIVAS al periodo seleccionado) */}
+            {/* Tarjetas de resumen (reactivas al periodo seleccionado) */}
             <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, 1fr)' }, gap: 2, mb: 2 }}>
                 <Paper sx={{ p: 2.5, borderRadius: 2, bgcolor: '#E4EEF5', display: 'flex', alignItems: 'center', gap: 2 }}>
                     <Box sx={{ width: 48, height: 48, color: 'primary.main', display: 'grid', placeItems: 'center' }}>
@@ -269,7 +266,7 @@ export default function Planilla() {
                 </Paper>
             </Box>
 
-            {/* Filtros */}
+            {/* Filtros (sin boton "Filtrar": los selects filtran al toque) */}
             <Paper sx={{ p: 2, borderRadius: 2, mb: 2 }}>
                 <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'flex-end' }}>
                     <Box sx={{ flex: 1, minWidth: 160 }}>
@@ -296,9 +293,6 @@ export default function Planilla() {
                                 }
                             }} />
                     </Box>
-                    <Button variant="contained" startIcon={<FilterListIcon />} onClick={filtrar}>
-                        Filtrar
-                    </Button>
                     <Button variant="outlined" startIcon={<DownloadIcon />} onClick={exportar}
                         sx={{ color: '#1a2733', borderColor: '#cdd8e3' }}>
                         Exportar
@@ -372,134 +366,194 @@ export default function Planilla() {
 
             {/* Menu de acciones por fila */}
             <Menu anchorEl={menuAnchor} open={Boolean(menuAnchor)} onClose={cerrarMenu}>
+                <MenuItem onClick={verDetalle}>
+                    <VisibilityIcon fontSize="small" sx={{ mr: 1, color: '#1F5F8B' }} />
+                    Ver detalle
+                </MenuItem>
                 {filaSel?.estado !== 'Pagada' && (
-                    <MenuItem onClick={abrirPagar}>
+                    <MenuItem onClick={abrirAnticipo}>
+                        <SavingsIcon fontSize="small" sx={{ mr: 1, color: '#B6802A' }} />
+                        Registrar anticipo
+                    </MenuItem>
+                )}
+                {filaSel?.estado !== 'Pagada' && (
+                    <MenuItem onClick={abrirDescuento}>
+                        <ReceiptLongIcon fontSize="small" sx={{ mr: 1, color: '#D9534F' }} />
+                        Registrar descuento
+                    </MenuItem>
+                )}
+                {filaSel?.estado !== 'Pagada' && (
+                    <MenuItem onClick={irAPagar}>
                         <PaidIcon fontSize="small" sx={{ mr: 1, color: '#2E9D78' }} />
                         Pagar
                     </MenuItem>
                 )}
-                {filaSel?.estado !== 'Pagada' && (
-                    <MenuItem onClick={abrirEditar}>
-                        <EditIcon fontSize="small" sx={{ mr: 1, color: '#1F5F8B' }} />
-                        Editar fila
-                    </MenuItem>
-                )}
                 {filaSel?.estado === 'Pagada' && (
                     <MenuItem disabled>
-                        Esta fila ya fue pagada
+                        Esta planilla ya fue pagada
                     </MenuItem>
                 )}
             </Menu>
 
             {/* ============================================================ */}
-            {/* Dialog: Pagar fila                                           */}
+            {/* Dialog: Registrar anticipo                                   */}
             {/* ============================================================ */}
-            <Dialog open={pagarAbierto} onClose={() => setPagarAbierto(false)} maxWidth="sm" fullWidth>
+            <Dialog open={anticipoAbierto} onClose={() => setAnticipoAbierto(false)} maxWidth="sm" fullWidth>
                 <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1.5, fontWeight: 700 }}>
-                    <Box sx={{ width: 36, height: 36, borderRadius: '50%', bgcolor: '#E4F4EE', color: '#2E9D78', display: 'grid', placeItems: 'center' }}>
-                        <PaidIcon fontSize="small" />
+                    <Box sx={{ width: 36, height: 36, borderRadius: '50%', bgcolor: '#FDF0D5', color: '#B6802A', display: 'grid', placeItems: 'center' }}>
+                        <SavingsIcon fontSize="small" />
                     </Box>
-                    Pagar planilla
+                    Registrar anticipo
                 </DialogTitle>
                 <DialogContent dividers>
                     {filaSel && (
                         <>
                             <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                                Registra el pago del salario de <strong>{filaSel.empleado}</strong> ({filaSel.cargo})
-                                correspondiente al periodo <strong>{filaSel.periodo}</strong>.
+                                El anticipo se descuenta del neto de <strong>{filaSel.empleado}</strong> ({filaSel.cargo})
+                                en el periodo <strong>{filaSel.periodo}</strong>.
                             </Typography>
 
-                            {/* Monto a pagar */}
-                            <Box sx={{ bgcolor: '#E4F4EE', borderRadius: 2, p: 2, mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <Typography variant="body2" sx={{ fontWeight: 600 }}>Neto a pagar</Typography>
-                                <Typography variant="h3" sx={{ fontWeight: 700, color: '#2E9D78' }}>{formatBs(filaSel.neto)}</Typography>
-                            </Box>
-
-                            <Box sx={{ display: 'flex', gap: 2, mb: 2, flexWrap: 'wrap' }}>
-                                <Box sx={{ flex: 1, minWidth: 150 }}>
-                                    <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Fecha de pago</Typography>
-                                    <TextField fullWidth size="small" value={pagoDraft.fecha}
-                                        onChange={(e) => setPagoDraft((p) => ({ ...p, fecha: e.target.value }))} />
-                                </Box>
-                                <Box sx={{ flex: 1, minWidth: 150 }}>
-                                    <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Medio de pago</Typography>
-                                    <Select fullWidth size="small" value={pagoDraft.medio}
-                                        onChange={(e) => setPagoDraft((p) => ({ ...p, medio: e.target.value, referencia: '' }))}>
-                                        {MEDIOS_PAGO_PERSONAL.map((m) => <MenuItem key={m} value={m}>{m}</MenuItem>)}
-                                    </Select>
-                                </Box>
-                            </Box>
-
-                            <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>
-                                {pagoDraft.medio === 'Efectivo' ? 'N.º de recibo (opcional)' : `N.º de ${pagoDraft.medio.toLowerCase()}`}
-                            </Typography>
-                            <TextField fullWidth size="small" value={pagoDraft.referencia}
-                                onChange={(e) => setPagoDraft((p) => ({ ...p, referencia: e.target.value }))}
-                                placeholder={pagoDraft.medio === 'Efectivo' ? 'REC-00000' : '1234567890'} />
-                        </>
-                    )}
-                </DialogContent>
-                <DialogActions sx={{ p: 2 }}>
-                    <Button variant="outlined" onClick={() => setPagarAbierto(false)}>Cancelar</Button>
-                    <Button variant="contained" onClick={confirmarPago}>Confirmar pago</Button>
-                </DialogActions>
-            </Dialog>
-
-            {/* ============================================================ */}
-            {/* Dialog: Editar fila (bonos, anticipos, otros desc.)          */}
-            {/* ============================================================ */}
-            <Dialog open={editarAbierto} onClose={() => setEditarAbierto(false)} maxWidth="sm" fullWidth>
-                <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1.5, fontWeight: 700 }}>
-                    <Box sx={{ width: 36, height: 36, borderRadius: '50%', bgcolor: '#E4EEF5', color: 'primary.main', display: 'grid', placeItems: 'center' }}>
-                        <EditIcon fontSize="small" />
-                    </Box>
-                    Editar fila de planilla
-                </DialogTitle>
-                <DialogContent dividers>
-                    {filaSel && (
-                        <>
-                            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                                Ajusta bonos, anticipos y otros descuentos de <strong>{filaSel.empleado}</strong> ({filaSel.cargo})
-                                para el periodo <strong>{filaSel.periodo}</strong>. El neto se recalcula automaticamente.
-                            </Typography>
-
-                            <Box sx={{ bgcolor: '#F8FAFC', border: '1px solid #CFDCEA', borderRadius: 2, p: 2, mb: 2, display: 'flex', justifyContent: 'space-between' }}>
-                                <Typography variant="body2">Salario base</Typography>
-                                <Typography variant="body2" sx={{ fontWeight: 700 }}>{formatBs(filaSel.salarioBase)}</Typography>
-                            </Box>
-
-                            <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5, color: '#2E9D78' }}>Bonos (+)</Typography>
-                            <TextField fullWidth size="small" type="number" value={editarDraft.bonos}
-                                onChange={(e) => setEditarDraft((p) => ({ ...p, bonos: e.target.value }))}
+                            <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Monto del anticipo</Typography>
+                            <TextField fullWidth size="small" type="number" value={anticipoDraft.monto}
+                                onChange={(e) => setAnticipoDraft((p) => ({ ...p, monto: e.target.value }))}
                                 slotProps={{ input: { startAdornment: <InputAdornment position="start">Bs</InputAdornment> } }}
                                 sx={{ mb: 2 }} />
 
-                            <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5, color: '#D9534F' }}>Anticipos (−)</Typography>
-                            <TextField fullWidth size="small" type="number" value={editarDraft.anticipos}
-                                onChange={(e) => setEditarDraft((p) => ({ ...p, anticipos: e.target.value }))}
-                                slotProps={{ input: { startAdornment: <InputAdornment position="start">Bs</InputAdornment> } }}
-                                sx={{ mb: 2 }} />
-
-                            <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5, color: '#D9534F' }}>Otros descuentos (−)</Typography>
-                            <TextField fullWidth size="small" type="number" value={editarDraft.otrosDesc}
-                                onChange={(e) => setEditarDraft((p) => ({ ...p, otrosDesc: e.target.value }))}
-                                slotProps={{ input: { startAdornment: <InputAdornment position="start">Bs</InputAdornment> } }}
-                                sx={{ mb: 2 }} />
+                            <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Motivo (opcional)</Typography>
+                            <TextField fullWidth size="small" value={anticipoDraft.motivo}
+                                onChange={(e) => setAnticipoDraft((p) => ({ ...p, motivo: e.target.value }))}
+                                placeholder="Ej. Urgencia familiar" sx={{ mb: 2 }} />
 
                             <Divider sx={{ my: 1 }} />
                             <Box sx={{ display: 'flex', justifyContent: 'space-between', p: 1.5, bgcolor: '#E4EEF5', borderRadius: 2 }}>
-                                <Typography variant="body2" sx={{ fontWeight: 700 }}>Neto resultante</Typography>
+                                <Typography variant="body2" sx={{ fontWeight: 700 }}>Nuevo neto a pagar</Typography>
                                 <Typography variant="h3" sx={{ fontWeight: 700, color: 'primary.main' }}>
-                                    {formatBs((Number(filaSel.salarioBase) || 0) + (Number(editarDraft.bonos) || 0)
-                                        - (Number(editarDraft.anticipos) || 0) - (Number(editarDraft.otrosDesc) || 0))}
+                                    {formatBs((Number(filaSel.neto) || 0) - (Number(anticipoDraft.monto) || 0))}
                                 </Typography>
                             </Box>
                         </>
                     )}
                 </DialogContent>
                 <DialogActions sx={{ p: 2 }}>
-                    <Button variant="outlined" onClick={() => setEditarAbierto(false)}>Cancelar</Button>
-                    <Button variant="contained" onClick={confirmarEditar}>Guardar cambios</Button>
+                    <Button variant="outlined" onClick={() => setAnticipoAbierto(false)}>Cancelar</Button>
+                    <Button variant="contained" onClick={confirmarAnticipo}>Aplicar anticipo</Button>
+                </DialogActions>
+            </Dialog>
+
+            {/* ============================================================ */}
+            {/* Dialog: Registrar descuento                                  */}
+            {/* ============================================================ */}
+            <Dialog open={descAbierto} onClose={() => setDescAbierto(false)} maxWidth="sm" fullWidth>
+                <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1.5, fontWeight: 700 }}>
+                    <Box sx={{ width: 36, height: 36, borderRadius: '50%', bgcolor: '#FBEAE9', color: '#D9534F', display: 'grid', placeItems: 'center' }}>
+                        <ReceiptLongIcon fontSize="small" />
+                    </Box>
+                    Registrar descuento
+                </DialogTitle>
+                <DialogContent dividers>
+                    {filaSel && (
+                        <>
+                            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                                El descuento se aplica a <strong>{filaSel.empleado}</strong> ({filaSel.cargo})
+                                en el periodo <strong>{filaSel.periodo}</strong>. El motivo es obligatorio.
+                            </Typography>
+
+                            <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Tipo de descuento</Typography>
+                            <Select fullWidth size="small" value={descDraft.tipo}
+                                onChange={(e) => setDescDraft((p) => ({ ...p, tipo: e.target.value }))}
+                                sx={{ mb: 2 }}>
+                                {TIPOS_DESCUENTO.map((t) => <MenuItem key={t} value={t}>{t}</MenuItem>)}
+                            </Select>
+
+                            <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Monto del descuento</Typography>
+                            <TextField fullWidth size="small" type="number" value={descDraft.monto}
+                                onChange={(e) => setDescDraft((p) => ({ ...p, monto: e.target.value }))}
+                                slotProps={{ input: { startAdornment: <InputAdornment position="start">Bs</InputAdornment> } }}
+                                sx={{ mb: 2 }} />
+
+                            <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Motivo (obligatorio)</Typography>
+                            <TextField fullWidth size="small" value={descDraft.motivo}
+                                onChange={(e) => setDescDraft((p) => ({ ...p, motivo: e.target.value }))}
+                                placeholder="Ej. Rotura de equipo de limpieza por descuido"
+                                multiline minRows={2}
+                                sx={{ mb: 2 }} />
+
+                            <Divider sx={{ my: 1 }} />
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', p: 1.5, bgcolor: '#E4EEF5', borderRadius: 2 }}>
+                                <Typography variant="body2" sx={{ fontWeight: 700 }}>Nuevo neto a pagar</Typography>
+                                <Typography variant="h3" sx={{ fontWeight: 700, color: 'primary.main' }}>
+                                    {formatBs((Number(filaSel.neto) || 0) - (Number(descDraft.monto) || 0))}
+                                </Typography>
+                            </Box>
+                        </>
+                    )}
+                </DialogContent>
+                <DialogActions sx={{ p: 2 }}>
+                    <Button variant="outlined" onClick={() => setDescAbierto(false)}>Cancelar</Button>
+                    <Button variant="contained" onClick={confirmarDescuento}>Aplicar descuento</Button>
+                </DialogActions>
+            </Dialog>
+
+            {/* ============================================================ */}
+            {/* Dialog: Ver detalle de la fila                               */}
+            {/* ============================================================ */}
+            <Dialog open={detalleAbierto} onClose={() => setDetalleAbierto(false)} maxWidth="sm" fullWidth>
+                <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1.5, fontWeight: 700 }}>
+                    <Box sx={{ width: 36, height: 36, borderRadius: '50%', bgcolor: '#E4EEF5', color: 'primary.main', display: 'grid', placeItems: 'center' }}>
+                        <VisibilityIcon fontSize="small" />
+                    </Box>
+                    Detalle de la planilla
+                </DialogTitle>
+                <DialogContent dividers>
+                    {filaSel && (
+                        <>
+                            <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1.5, mb: 2 }}>
+                                <Box sx={{ bgcolor: '#E4EEF5', p: 1.5, borderRadius: 2 }}>
+                                    <Typography variant="caption" color="text.secondary">Empleado</Typography>
+                                    <Typography variant="body2" sx={{ fontWeight: 700 }}>{filaSel.empleado}</Typography>
+                                </Box>
+                                <Box sx={{ bgcolor: '#E4EEF5', p: 1.5, borderRadius: 2 }}>
+                                    <Typography variant="caption" color="text.secondary">Cargo</Typography>
+                                    <Typography variant="body2" sx={{ fontWeight: 700 }}>{filaSel.cargo}</Typography>
+                                </Box>
+                                <Box sx={{ bgcolor: '#E4EEF5', p: 1.5, borderRadius: 2 }}>
+                                    <Typography variant="caption" color="text.secondary">Periodo</Typography>
+                                    <Typography variant="body2" sx={{ fontWeight: 700 }}>{filaSel.periodo}</Typography>
+                                </Box>
+                                <Box sx={{ bgcolor: '#E4EEF5', p: 1.5, borderRadius: 2 }}>
+                                    <Typography variant="caption" color="text.secondary">Estado</Typography>
+                                    <Chip label={filaSel.estado} size="small" sx={{ ...estadoChipSx(filaSel.estado), mt: 0.5 }} />
+                                </Box>
+                            </Box>
+
+                            <Typography variant="body2" sx={{ fontWeight: 700, mb: 1 }}>Composicion del neto</Typography>
+                            <Box sx={{ bgcolor: '#F8FAFC', border: '1px solid #CFDCEA', borderRadius: 2, p: 2 }}>
+                                <Box sx={{ display: 'flex', justifyContent: 'space-between', py: 0.5 }}>
+                                    <Typography variant="body2" color="text.secondary">Salario base</Typography>
+                                    <Typography variant="body2">{formatBs(filaSel.salarioBase)}</Typography>
+                                </Box>
+                                <Box sx={{ display: 'flex', justifyContent: 'space-between', py: 0.5 }}>
+                                    <Typography variant="body2" color="text.secondary">+ Bonos</Typography>
+                                    <Typography variant="body2" sx={{ color: '#2E9D78' }}>{formatBs(filaSel.bonos || 0)}</Typography>
+                                </Box>
+                                <Box sx={{ display: 'flex', justifyContent: 'space-between', py: 0.5 }}>
+                                    <Typography variant="body2" color="text.secondary">− Anticipos</Typography>
+                                    <Typography variant="body2" sx={{ color: '#D9534F' }}>{formatBs(filaSel.anticipos || 0)}</Typography>
+                                </Box>
+                                <Box sx={{ display: 'flex', justifyContent: 'space-between', py: 0.5 }}>
+                                    <Typography variant="body2" color="text.secondary">− Otros descuentos</Typography>
+                                    <Typography variant="body2" sx={{ color: '#D9534F' }}>{formatBs(filaSel.otrosDesc || 0)}</Typography>
+                                </Box>
+                                <Box sx={{ display: 'flex', justifyContent: 'space-between', py: 0.5, borderTop: '1px dashed #CFDCEA', mt: 0.5, pt: 0.75 }}>
+                                    <Typography variant="body2" sx={{ fontWeight: 700 }}>Neto a pagar</Typography>
+                                    <Typography variant="body2" sx={{ fontWeight: 700 }}>{formatBs(filaSel.neto)}</Typography>
+                                </Box>
+                            </Box>
+                        </>
+                    )}
+                </DialogContent>
+                <DialogActions sx={{ p: 2 }}>
+                    <Button variant="contained" onClick={() => setDetalleAbierto(false)}>Cerrar</Button>
                 </DialogActions>
             </Dialog>
 
