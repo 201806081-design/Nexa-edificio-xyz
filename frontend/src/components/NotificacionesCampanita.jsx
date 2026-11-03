@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import {
     Box, IconButton, Badge, Popover, Typography, Divider, List, ListItemButton,
-    ListItemIcon, ListItemText, Button, Chip, Tooltip,
+    Button, Chip, Tooltip,
 } from '@mui/material';
 import NotificationsIcon from '@mui/icons-material/Notifications';
 import CampaignIcon from '@mui/icons-material/Campaign';
@@ -104,44 +104,42 @@ export default function NotificacionesCampanita() {
                             return (
                                 <ListItemButton key={n.id} onClick={() => onClickNoti(n)}
                                     sx={{
-                                        alignItems: 'flex-start', py: 1.5, gap: 1,
+                                        alignItems: 'flex-start', py: 1.5, px: 2, gap: 1.5,
                                         bgcolor: leida ? 'transparent' : '#F3F8FC',
                                         '&:hover': { bgcolor: leida ? 'rgba(0,0,0,0.04)' : '#E4EEF5' },
                                     }}>
-                                    <ListItemIcon sx={{ minWidth: 36, color: prioridadColor(n.prioridad), mt: 0.5 }}>
+                                    {/* Icono */}
+                                    <Box sx={{ color: prioridadColor(n.prioridad), mt: 0.5 }}>
                                         {iconoNotificacion(n.tipo)}
-                                    </ListItemIcon>
-                                    <ListItemText
-                                        primary={
-                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                                <Typography variant="body2" sx={{ fontWeight: leida ? 400 : 700, color: '#132B3E', flex: 1 }}>
-                                                    {n.titulo}
-                                                </Typography>
-                                                {!leida && (
-                                                    <CircleIcon sx={{ fontSize: 8, color: '#1F5F8B' }} />
-                                                )}
-                                            </Box>
-                                        }
-                                        secondary={
-                                            <Box component="span" sx={{ display: 'block' }}>
-                                                <Typography variant="caption" color="text.secondary" component="span" sx={{
-                                                    display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
-                                                    overflow: 'hidden',
-                                                }}>
-                                                    {n.mensaje}
-                                                </Typography>
-                                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5 }}>
-                                                    <Typography variant="caption" color="text.secondary">
-                                                        {tiempoRelativo(n.fecha)}
-                                                    </Typography>
-                                                    {n.prioridad && n.prioridad !== 'Normal' && (
-                                                        <Chip label={n.prioridad} size="small"
-                                                            sx={{ bgcolor: '#FDF0D5', color: prioridadColor(n.prioridad), height: 18, fontSize: 10 }} />
-                                                    )}
-                                                </Box>
-                                            </Box>
-                                        }
-                                    />
+                                    </Box>
+                                    {/* Contenido */}
+                                    <Box sx={{ flex: 1, minWidth: 0 }}>
+                                        {/* Titulo + punto no-leida */}
+                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+                                            <Typography variant="body2" sx={{ fontWeight: leida ? 500 : 700, color: '#132B3E', flex: 1 }}>
+                                                {n.titulo}
+                                            </Typography>
+                                            {!leida && <CircleIcon sx={{ fontSize: 8, color: '#1F5F8B' }} />}
+                                        </Box>
+                                        {/* Mensaje (hasta 2 lineas) */}
+                                        <Typography variant="body2" sx={{
+                                            color: 'text.secondary', fontSize: 13, lineHeight: 1.4, mb: 0.5,
+                                            display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
+                                            overflow: 'hidden', whiteSpace: 'normal',
+                                        }}>
+                                            {n.mensaje}
+                                        </Typography>
+                                        {/* Meta: tiempo + prioridad */}
+                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                            <Typography variant="caption" color="text.secondary">
+                                                {tiempoRelativo(n.fecha)}
+                                            </Typography>
+                                            {n.prioridad && n.prioridad !== 'Normal' && (
+                                                <Chip label={n.prioridad} size="small"
+                                                    sx={{ bgcolor: '#FDF0D5', color: prioridadColor(n.prioridad), height: 18, fontSize: 10 }} />
+                                            )}
+                                        </Box>
+                                    </Box>
                                 </ListItemButton>
                             );
                         })}

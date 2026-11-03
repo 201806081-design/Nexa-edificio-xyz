@@ -1,9 +1,9 @@
 import { useState, useMemo, useEffect } from 'react';
 import {
     Box, Typography, Paper, Button, Chip, Select, MenuItem, TextField,
-    Checkbox, FormControlLabel, InputAdornment, Alert, Snackbar, Divider,
-    Collapse, IconButton, Dialog, DialogTitle, DialogContent, DialogActions,
-    List, ListItemButton, ListItemIcon, ListItemText,
+    Checkbox, FormControlLabel, Radio, RadioGroup, InputAdornment, Alert,
+    Snackbar, Divider, Collapse, IconButton, Dialog, DialogTitle, DialogContent,
+    DialogActions,
 } from '@mui/material';
 import SaveIcon from '@mui/icons-material/Save';
 import SendIcon from '@mui/icons-material/Send';
@@ -16,8 +16,6 @@ import WhatsAppIcon from '@mui/icons-material/WhatsApp';
 import SmsIcon from '@mui/icons-material/Sms';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import CloseIcon from '@mui/icons-material/Close';
-import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
-import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import DeleteIcon from '@mui/icons-material/Delete';
 import { useNavigate, useLocation } from 'react-router-dom';
 import DashboardLayout from '../../layouts/DashboardLayout';
@@ -212,49 +210,64 @@ export default function Elaborar() {
                         </Typography>
                     )}
 
-                    {/* Toggle "Elegir destinatarios especificos" + lista granular */}
-                    <Button size="small" onClick={() => setMostrarGranular((v) => !v)}
-                        endIcon={mostrarGranular ? <ExpandLessIcon /> : <ExpandMoreIcon />}
-                        sx={{ mb: 1, color: 'primary.main' }}>
-                        {mostrarGranular ? 'Ocultar seleccion por persona' : 'Elegir destinatarios especificos'}
-                    </Button>
-                    <Collapse in={mostrarGranular}>
-                        <Paper variant="outlined" sx={{ p: 1.5, mb: 2, bgcolor: '#F8FAFC' }}>
+                    {/* Selector granular: siempre visible, con opcion "todos" o "especificos" */}
+                    <Paper variant="outlined" sx={{ p: 1.5, mb: 2, bgcolor: '#F8FAFC' }}>
+                        <RadioGroup
+                            value={mostrarGranular ? 'especificos' : 'todos'}
+                            onChange={(e) => {
+                                const esEsp = e.target.value === 'especificos';
+                                setMostrarGranular(esEsp);
+                                if (!esEsp) setDestinatariosEspecificos([]);
+                            }}
+                        >
+                            <FormControlLabel value="todos" control={<Radio size="small" />}
+                                label={<Typography variant="body2">Enviar a todos los {grupo?.count ?? 0} del grupo</Typography>} />
+                            <FormControlLabel value="especificos" control={<Radio size="small" />}
+                                label={<Typography variant="body2">Seleccionar destinatarios especificos</Typography>} />
+                        </RadioGroup>
+
+                        <Collapse in={mostrarGranular}>
+                            <Divider sx={{ my: 1 }} />
                             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
                                 <Typography variant="caption" color="text.secondary">
-                                    {destinatariosEspecificos.length === 0
-                                        ? `Se enviara a los ${grupo?.count ?? 0} del grupo completo`
-                                        : `Seleccionados ${destinatariosEspecificos.length} de ${personas.length}`}
+                                    Seleccionados <strong>{destinatariosEspecificos.length}</strong> de {personas.length}
                                 </Typography>
                                 <Box>
                                     <Button size="small" onClick={seleccionarTodos}>Todos</Button>
                                     <Button size="small" onClick={seleccionarNinguno}>Ninguno</Button>
                                 </Box>
                             </Box>
-                            <Box sx={{ maxHeight: 220, overflowY: 'auto' }}>
+                            <Box sx={{ maxHeight: 220, overflowY: 'auto', bgcolor: '#fff', borderRadius: 1, border: '1px solid #E4E7EB' }}>
                                 {personas.length === 0 && (
-                                    <Typography variant="caption" color="text.secondary" sx={{ p: 1 }}>
+                                    <Typography variant="caption" color="text.secondary" sx={{ p: 1.5, display: 'block' }}>
                                         Este grupo no tiene miembros disponibles.
                                     </Typography>
                                 )}
                                 {personas.map((p) => {
                                     const marcado = destinatariosEspecificos.includes(p.id);
                                     return (
-                                        <FormControlLabel key={p.id}
-                                            control={<Checkbox size="small" checked={marcado} onChange={() => togglePersona(p.id)} />}
-                                            label={
-                                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                                    <Typography variant="body2">{p.nombre}</Typography>
-                                                    {p.detalle && <Chip size="small" label={p.detalle} sx={{ bgcolor: '#E4EEF5', color: 'primary.main', fontSize: 11 }} />}
-                                                </Box>
-                                            }
-                                            sx={{ display: 'block', ml: 0 }}
-                                        />
+                                        <Box key={p.id} onClick={() => togglePersona(p.id)}
+                                            sx={{
+                                                display: 'flex', alignItems: 'center', gap: 1, px: 1, py: 0.5,
+                                                cursor: 'pointer', borderBottom: '1px solid #F3F6FA',
+                                                '&:last-child': { borderBottom: 0 },
+                                                '&:hover': { bgcolor: '#F8FAFC' },
+                                            }}>
+                                            <Checkbox size="small" checked={marcado}
+                                                onChange={() => togglePersona(p.id)}
+                                                onClick={(e) => e.stopPropagation()}
+                                                sx={{ p: 0.5 }} />
+                                            <Typography variant="body2" sx={{ flex: 1 }}>{p.nombre}</Typography>
+                                            {p.detalle && (
+                                                <Chip size="small" label={p.detalle}
+                                                    sx={{ bgcolor: '#E4EEF5', color: 'primary.main', fontSize: 11 }} />
+                                            )}
+                                        </Box>
                                     );
                                 })}
                             </Box>
-                        </Paper>
-                    </Collapse>
+                        </Collapse>
+                    </Paper>
 
                     {/* Prioridad (ahora va debajo de destinatarios) */}
                     <Typography variant="body2" sx={{ fontWeight: 700, mb: 0.5, color: '#132B3E' }}>Prioridad</Typography>
@@ -370,7 +383,7 @@ export default function Elaborar() {
                             );
                         })}
                         <Alert severity="info" icon={false} sx={{ bgcolor: '#E4EEF5', color: 'text.primary', fontSize: 12 }}>
-                            Hoy solo el canal <strong>App</strong> envia de verdad (campanita in-app). Correo y WhatsApp se activaran cuando el equipo backend los integre.
+                            Los destinatarios recibiran el aviso por cada canal seleccionado.
                         </Alert>
                     </Paper>
 

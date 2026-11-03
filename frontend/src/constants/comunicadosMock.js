@@ -23,10 +23,9 @@ export const CANALES = [
     { id: 'sms', nombre: 'SMS', estado: 'no configurado', etiqueta: 'SMS' },
 ];
 export const canalPorId = (id) => CANALES.find((c) => c.id === id);
-export const canalEstaDisponible = (id) => {
-    const e = canalPorId(id)?.estado;
-    return e === 'disponible' || e === 'pendiente-backend';
-};
+// Solo 'disponible' es seleccionable (hoy = app). Correo/WhatsApp/SMS quedan deshabilitados
+// visualmente hasta que el backend los integre.
+export const canalEstaDisponible = (id) => canalPorId(id)?.estado === 'disponible';
 
 // Usuarios del sistema (los que se loguean y reciben notificaciones in-app).
 // Hoy solo esta el usuario 1; cuando el backend este integrado esto vendra de la API.
