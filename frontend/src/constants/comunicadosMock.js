@@ -10,7 +10,7 @@ import { pushNotificacion } from './notificacionesMock';
 
 export const PRIORIDADES = ['Normal', 'Importante', 'Urgente'];
 
-export const ESTADOS_COMUNICADO = ['Todos', 'Enviado', 'Parcial', 'Programado', 'Fallido'];
+export const ESTADOS_COMUNICADO = ['Todos', 'Enviado', 'Programado', 'Fallido'];
 
 // Canales de envio y su estado tecnico.
 // 'disponible'       -> seleccionable Y funcional en el mock (solo 'app' por ahora).
@@ -112,40 +112,27 @@ export const criterioNotificacionDelGrupo = (grupoId, destinatariosEspecificos =
     }
 };
 
-// Comunicados del mes (semillas que reproducen el mockup "Comunicados enviados").
+// Comunicados del mes (3 semillas base; las pruebas las agrega el equipo via UI).
+// Orden: primero el mas reciente, el programado al final.
 export const COMUNICADOS_MOCK = [
     {
-        id: 'CO-0005', fecha: '09/11/2026 09:15', titulo: 'Mantenimiento del ascensor',
+        id: 'CO-0003', fecha: '03/11/2026 09:15', titulo: 'Mantenimiento del ascensor',
         mensaje: 'Estimados copropietarios, el ascensor estara fuera de servicio el 10 de noviembre de 08:00 a 12:00 por mantenimiento preventivo. Gracias por su comprension.',
-        destinatarioId: 'todos', destinatariosEspecificos: [], canalesIds: ['app', 'correo'],
+        destinatarioId: 'todos', destinatariosEspecificos: [], canalesIds: ['app'],
         prioridad: 'Importante', entregados: 9, totalDestinatarios: 9,
         estado: 'Enviado', adjunto: null, autor: 'Administrador',
     },
     {
-        id: 'CO-0004', fecha: '07/11/2026 18:30', titulo: 'Corte programado de agua',
-        mensaje: 'Se realizara un corte de agua programado el 09 de noviembre de 13:00 a 15:00 en el piso 1. Por favor, almacenen agua suficiente.',
-        destinatarioId: 'piso-1', destinatariosEspecificos: [], canalesIds: ['app', 'correo'],
-        prioridad: 'Importante', entregados: 2, totalDestinatarios: 3,
-        estado: 'Parcial', adjunto: null, autor: 'Administrador',
-    },
-    {
-        id: 'CO-0003', fecha: '05/11/2026 12:00', titulo: 'Recordatorio de expensas',
+        id: 'CO-0002', fecha: '01/11/2026 12:00', titulo: 'Recordatorio de expensas',
         mensaje: 'Les recordamos que las expensas del mes vencen el 10 de noviembre. Por favor regularicen su situacion para evitar moras.',
-        destinatarioId: 'morosos', destinatariosEspecificos: [], canalesIds: ['app', 'correo'],
+        destinatarioId: 'morosos', destinatariosEspecificos: [], canalesIds: ['app'],
         prioridad: 'Urgente', entregados: 3, totalDestinatarios: 3,
-        estado: 'Enviado', adjunto: null, autor: 'Administrador',
-    },
-    {
-        id: 'CO-0002', fecha: '03/11/2026 16:45', titulo: 'Reunion del directorio',
-        mensaje: 'Se convoca a los miembros del directorio a reunion ordinaria el viernes 7 de noviembre a las 19:00 en la sala comunal.',
-        destinatarioId: 'directorio', destinatariosEspecificos: [], canalesIds: ['app'],
-        prioridad: 'Normal', entregados: 1, totalDestinatarios: 1,
         estado: 'Enviado', adjunto: null, autor: 'Administrador',
     },
     {
         id: 'CO-0001', fecha: '12/11/2026 08:00', titulo: 'Fumigacion de areas comunes',
         mensaje: 'Se realizara fumigacion de areas comunes el 13 de noviembre de 08:00 a 10:00. No se preocupen, se usan productos no toxicos.',
-        destinatarioId: 'todos', destinatariosEspecificos: [], canalesIds: ['app', 'correo'],
+        destinatarioId: 'todos', destinatariosEspecificos: [], canalesIds: ['app'],
         prioridad: 'Normal', entregados: null, totalDestinatarios: 9,
         estado: 'Programado', adjunto: null, autor: 'Administrador',
         fechaProgramada: new Date('2026-11-12T08:00:00').toISOString(),
@@ -274,10 +261,12 @@ export const calcularResumenComunicados = () => {
     const totalEntregados = enviadosOParciales.reduce((s, c) => s + (c.entregados || 0), 0);
     const totalDestin = enviadosOParciales.reduce((s, c) => s + (c.totalDestinatarios || 0), 0);
     return {
-        enviados: COMUNICADOS_MOCK.filter((c) => c.estado !== 'Programado').length,
+        enviados: COMUNICADOS_MOCK.filter((c) => c.estado === 'Enviado').length,
         programados: COMUNICADOS_MOCK.filter((c) => c.estado === 'Programado').length,
+        fallidos: COMUNICADOS_MOCK.filter((c) => c.estado === 'Fallido').length,
+        // Compatibilidad con llamadas anteriores
         porcentajeEntrega: totalDestin > 0 ? Math.round((totalEntregados / totalDestin) * 100) : 0,
-        pendientesOFallidos: COMUNICADOS_MOCK.filter((c) => c.estado === 'Parcial' || c.estado === 'Fallido').length,
+        pendientesOFallidos: COMUNICADOS_MOCK.filter((c) => c.estado === 'Fallido').length,
         destinatariosAlcanzados: totalEntregados,
     };
 };
