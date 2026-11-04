@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import {
     Box, Typography, Paper, Button, Chip, Select, MenuItem, TextField,
     Table, TableHead, TableBody, TableRow, TableCell, IconButton, InputAdornment, Alert, Snackbar,
@@ -15,15 +15,16 @@ import VisibilityIcon from '@mui/icons-material/Visibility';
 import SavingsIcon from '@mui/icons-material/Savings';
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
 import { useNavigate } from 'react-router-dom';
+import jsPDF from 'jspdf';
+import 'jspdf-autotable';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import {
     PLANILLA_MOCK, PAGOS_PERSONAL_MOCK, RESUMEN_PLANILLA, RESUMEN_PAGOS_PERSONAL,
     ESTADOS_PLANILLA, EMPLEADOS_MOCK, TIPOS_DESCUENTO,
     nombreEmpleado, cargoEmpleado, salarioDesdeCargo,
+    periodosDisponibles, asegurarPlanillaActualizada, periodoEnCurso,
 } from '../../constants/personalMock';
-import { PERIODOS, formatBs } from '../../constants/finanzasMock';
-
-const PERIODOS_PLANILLA = ['Noviembre 2026', ...PERIODOS.filter((p) => p !== 'Noviembre 2026')];
+import { formatBs } from '../../constants/finanzasMock';
 
 const estadoChipSx = (estado) => {
     if (estado === 'Pagada') return { bgcolor: '#E4F4EE', color: '#2E9D78' };
@@ -62,10 +63,15 @@ const recalcularResumenes = () => {
 
 export default function Planilla() {
     const navigate = useNavigate();
-    const [periodo, setPeriodo] = useState('Noviembre 2026');
+
+    // Periodos dinamicos: salen de la fecha del sistema. El default es el mas reciente.
+    const [tick, setTick] = useState(0);
+    const periodos = useMemo(() => periodosDisponibles(), [tick]);
+    const [periodo, setPeriodo] = useState(() => periodosDisponibles()[0] || '');
+    const periodoActualEnCurso = periodoEnCurso();
+
     const [estado, setEstado] = useState('Todos');
     const [busqueda, setBusqueda] = useState('');
-    const [tick, setTick] = useState(0);
     const [snack, setSnack] = useState({ open: false, msg: '', sev: 'success' });
 
     // Menu de acciones por fila
@@ -82,6 +88,26 @@ export default function Planilla() {
     const [descDraft, setDescDraft] = useState({ monto: 0, tipo: 'Rotura/dano', motivo: '' });
 
     const [detalleAbierto, setDetalleAbierto] = useState(false);
+
+    // Al montar y cada 5s: asegurar que la planilla este generada para todos los
+    // periodos cerrados + tick para refrescar la UI si cambia la fecha del sistema.
+    useEffect(() => {
+        asegurarPlanillaActualizada();
+        setTick((t) => t + 1);
+        const h = setInterval(() => {
+            asegurarPlanillaActualizada();
+            setTick((t) => t + 1);
+        }, 5000);
+        return () => clearInterval(h);
+    }, []);
+
+    // Si el periodo seleccionado deja de estar disponible (el usuario retrocedio
+    // la fecha del sistema), caemos al mas reciente valido.
+    useEffect(() => {
+        if (periodos.length > 0 && !periodos.includes(periodo)) {
+            setPeriodo(periodos[0]);
+        }
+    }, [periodos, periodo]);
 
     // Filas filtradas (reactivas al tick tras mutaciones del mock)
     const filas = useMemo(() => {
@@ -114,11 +140,11 @@ export default function Planilla() {
 
     const totalNeto = filas.reduce((s, f) => s + (f.neto || 0), 0);
 
-    // --- Generar planilla ---
+    // --- Generar planilla (idempotente: solo informa si ya existe) ---
     const generarPlanilla = () => {
         const yaTiene = PLANILLA_MOCK.some((p) => p.periodo === periodo);
         if (yaTiene) {
-            setSnack({ open: true, msg: `La planilla de ${periodo} ya existe`, sev: 'warning' });
+            setSnack({ open: true, msg: `La planilla de ${periodo} ya esta generada`, sev: 'warning' });
             return;
         }
         const activos = EMPLEADOS_MOCK.filter((e) => e.estado === 'Activo');
@@ -136,8 +162,46 @@ export default function Planilla() {
         setSnack({ open: true, msg: `Planilla de ${periodo} generada con ${activos.length} empleados`, sev: 'success' });
     };
 
+    // --- Exportar a PDF (jsPDF + autoTable) ---
     const exportar = () => {
-        setSnack({ open: true, msg: `Planilla de ${periodo} exportada a Excel (simulado)`, sev: 'success' });
+        if (filas.length === 0) {
+            setSnack({ open: true, msg: 'No hay filas para exportar en este periodo', sev: 'warning' });
+            return;
+        }
+        const doc = new jsPDF();
+        doc.setFontSize(16);
+        doc.setTextColor(19, 43, 62);
+        doc.text(`Planilla de personal - ${periodo}`, 14, 18);
+        doc.setFontSize(10);
+        doc.setTextColor(100);
+        doc.text(`Edificio XYZ - Sistema de Gestion`, 14, 25);
+        doc.text(`Generado el ${new Date().toLocaleDateString('es-BO')} ${new Date().toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit' })}`, 14, 30);
+
+        doc.autoTable({
+            startY: 36,
+            head: [['Empleado', 'Cargo', 'Salario', 'Bonos', 'Anticipos', 'Otros', 'Neto', 'Estado']],
+            body: filas.map((f) => [
+                f.empleado, f.cargo,
+                formatBs(f.salarioBase),
+                f.bonos > 0 ? `+ ${formatBs(f.bonos)}` : formatBs(0),
+                f.anticipos > 0 ? `- ${formatBs(f.anticipos)}` : formatBs(0),
+                f.otrosDesc > 0 ? `- ${formatBs(f.otrosDesc)}` : formatBs(0),
+                formatBs(f.neto),
+                f.estado,
+            ]),
+            foot: [['', '', '', '', '', 'Total neto', formatBs(totalNeto), '']],
+            headStyles: { fillColor: [31, 95, 139], textColor: 255, fontStyle: 'bold' },
+            footStyles: { fillColor: [228, 238, 245], textColor: [19, 43, 62], fontStyle: 'bold' },
+            styles: { fontSize: 9, cellPadding: 2 },
+            columnStyles: {
+                2: { halign: 'right' }, 3: { halign: 'right' }, 4: { halign: 'right' },
+                5: { halign: 'right' }, 6: { halign: 'right' },
+            },
+        });
+
+        const nombreArchivo = `planilla-${periodo.toLowerCase().replace(/\s/g, '-')}.pdf`;
+        doc.save(nombreArchivo);
+        setSnack({ open: true, msg: `PDF descargado: ${nombreArchivo}`, sev: 'success' });
     };
 
     // --- Pagar: redirige a HistorialPagos con precarga ---
@@ -159,7 +223,7 @@ export default function Planilla() {
         });
     };
 
-    // --- Registrar anticipo (suma al campo anticipos y recalcula neto) ---
+    // --- Registrar anticipo ---
     const abrirAnticipo = () => {
         cerrarMenu();
         setAnticipoDraft({ monto: 0, motivo: '' });
@@ -182,7 +246,7 @@ export default function Planilla() {
         setSnack({ open: true, msg: `Anticipo de ${formatBs(monto)} aplicado a ${filaSel.empleado}${motivoTxt}`, sev: 'success' });
     };
 
-    // --- Registrar descuento (suma al campo otrosDesc y recalcula neto) ---
+    // --- Registrar descuento ---
     const abrirDescuento = () => {
         cerrarMenu();
         setDescDraft({ monto: 0, tipo: 'Rotura/dano', motivo: '' });
@@ -208,7 +272,6 @@ export default function Planilla() {
         setSnack({ open: true, msg: `Descuento de ${formatBs(monto)} (${descDraft.tipo}) aplicado a ${filaSel.empleado}`, sev: 'success' });
     };
 
-    // --- Ver detalle ---
     const verDetalle = () => {
         cerrarMenu();
         setDetalleAbierto(true);
@@ -221,8 +284,16 @@ export default function Planilla() {
             {/* Encabezado */}
             <Typography variant="h1" color="primary.main" sx={{ mb: 0.5 }}>Planilla de personal</Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                Calcula salarios, bonos, anticipos y total neto del periodo.
+                Calcula salarios, bonos, anticipos y total neto del periodo. Los periodos aparecen a medida que terminan los meses.
             </Typography>
+
+            {/* Aviso: el mes en curso todavia no esta disponible */}
+            <Alert severity="info" icon={false} sx={{ bgcolor: '#E4EEF5', color: 'text.primary', mb: 2 }}>
+                <Typography variant="body2">
+                    El mes en curso (<strong>{periodoActualEnCurso}</strong>) aun no se puede pagar.
+                    Aparecera como periodo disponible cuando termine.
+                </Typography>
+            </Alert>
 
             {/* Barra de acciones (al nivel de Expensas) */}
             <Box sx={{ display: 'flex', gap: 1.5, justifyContent: { xs: 'stretch', md: 'flex-end' }, flexWrap: 'wrap', mb: 2 }}>
@@ -266,13 +337,13 @@ export default function Planilla() {
                 </Paper>
             </Box>
 
-            {/* Filtros (sin boton "Filtrar": los selects filtran al toque) */}
+            {/* Filtros */}
             <Paper sx={{ p: 2, borderRadius: 2, mb: 2 }}>
                 <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'flex-end' }}>
                     <Box sx={{ flex: 1, minWidth: 160 }}>
                         <Typography variant="body2" sx={{ fontWeight: 700, mb: 0.5, color: '#132B3E' }}>Periodo</Typography>
                         <Select fullWidth size="small" value={periodo} onChange={(e) => setPeriodo(e.target.value)}>
-                            {PERIODOS_PLANILLA.map((p) => <MenuItem key={p} value={p}>{p}</MenuItem>)}
+                            {periodos.map((p) => <MenuItem key={p} value={p}>{p}</MenuItem>)}
                         </Select>
                     </Box>
                     <Box sx={{ flex: 1, minWidth: 140 }}>
@@ -295,7 +366,7 @@ export default function Planilla() {
                     </Box>
                     <Button variant="outlined" startIcon={<DownloadIcon />} onClick={exportar}
                         sx={{ color: '#1a2733', borderColor: '#cdd8e3' }}>
-                        Exportar
+                        Exportar PDF
                     </Button>
                 </Box>
             </Paper>
@@ -304,7 +375,7 @@ export default function Planilla() {
             <Paper sx={{ p: 3, borderRadius: 2 }}>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1, flexWrap: 'wrap', gap: 1 }}>
                     <Typography variant="body2" sx={{ fontWeight: 600 }}>Detalle de la planilla — {periodo}</Typography>
-                    <Chip label={periodoYaGenerado ? 'Borrador' : 'Sin generar'} size="small" sx={estadoChipSx('Borrador')} />
+                    <Chip label={periodoYaGenerado ? 'Generada' : 'Sin generar'} size="small" sx={estadoChipSx('Calculado')} />
                 </Box>
                 <Box sx={{ overflowX: 'auto' }}>
                     <Table size="small" sx={{ minWidth: 900 }}>
@@ -357,7 +428,6 @@ export default function Planilla() {
                     </Table>
                 </Box>
 
-                {/* Total neto a pagar */}
                 <Box sx={{ bgcolor: '#E4EEF5', borderRadius: 2, p: 2, mt: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <Typography variant="body2" sx={{ fontWeight: 700 }}>Total neto a pagar — {periodo}</Typography>
                     <Typography variant="h3" sx={{ fontWeight: 700, color: 'primary.main' }}>{formatBs(totalNeto)}</Typography>

@@ -13,15 +13,16 @@ import ScheduleIcon from '@mui/icons-material/Schedule';
 import DescriptionIcon from '@mui/icons-material/Description';
 import PaidIcon from '@mui/icons-material/Paid';
 import { useLocation } from 'react-router-dom';
+import jsPDF from 'jspdf';
+import 'jspdf-autotable';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import {
     PAGOS_PERSONAL_MOCK, PLANILLA_MOCK, RESUMEN_PAGOS_PERSONAL, RESUMEN_PLANILLA,
     ESTADOS_PAGO_PERSONAL, EMPLEADOS_MOCK, MEDIOS_PAGO_PERSONAL, CONCEPTOS_PAGO,
     nombreEmpleado, cargoEmpleado,
+    periodosDisponibles, asegurarPlanillaActualizada, periodoEnCurso,
 } from '../../constants/personalMock';
-import { PERIODOS, formatBs } from '../../constants/finanzasMock';
-
-const PERIODOS_PAGOS = ['Noviembre 2026', ...PERIODOS.filter((p) => p !== 'Noviembre 2026')];
+import { formatBs } from '../../constants/finanzasMock';
 
 const estadoChipSx = (estado) => {
     if (estado === 'Pagado') return { bgcolor: '#E4F4EE', color: '#2E9D78' };
@@ -30,8 +31,6 @@ const estadoChipSx = (estado) => {
 };
 
 // Normalizadores de periodo entre "Nov. 2026" (en PAGOS) y "Noviembre 2026" (en PLANILLA)
-const MESES_LARGOS = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
-    'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 const MESES_CORTOS = {
     Enero: 'Ene.', Febrero: 'Feb.', Marzo: 'Mar.', Abril: 'Abr.', Mayo: 'May.',
     Junio: 'Jun.', Julio: 'Jul.', Agosto: 'Ago.', Septiembre: 'Sep.', Octubre: 'Oct.',
@@ -50,7 +49,6 @@ const periodoLargo = (p) => {
     return p;
 };
 
-// Siguiente PE-XXXX
 const siguienteCodigoPago = () => {
     const nums = PAGOS_PERSONAL_MOCK.map((p) => Number(String(p.id || '').replace(/\D/g, '')) || 0);
     const next = (nums.length ? Math.max(...nums) : 0) + 1;
@@ -60,12 +58,6 @@ const fechaHoyBonita = () => {
     const d = new Date();
     const p = (n) => String(n).padStart(2, '0');
     return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()}`;
-};
-
-// Periodo "largo" segun la fecha del sistema (ej. "Noviembre 2027")
-const periodoActualSistema = () => {
-    const d = new Date();
-    return `${MESES_LARGOS[d.getMonth()]} ${d.getFullYear()}`;
 };
 
 // Recalcula los resumenes globales
@@ -86,23 +78,39 @@ const recalcularResumenes = () => {
 
 export default function HistorialPagos() {
     const location = useLocation();
-    const [periodo, setPeriodo] = useState('Noviembre 2026');
+
+    // Periodos dinamicos: salen de la fecha del sistema. Default = mas reciente.
+    const [tick, setTick] = useState(0);
+    const periodos = useMemo(() => periodosDisponibles(), [tick]);
+    const [periodo, setPeriodo] = useState(() => periodosDisponibles()[0] || '');
+    const periodoHoy = periodoEnCurso();
+
     const [estado, setEstado] = useState('Todos');
     const [busqueda, setBusqueda] = useState('');
-    const [tick, setTick] = useState(0);
     const [snack, setSnack] = useState({ open: false, msg: '', sev: 'success' });
 
-    // Tick cada 5s para que si cambian la fecha del sistema, el "periodo actual"
-    // y los calculos derivados se refresquen solos (mismo patron que Mora.jsx).
+    // Al montar y cada 5s: asegurar planilla + tick para refrescar la UI.
     useEffect(() => {
-        const id = setInterval(() => setTick((t) => t + 1), 5000);
-        return () => clearInterval(id);
+        asegurarPlanillaActualizada();
+        setTick((t) => t + 1);
+        const h = setInterval(() => {
+            asegurarPlanillaActualizada();
+            setTick((t) => t + 1);
+        }, 5000);
+        return () => clearInterval(h);
     }, []);
+
+    // Si el periodo seleccionado deja de estar disponible, caer al mas reciente valido.
+    useEffect(() => {
+        if (periodos.length > 0 && !periodos.includes(periodo)) {
+            setPeriodo(periodos[0]);
+        }
+    }, [periodos, periodo]);
 
     // Modales
     const [registrarAbierto, setRegistrarAbierto] = useState(false);
     const [pagoDraft, setPagoDraft] = useState({
-        empleadoId: '', concepto: 'Salario', periodo: 'Noviembre 2026',
+        empleadoId: '', concepto: 'Salario', periodo: periodosDisponibles()[0] || '',
         monto: 0, fecha: fechaHoyBonita(),
         medio: 'Transferencia', referencia: '', motivo: '',
     });
@@ -115,12 +123,11 @@ export default function HistorialPagos() {
         const s = location.state;
         if (s?.registrarPrecargado) {
             const pre = s.registrarPrecargado;
-            // Si trae su periodo (largo), lo usamos para filtrar la vista tambien
             if (pre.periodoPlanilla) setPeriodo(pre.periodoPlanilla);
             setPagoDraft({
                 empleadoId: pre.empleadoId || '',
                 concepto: pre.concepto || 'Salario',
-                periodo: pre.periodoPlanilla || periodoLargo(pre.periodo) || 'Noviembre 2026',
+                periodo: pre.periodoPlanilla || periodoLargo(pre.periodo) || (periodosDisponibles()[0] || ''),
                 monto: pre.montoNeto || 0,
                 fecha: fechaHoyBonita(),
                 medio: 'Transferencia',
@@ -133,13 +140,10 @@ export default function HistorialPagos() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    // Lista derivada del periodo: pagos reales + pendientes de la planilla
-    // sin pago asociado (asi los "generar planilla" aparecen al toque como pendientes).
+    // Filas del periodo: pagos reales + pendientes derivados de la planilla
     const filas = useMemo(() => {
         const periodoCort = periodoCorto(periodo);
-        // 1) Pagos reales (pagados o pendientes) del periodo
         const pagosDelPeriodo = PAGOS_PERSONAL_MOCK.filter((p) => p.periodo === periodoCort);
-        // 2) Empleados en planilla del periodo que no tienen pago asociado -> pendientes derivados
         const idsConPago = new Set(pagosDelPeriodo.map((p) => p.empleadoId));
         const pendientesPlanilla = PLANILLA_MOCK
             .filter((pl) => pl.periodo === periodo && pl.estado !== 'Pagada' && !idsConPago.has(pl.empleadoId))
@@ -150,7 +154,6 @@ export default function HistorialPagos() {
                 montoNeto: pl.neto, estado: 'Pendiente',
             }));
         const combinadas = [...pagosDelPeriodo, ...pendientesPlanilla];
-        // 3) Filtros de UI
         const q = busqueda.trim().toLowerCase();
         return combinadas
             .filter((p) => estado === 'Todos' || p.estado === estado)
@@ -178,8 +181,6 @@ export default function HistorialPagos() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [periodo, tick]);
 
-    const periodoHoy = periodoActualSistema();
-
     // --- Registrar pago ---
     const abrirRegistrar = () => {
         setPagoDraft({
@@ -190,7 +191,6 @@ export default function HistorialPagos() {
         setRegistrarAbierto(true);
     };
     const cambiarEmpleadoDraft = (empleadoId) => {
-        // Al elegir empleado, si concepto=Salario y hay planilla del periodo, precargar monto
         setPagoDraft((prev) => {
             let monto = prev.monto;
             if (prev.concepto === 'Salario') {
@@ -223,8 +223,7 @@ export default function HistorialPagos() {
         });
     };
 
-    // Guard: ¿el empleado seleccionado ya tiene un pago (concepto Salario) para
-    // este periodo? Si si, no se permite registrar otro pago (evita duplicados).
+    // Guard: ¿el empleado seleccionado ya tiene un pago (Salario) para este periodo?
     const yaPagadoSalario = useMemo(() => {
         if (!pagoDraft.empleadoId || pagoDraft.concepto !== 'Salario') return null;
         const periodoCortoStr = periodoCorto(pagoDraft.periodo);
@@ -256,7 +255,6 @@ export default function HistorialPagos() {
             return;
         }
 
-        // Guard anti-doble-pago: si ya hay un Salario pagado para este empleado+periodo, abortar
         if (concepto === 'Salario') {
             const yaExiste = PAGOS_PERSONAL_MOCK.find(
                 (p) => p.empleadoId === empleadoId
@@ -278,8 +276,6 @@ export default function HistorialPagos() {
         const empleadoNombre = nombreEmpleado(empleadoId);
         const periodoCortoStr = periodoCorto(periodoDraft);
 
-        // Si concepto = Salario y hay fila pendiente en PAGOS_PERSONAL_MOCK, reemplazar;
-        // si no, agregar nuevo.
         const pagoExistente = PAGOS_PERSONAL_MOCK.find(
             (p) => p.empleadoId === empleadoId && p.periodo === periodoCortoStr
                 && p.estado === 'Pendiente' && p.concepto === 'Salario'
@@ -301,12 +297,10 @@ export default function HistorialPagos() {
             });
         }
 
-        // Si concepto = Salario, marcar la planilla como Pagada
         if (concepto === 'Salario') {
             const fp = PLANILLA_MOCK.find((p) => p.empleadoId === empleadoId && p.periodo === periodoDraft);
             if (fp) fp.estado = 'Pagada';
         }
-        // Si concepto = Anticipo, sumar al campo anticipos de la planilla (reduce el neto)
         if (concepto === 'Anticipo') {
             const fp = PLANILLA_MOCK.find((p) => p.empleadoId === empleadoId && p.periodo === periodoDraft);
             if (fp) {
@@ -314,7 +308,6 @@ export default function HistorialPagos() {
                 fp.neto = (fp.salarioBase || 0) + (fp.bonos || 0) - (fp.anticipos || 0) - (fp.otrosDesc || 0);
             }
         }
-        // Si concepto = Bono, sumar al campo bonos de la planilla (aumenta el neto)
         if (concepto === 'Bono') {
             const fp = PLANILLA_MOCK.find((p) => p.empleadoId === empleadoId && p.periodo === periodoDraft);
             if (fp) {
@@ -329,14 +322,48 @@ export default function HistorialPagos() {
         setSnack({ open: true, msg: `Pago ${codigo} registrado (${concepto}) para ${empleadoNombre}`, sev: 'success' });
     };
 
-    // --- Ver detalle ---
     const abrirDetalle = (p) => {
         setDetalleSel(p);
         setDetalleAbierto(true);
     };
 
+    // --- Exportar historial a PDF ---
     const exportar = () => {
-        setSnack({ open: true, msg: `Historial de ${periodo} exportado (simulado)`, sev: 'success' });
+        if (filas.length === 0) {
+            setSnack({ open: true, msg: 'No hay pagos para exportar en este periodo', sev: 'warning' });
+            return;
+        }
+        const doc = new jsPDF();
+        doc.setFontSize(16);
+        doc.setTextColor(19, 43, 62);
+        doc.text(`Historial de pagos - ${periodo}`, 14, 18);
+        doc.setFontSize(10);
+        doc.setTextColor(100);
+        doc.text(`Edificio XYZ - Sistema de Gestion`, 14, 25);
+        doc.text(`Generado el ${new Date().toLocaleDateString('es-BO')} ${new Date().toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit' })}`, 14, 30);
+
+        doc.autoTable({
+            startY: 36,
+            head: [['N.º pago', 'Fecha', 'Empleado', 'Concepto', 'Medio', 'Monto neto', 'Estado']],
+            body: filas.map((f) => [
+                f.id || '—',
+                f.fecha || '—',
+                f.empleado,
+                f.concepto,
+                f.medio || '—',
+                formatBs(f.montoNeto),
+                f.estado,
+            ]),
+            foot: [['', '', '', '', 'Total pagado', formatBs(resumenPeriodo.pagadoEnMes), '']],
+            headStyles: { fillColor: [31, 95, 139], textColor: 255, fontStyle: 'bold' },
+            footStyles: { fillColor: [228, 238, 245], textColor: [19, 43, 62], fontStyle: 'bold' },
+            styles: { fontSize: 9, cellPadding: 2 },
+            columnStyles: { 5: { halign: 'right' } },
+        });
+
+        const nombreArchivo = `historial-pagos-${periodo.toLowerCase().replace(/\s/g, '-')}.pdf`;
+        doc.save(nombreArchivo);
+        setSnack({ open: true, msg: `PDF descargado: ${nombreArchivo}`, sev: 'success' });
     };
 
     const empleadosActivos = EMPLEADOS_MOCK.filter((e) => e.estado === 'Activo');
@@ -347,7 +374,7 @@ export default function HistorialPagos() {
             {/* Encabezado */}
             <Typography variant="h1" color="primary.main" sx={{ mb: 0.5 }}>Historial de pagos de empleados</Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                Consulta pagos realizados y abre el detalle de cada comprobante. Fecha actual del sistema: {periodoHoy}.
+                Consulta pagos realizados y abre el detalle de cada comprobante. Mes en curso: {periodoHoy}.
             </Typography>
 
             {/* Barra de acciones (al nivel de Planilla) */}
@@ -394,7 +421,7 @@ export default function HistorialPagos() {
                 </Paper>
             </Box>
 
-            {/* Filtros (sin boton "Filtrar") */}
+            {/* Filtros */}
             <Paper sx={{ p: 2, borderRadius: 2, mb: 2 }}>
                 <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'flex-end' }}>
                     <Box sx={{ flex: 2, minWidth: 220 }}>
@@ -412,7 +439,7 @@ export default function HistorialPagos() {
                     <Box sx={{ flex: 1, minWidth: 160 }}>
                         <Typography variant="body2" sx={{ fontWeight: 700, mb: 0.5, color: '#132B3E' }}>Periodo</Typography>
                         <Select fullWidth size="small" value={periodo} onChange={(e) => setPeriodo(e.target.value)}>
-                            {PERIODOS_PAGOS.map((p) => <MenuItem key={p} value={p}>{p}</MenuItem>)}
+                            {periodos.map((p) => <MenuItem key={p} value={p}>{p}</MenuItem>)}
                         </Select>
                     </Box>
                     <Box sx={{ flex: 1, minWidth: 140 }}>
@@ -423,7 +450,7 @@ export default function HistorialPagos() {
                     </Box>
                     <Button variant="outlined" startIcon={<DownloadIcon />} onClick={exportar}
                         sx={{ color: '#1a2733', borderColor: '#cdd8e3' }}>
-                        Exportar historial
+                        Exportar PDF
                     </Button>
                 </Box>
             </Paper>
@@ -455,7 +482,7 @@ export default function HistorialPagos() {
                             {filas.length === 0 ? (
                                 <TableRow>
                                     <TableCell colSpan={9} align="center" sx={{ color: 'text.secondary', py: 3 }}>
-                                        Sin pagos para los filtros aplicados. Genera la planilla del periodo o registra un pago.
+                                        Sin pagos para los filtros aplicados.
                                     </TableCell>
                                 </TableRow>
                             ) : filas.map((f, idx) => (
@@ -483,8 +510,8 @@ export default function HistorialPagos() {
 
                 <Alert severity="info" icon={false} sx={{ bgcolor: '#E4EEF5', color: 'text.primary', mt: 2 }}>
                     <Typography variant="body2">
-                        Los pendientes se derivan de la planilla no pagada. Si cambias la fecha del sistema a otro mes, los
-                        pagos no realizados de meses anteriores quedan como deuda del empleado.
+                        Los pendientes se derivan de la planilla no pagada. Los periodos aparecen a medida que terminan los meses;
+                        el mes en curso (<strong>{periodoHoy}</strong>) aun no esta disponible.
                     </Typography>
                 </Alert>
             </Paper>
@@ -534,12 +561,11 @@ export default function HistorialPagos() {
                             <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Periodo</Typography>
                             <Select fullWidth size="small" value={pagoDraft.periodo}
                                 onChange={(e) => cambiarPeriodoDraft(e.target.value)}>
-                                {PERIODOS_PAGOS.map((p) => <MenuItem key={p} value={p}>{p}</MenuItem>)}
+                                {periodos.map((p) => <MenuItem key={p} value={p}>{p}</MenuItem>)}
                             </Select>
                         </Box>
                     </Box>
 
-                    {/* Alerta: evitar doble pago de salario para el mismo periodo */}
                     {yaPagadoSalario && (
                         <Alert severity="error" icon={false} sx={{ bgcolor: '#FBEAE9', color: '#D9534F', mb: 2 }}>
                             <Typography variant="body2" sx={{ fontWeight: 700 }}>
