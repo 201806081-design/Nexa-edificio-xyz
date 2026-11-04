@@ -137,7 +137,8 @@ export default function Enviados() {
                     Historial de avisos del edificio.
                 </Typography>
                 <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
-                    <Button variant="contained" startIcon={<AddIcon />} onClick={() => navigate('/comunicados/elaborar')}>
+                    <Button variant="contained" startIcon={<AddIcon />} onClick={() => navigate('/comunicados/elaborar')}
+                        sx={{ width: { xs: '100%', md: 'auto' } }}>
                         Nuevo comunicado
                     </Button>
                 </Box>
@@ -153,10 +154,10 @@ export default function Enviados() {
                     icono={<ErrorIcon />} color="#D9534F" />
             </Box>
 
-            {/* Filtros con labels arriba */}
+            {/* Filtros con labels arriba (en movil ambos van full-width, uno abajo del otro) */}
             <Paper sx={{ p: 2, borderRadius: 2, mb: 2 }}>
                 <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'flex-end' }}>
-                    <Box sx={{ flex: 1, minWidth: 260 }}>
+                    <Box sx={{ flex: 1, minWidth: { xs: '100%', md: 260 } }}>
                         <Typography variant="caption" sx={{ fontWeight: 700, color: '#132B3E', display: 'block', mb: 0.5 }}>
                             Buscar
                         </Typography>
@@ -164,21 +165,21 @@ export default function Enviados() {
                             value={busqueda} onChange={(e) => setBusqueda(e.target.value)}
                             slotProps={{ input: { startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" /></InputAdornment> } }} />
                     </Box>
-                    <Box sx={{ minWidth: 200 }}>
+                    <Box sx={{ width: { xs: '100%', md: 200 } }}>
                         <Typography variant="caption" sx={{ fontWeight: 700, color: '#132B3E', display: 'block', mb: 0.5 }}>
                             Categoria
                         </Typography>
-                        <Select size="small" value={estadoFiltro} onChange={(e) => setEstadoFiltro(e.target.value)}
-                            sx={{ minWidth: 200 }}>
+                        <Select size="small" fullWidth value={estadoFiltro} onChange={(e) => setEstadoFiltro(e.target.value)}>
                             {ESTADOS_COMUNICADO.map((e) => <MenuItem key={e} value={e}>{e}</MenuItem>)}
                         </Select>
                     </Box>
                 </Box>
             </Paper>
 
-            {/* Tabla (sin columna Entrega) */}
-            <Paper sx={{ borderRadius: 2, overflow: 'hidden' }}>
-                <Table size="small">
+            {/* Tabla (sin columna Entrega) - en movil habilita scroll horizontal interno,
+          no afecta al scroll de la pagina */}
+            <Paper sx={{ borderRadius: 2, overflowX: 'auto' }}>
+                <Table size="small" sx={{ minWidth: 820 }}>
                     <TableHead>
                         <TableRow sx={{ bgcolor: '#F3F6FA' }}>
                             <TableCell sx={{ fontWeight: 700, color: '#132B3E' }}>Fecha</TableCell>
