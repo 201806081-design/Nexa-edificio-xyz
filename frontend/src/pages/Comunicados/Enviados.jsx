@@ -1,21 +1,18 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import {
     Box, Typography, Paper, Button, Chip, TextField, Select, MenuItem,
     InputAdornment, IconButton, Menu, Dialog, DialogTitle, DialogContent,
     DialogActions, Divider, Snackbar, Alert, Table, TableHead, TableBody,
-    TableRow, TableCell, LinearProgress,
+    TableRow, TableCell,
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
-import FilterAltIcon from '@mui/icons-material/FilterAlt';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 import SendIcon from '@mui/icons-material/Send';
 import ScheduleIcon from '@mui/icons-material/Schedule';
-import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import ErrorIcon from '@mui/icons-material/Error';
 import AddIcon from '@mui/icons-material/Add';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import ReplayIcon from '@mui/icons-material/Replay';
-import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import CancelIcon from '@mui/icons-material/Cancel';
 import NotificationsActiveIcon from '@mui/icons-material/NotificationsActive';
 import EmailIcon from '@mui/icons-material/Email';
@@ -31,7 +28,6 @@ import {
 
 const estadoChipSx = (estado) => {
     if (estado === 'Enviado') return { bgcolor: '#E4F4EE', color: '#2E9D78' };
-    if (estado === 'Parcial') return { bgcolor: '#FDF0D5', color: '#B6802A' };
     if (estado === 'Programado') return { bgcolor: '#E4EEF5', color: '#1a73e8' };
     if (estado === 'Fallido') return { bgcolor: '#FBEAE9', color: '#D9534F' };
     return { bgcolor: '#E4E7EB', color: 'text.secondary' };
@@ -64,8 +60,13 @@ export default function Enviados() {
 
     const [detalle, setDetalle] = useState(null);
 
-    // Fuerza re-render cuando mutamos COMUNICADOS_MOCK (reenviar, cancelar, etc.)
+    // Tick cada 5s: captura comunicados nuevos (enviados desde Elaborar),
+    // programados que se disparan, cancelaciones, etc.
     const [tick, setTick] = useState(0);
+    useEffect(() => {
+        const h = setInterval(() => setTick((t) => t + 1), 5000);
+        return () => clearInterval(h);
+    }, []);
     const forzarRefresh = () => setTick((t) => t + 1);
 
     const resumen = useMemo(() => calcularResumenComunicados(), [tick]);
@@ -88,38 +89,21 @@ export default function Enviados() {
 
     const verDetalle = () => { setDetalle(menuRow); cerrarMenu(); };
 
+    const fechaBonita = () => {
+        const d = new Date();
+        const p = (n) => String(n).padStart(2, '0');
+        return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`;
+    };
+
     const reenviar = () => {
         const row = menuRow;
         cerrarMenu();
         if (!row) return;
         row.estado = 'Enviado';
         row.entregados = row.totalDestinatarios;
-        row.fecha = (() => {
-            const d = new Date();
-            const p = (n) => String(n).padStart(2, '0');
-            return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`;
-        })();
+        row.fecha = fechaBonita();
         forzarRefresh();
         setSnack({ open: true, msg: `Comunicado ${row.id} reenviado a ${row.totalDestinatarios} destinatarios`, sev: 'success' });
-    };
-
-    const duplicar = () => {
-        const row = menuRow;
-        cerrarMenu();
-        if (!row) return;
-        const nums = COMUNICADOS_MOCK.map((c) => Number(String(c.id).replace(/\D/g, '')) || 0);
-        const nuevoId = `CO-${String((nums.length ? Math.max(...nums) : 0) + 1).padStart(4, '0')}`;
-        COMUNICADOS_MOCK.unshift({
-            ...row, id: nuevoId, titulo: `${row.titulo} (copia)`,
-            estado: 'Programado', entregados: null,
-            fecha: (() => {
-                const d = new Date(Date.now() + 24 * 60 * 60 * 1000);
-                const p = (n) => String(n).padStart(2, '0');
-                return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`;
-            })(),
-        });
-        forzarRefresh();
-        setSnack({ open: true, msg: `Comunicado ${nuevoId} creado como borrador programado`, sev: 'success' });
     };
 
     const cancelarProgramado = () => {
@@ -133,7 +117,7 @@ export default function Enviados() {
     };
 
     const Card = ({ titulo, valor, extra, icono, color }) => (
-        <Paper sx={{ p: 2.5, borderRadius: 2, flex: 1, minWidth: 200 }}>
+        <Paper sx={{ p: 2.5, borderRadius: 2, flex: 1, minWidth: 220 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
                 <Typography variant="body2" sx={{ color: '#132B3E', fontWeight: 600 }}>{titulo}</Typography>
                 <Box sx={{ color }}>{icono}</Box>
@@ -145,45 +129,54 @@ export default function Enviados() {
 
     return (
         <DashboardLayout>
-            {/* Encabezado */}
-            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2, flexWrap: 'wrap', gap: 1 }}>
-                <Box>
-                    <Typography variant="h1" color="primary.main" sx={{ mb: 0.5 }}>Comunicados enviados</Typography>
-                    <Typography variant="body2" color="text.secondary">
-                        Historial de avisos del edificio y su estado de entrega.
-                    </Typography>
+            {/* Encabezado: titulo + subtitulo; el boton va en su propia fila, mas abajo
+          (mismo patron que Expensas / Personal) */}
+            <Box sx={{ mb: 2 }}>
+                <Typography variant="h1" color="primary.main" sx={{ mb: 0.5 }}>Comunicados enviados</Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+                    Historial de avisos del edificio.
+                </Typography>
+                <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+                    <Button variant="contained" startIcon={<AddIcon />} onClick={() => navigate('/comunicados/elaborar')}>
+                        Nuevo comunicado
+                    </Button>
                 </Box>
-                <Button variant="contained" startIcon={<AddIcon />} onClick={() => navigate('/comunicados/elaborar')}>
-                    Nuevo comunicado
-                </Button>
             </Box>
 
-            {/* Cards resumen */}
+            {/* Cards resumen: Enviados, Programados, Fallidos (sin tasa de entrega) */}
             <Box sx={{ display: 'flex', gap: 2, mb: 2, flexWrap: 'wrap' }}>
                 <Card titulo="Enviados" valor={resumen.enviados} extra="Este mes"
                     icono={<SendIcon />} color="#2E9D78" />
                 <Card titulo="Programados" valor={resumen.programados} extra="Pendientes de envio"
                     icono={<ScheduleIcon />} color="#1a73e8" />
-                <Card titulo="Tasa de entrega" valor={`${resumen.porcentajeEntrega}%`} extra={`${resumen.destinatariosAlcanzados} destinatarios alcanzados`}
-                    icono={<TrendingUpIcon />} color="#2E9D78" />
-                <Card titulo="Parciales / Fallidos" valor={resumen.pendientesOFallidos} extra="Requieren revision"
+                <Card titulo="Fallidos" valor={resumen.fallidos ?? 0} extra="Requieren revision"
                     icono={<ErrorIcon />} color="#D9534F" />
             </Box>
 
-            {/* Filtros */}
-            <Paper sx={{ p: 2, borderRadius: 2, mb: 2, display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
-                <TextField size="small" placeholder="Buscar por titulo, mensaje o codigo"
-                    value={busqueda} onChange={(e) => setBusqueda(e.target.value)}
-                    slotProps={{ input: { startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" /></InputAdornment> } }}
-                    sx={{ flex: 1, minWidth: 260 }} />
-                <Select size="small" value={estadoFiltro} onChange={(e) => setEstadoFiltro(e.target.value)}
-                    startAdornment={<InputAdornment position="start"><FilterAltIcon fontSize="small" /></InputAdornment>}
-                    sx={{ minWidth: 180 }}>
-                    {ESTADOS_COMUNICADO.map((e) => <MenuItem key={e} value={e}>{e}</MenuItem>)}
-                </Select>
+            {/* Filtros con labels arriba */}
+            <Paper sx={{ p: 2, borderRadius: 2, mb: 2 }}>
+                <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+                    <Box sx={{ flex: 1, minWidth: 260 }}>
+                        <Typography variant="caption" sx={{ fontWeight: 700, color: '#132B3E', display: 'block', mb: 0.5 }}>
+                            Buscar
+                        </Typography>
+                        <TextField size="small" fullWidth placeholder="Por titulo, mensaje o codigo"
+                            value={busqueda} onChange={(e) => setBusqueda(e.target.value)}
+                            slotProps={{ input: { startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" /></InputAdornment> } }} />
+                    </Box>
+                    <Box sx={{ minWidth: 200 }}>
+                        <Typography variant="caption" sx={{ fontWeight: 700, color: '#132B3E', display: 'block', mb: 0.5 }}>
+                            Categoria
+                        </Typography>
+                        <Select size="small" value={estadoFiltro} onChange={(e) => setEstadoFiltro(e.target.value)}
+                            sx={{ minWidth: 200 }}>
+                            {ESTADOS_COMUNICADO.map((e) => <MenuItem key={e} value={e}>{e}</MenuItem>)}
+                        </Select>
+                    </Box>
+                </Box>
             </Paper>
 
-            {/* Tabla */}
+            {/* Tabla (sin columna Entrega) */}
             <Paper sx={{ borderRadius: 2, overflow: 'hidden' }}>
                 <Table size="small">
                     <TableHead>
@@ -194,16 +187,12 @@ export default function Enviados() {
                             <TableCell sx={{ fontWeight: 700, color: '#132B3E' }}>Canales</TableCell>
                             <TableCell sx={{ fontWeight: 700, color: '#132B3E' }}>Prioridad</TableCell>
                             <TableCell sx={{ fontWeight: 700, color: '#132B3E' }}>Estado</TableCell>
-                            <TableCell sx={{ fontWeight: 700, color: '#132B3E' }}>Entrega</TableCell>
                             <TableCell align="right" sx={{ fontWeight: 700, color: '#132B3E' }}>Acciones</TableCell>
                         </TableRow>
                     </TableHead>
                     <TableBody>
                         {filtrados.map((c) => {
                             const g = grupoPorId(c.destinatarioId);
-                            const entregadosPct = c.totalDestinatarios > 0 && c.entregados != null
-                                ? Math.round((c.entregados / c.totalDestinatarios) * 100)
-                                : null;
                             return (
                                 <TableRow key={c.id} hover>
                                     <TableCell>
@@ -242,24 +231,6 @@ export default function Enviados() {
                                     <TableCell>
                                         <Chip size="small" label={c.estado} sx={estadoChipSx(c.estado)} />
                                     </TableCell>
-                                    <TableCell sx={{ minWidth: 140 }}>
-                                        {entregadosPct != null ? (
-                                            <>
-                                                <Typography variant="caption" sx={{ fontWeight: 600 }}>
-                                                    {c.entregados}/{c.totalDestinatarios} ({entregadosPct}%)
-                                                </Typography>
-                                                <LinearProgress variant="determinate" value={entregadosPct}
-                                                    sx={{
-                                                        height: 6, borderRadius: 3, mt: 0.5,
-                                                        '& .MuiLinearProgress-bar': {
-                                                            bgcolor: entregadosPct === 100 ? '#2E9D78' : (entregadosPct >= 50 ? '#B6802A' : '#D9534F'),
-                                                        },
-                                                    }} />
-                                            </>
-                                        ) : (
-                                            <Typography variant="caption" color="text.secondary">—</Typography>
-                                        )}
-                                    </TableCell>
                                     <TableCell align="right">
                                         <IconButton size="small" onClick={(e) => abrirMenu(e, c)}>
                                             <MoreVertIcon fontSize="small" />
@@ -270,7 +241,7 @@ export default function Enviados() {
                         })}
                         {filtrados.length === 0 && (
                             <TableRow>
-                                <TableCell colSpan={8} align="center" sx={{ py: 4 }}>
+                                <TableCell colSpan={7} align="center" sx={{ py: 4 }}>
                                     <Typography variant="body2" color="text.secondary">
                                         No hay comunicados que coincidan con los filtros.
                                     </Typography>
@@ -281,16 +252,13 @@ export default function Enviados() {
                 </Table>
             </Paper>
 
-            {/* Menu acciones */}
+            {/* Menu acciones (sin Duplicar) */}
             <Menu anchorEl={menuAnchor} open={Boolean(menuAnchor)} onClose={cerrarMenu}>
                 <MenuItem onClick={verDetalle}>
                     <VisibilityIcon fontSize="small" sx={{ mr: 1 }} /> Ver detalle
                 </MenuItem>
                 <MenuItem onClick={reenviar} disabled={menuRow?.estado === 'Programado'}>
                     <ReplayIcon fontSize="small" sx={{ mr: 1 }} /> Reenviar
-                </MenuItem>
-                <MenuItem onClick={duplicar}>
-                    <ContentCopyIcon fontSize="small" sx={{ mr: 1 }} /> Duplicar
                 </MenuItem>
                 {menuRow?.estado === 'Programado' && (
                     <MenuItem onClick={cancelarProgramado} sx={{ color: '#D9534F' }}>
@@ -299,7 +267,7 @@ export default function Enviados() {
                 )}
             </Menu>
 
-            {/* Modal detalle */}
+            {/* Modal detalle (sin seccion Entrega) */}
             <Dialog open={Boolean(detalle)} onClose={() => setDetalle(null)} maxWidth="sm" fullWidth>
                 {detalle && (
                     <>
@@ -309,7 +277,9 @@ export default function Enviados() {
                             <Chip size="small" label={detalle.prioridad} sx={prioridadChipSx(detalle.prioridad)} />
                         </DialogTitle>
                         <DialogContent dividers>
-                            <Typography variant="caption" color="text.secondary">{detalle.id} · {detalle.fecha} · {detalle.autor}</Typography>
+                            <Typography variant="caption" color="text.secondary">
+                                {detalle.id} · {detalle.fecha} · {detalle.autor}
+                            </Typography>
                             <Divider sx={{ my: 1.5 }} />
                             <Typography variant="body2" sx={{ fontWeight: 700, mb: 0.5, color: '#132B3E' }}>Mensaje</Typography>
                             <Typography variant="body2" color="text.secondary" sx={{ whiteSpace: 'pre-wrap', mb: 2 }}>
@@ -329,20 +299,8 @@ export default function Enviados() {
                                 ))}
                             </Box>
 
-                            {detalle.entregados != null && (
-                                <>
-                                    <Typography variant="body2" sx={{ fontWeight: 700, mb: 0.5, color: '#132B3E' }}>Entrega</Typography>
-                                    <Typography variant="body2" sx={{ mb: 0.5 }}>
-                                        {detalle.entregados} de {detalle.totalDestinatarios} ({Math.round(detalle.entregados / detalle.totalDestinatarios * 100)}%)
-                                    </Typography>
-                                    <LinearProgress variant="determinate"
-                                        value={Math.round(detalle.entregados / detalle.totalDestinatarios * 100)}
-                                        sx={{ height: 8, borderRadius: 4 }} />
-                                </>
-                            )}
-
                             {detalle.adjunto && (
-                                <Box sx={{ mt: 2 }}>
+                                <Box>
                                     <Typography variant="body2" sx={{ fontWeight: 700, mb: 0.5, color: '#132B3E' }}>Adjunto</Typography>
                                     <Chip icon={<AttachFileIcon sx={{ fontSize: 16 }} />} label={detalle.adjunto}
                                         sx={{ bgcolor: '#E4EEF5', color: 'primary.main' }} />
