@@ -4,9 +4,16 @@
 // del sistema: "Morosos" es el conteo real de deptos con expensas no pagadas,
 // "Personal del edificio" es el conteo real de empleados activos, etc.
 
-import { DEPARTAMENTOS_ACTIVOS, EXPENSAS_MOCK } from './expensasMock';
+import { DEPARTAMENTOS_ACTIVOS } from './expensasMock';
 import { EMPLEADOS_MOCK } from './personalMock';
+// Morosos = fuente autoritativa del modulo "Mora e intereses".
+// Si alguien paga su mora, desaparece de DEUDAS_VENCIDAS y por ende del selector;
+// si se simula una fecha futura y se generan nuevos vencidos, aparecen automaticamente.
+import { DEUDAS_VENCIDAS } from './moraMock';
 import { pushNotificacion } from './notificacionesMock';
+
+// Helper: IDs unicos de deptos con mora vigente (reconsulta el array cada vez).
+const deptosConMora = () => [...new Set(DEUDAS_VENCIDAS.map((d) => d.depto))];
 
 export const PRIORIDADES = ['Normal', 'Importante', 'Urgente'];
 
@@ -42,11 +49,7 @@ export const gruposDestinatarios = () => {
         const piso = String(d.id).charAt(0);
         if (porPiso[piso]) porPiso[piso].push(d);
     });
-    const morososIds = [...new Set(
-        EXPENSAS_MOCK
-            .filter((e) => e.estado !== 'Pagada' && (e.total || e.monto || 0) > (e.pagado || 0))
-            .map((e) => e.depto)
-    )];
+    const morososIds = deptosConMora();
     const morososDeptos = DEPARTAMENTOS_ACTIVOS.filter((d) => morososIds.includes(d.id));
 
     return [
@@ -72,11 +75,7 @@ export const personasDeGrupo = (grupoId) => {
         case 'piso-2': return DEPARTAMENTOS_ACTIVOS.filter((d) => String(d.id).startsWith('2')).map(copropietariosMap);
         case 'piso-3': return DEPARTAMENTOS_ACTIVOS.filter((d) => String(d.id).startsWith('3')).map(copropietariosMap);
         case 'morosos': {
-            const morososIds = [...new Set(
-                EXPENSAS_MOCK
-                    .filter((e) => e.estado !== 'Pagada' && (e.total || e.monto || 0) > (e.pagado || 0))
-                    .map((e) => e.depto)
-            )];
+            const morososIds = deptosConMora();
             return DEPARTAMENTOS_ACTIVOS.filter((d) => morososIds.includes(d.id)).map(copropietariosMap);
         }
         case 'personal':
