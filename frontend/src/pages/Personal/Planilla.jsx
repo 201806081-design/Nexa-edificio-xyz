@@ -16,7 +16,7 @@ import SavingsIcon from '@mui/icons-material/Savings';
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
 import { useNavigate } from 'react-router-dom';
 import jsPDF from 'jspdf';
-import 'jspdf-autotable';
+import autoTable from 'jspdf-autotable';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import {
     PLANILLA_MOCK, PAGOS_PERSONAL_MOCK, RESUMEN_PLANILLA, RESUMEN_PAGOS_PERSONAL,
@@ -177,7 +177,7 @@ export default function Planilla() {
         doc.text(`Edificio XYZ - Sistema de Gestion`, 14, 25);
         doc.text(`Generado el ${new Date().toLocaleDateString('es-BO')} ${new Date().toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit' })}`, 14, 30);
 
-        doc.autoTable({
+        autoTable(doc, {
             startY: 36,
             head: [['Empleado', 'Cargo', 'Salario', 'Bonos', 'Anticipos', 'Otros', 'Neto', 'Estado']],
             body: filas.map((f) => [

@@ -14,7 +14,7 @@ import DescriptionIcon from '@mui/icons-material/Description';
 import PaidIcon from '@mui/icons-material/Paid';
 import { useLocation } from 'react-router-dom';
 import jsPDF from 'jspdf';
-import 'jspdf-autotable';
+import autoTable from 'jspdf-autotable';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import {
     PAGOS_PERSONAL_MOCK, PLANILLA_MOCK, RESUMEN_PAGOS_PERSONAL, RESUMEN_PLANILLA,
@@ -342,7 +342,7 @@ export default function HistorialPagos() {
         doc.text(`Edificio XYZ - Sistema de Gestion`, 14, 25);
         doc.text(`Generado el ${new Date().toLocaleDateString('es-BO')} ${new Date().toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit' })}`, 14, 30);
 
-        doc.autoTable({
+        autoTable(doc, {
             startY: 36,
             head: [['N.º pago', 'Fecha', 'Empleado', 'Concepto', 'Medio', 'Monto neto', 'Estado']],
             body: filas.map((f) => [
