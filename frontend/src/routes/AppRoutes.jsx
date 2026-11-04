@@ -38,6 +38,9 @@ import Mora from '../pages/Finanzas/Mora';
 import Empleados from '../pages/Personal/Empleados';
 import Planilla from '../pages/Personal/Planilla';
 import HistorialPagos from '../pages/Personal/HistorialPagos';
+// HU-CO-01 Comunicados
+import Elaborar from '../pages/Comunicados/Elaborar';
+import Enviados from '../pages/Comunicados/Enviados';
 import ProtectedRoute from './ProtectedRoute';
 
 export default function AppRoutes() {
@@ -88,6 +91,10 @@ export default function AppRoutes() {
       <Route path="/personal/empleados" element={<ProtectedRoute><Empleados /></ProtectedRoute>} />
       <Route path="/personal/planilla" element={<ProtectedRoute><Planilla /></ProtectedRoute>} />
       <Route path="/personal/historial-pagos" element={<ProtectedRoute><HistorialPagos /></ProtectedRoute>} />
+
+      {/* HU-CO-01 Comunicados */}
+      <Route path="/comunicados/elaborar" element={<ProtectedRoute rolesPermitidos={['Administrador']}><Elaborar /></ProtectedRoute>} />
+      <Route path="/comunicados/enviados" element={<ProtectedRoute rolesPermitidos={['Administrador']}><Enviados /></ProtectedRoute>} />
 
       <Route path="*" element={<Navigate to="/login" replace />} />
     </Routes>
