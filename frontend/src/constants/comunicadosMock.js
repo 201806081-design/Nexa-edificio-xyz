@@ -155,6 +155,15 @@ const fechaBonitaDesde = (d = new Date()) => {
     return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`;
 };
 
+// Guarda el adjunto como objeto {name, type, file} si vino un File, o null.
+// El File vive en memoria mientras la pagina este abierta (se pierde si recargan),
+// lo cual es suficiente para la demo; con backend el file se sube a storage.
+const empaquetarAdjunto = (adjunto) => {
+    if (!adjunto) return null;
+    if (typeof adjunto === 'string') return { name: adjunto, type: null, file: null };
+    return { name: adjunto.name, type: adjunto.type || null, file: adjunto };
+};
+
 // Envia un comunicado: lo agrega al historial y dispara notificaciones in-app.
 export const enviarComunicado = ({ titulo, mensaje, destinatarioId, destinatariosEspecificos, canalesIds, prioridad, adjunto, autor = 'Administrador' }) => {
     const id = siguienteCodigo();
@@ -166,7 +175,7 @@ export const enviarComunicado = ({ titulo, mensaje, destinatarioId, destinatario
         destinatarioId, destinatariosEspecificos: destinatariosEspecificos || [],
         canalesIds, prioridad,
         entregados: total, totalDestinatarios: total,
-        estado: 'Enviado', adjunto: adjunto?.name ?? null, autor,
+        estado: 'Enviado', adjunto: empaquetarAdjunto(adjunto), autor,
     };
     COMUNICADOS_MOCK.unshift(comunicado);
 
@@ -197,7 +206,7 @@ export const programarComunicado = (data) => {
         destinatariosEspecificos: data.destinatariosEspecificos || [],
         canalesIds: data.canalesIds, prioridad: data.prioridad,
         entregados: null, totalDestinatarios: total,
-        estado: 'Programado', adjunto: data.adjunto?.name ?? null, autor: data.autor ?? 'Administrador',
+        estado: 'Programado', adjunto: empaquetarAdjunto(data.adjunto), autor: data.autor ?? 'Administrador',
         fechaProgramada: data.fechaProgramada,
     };
     COMUNICADOS_MOCK.unshift(comunicado);

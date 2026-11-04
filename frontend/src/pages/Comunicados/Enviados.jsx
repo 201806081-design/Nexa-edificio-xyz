@@ -19,7 +19,8 @@ import EmailIcon from '@mui/icons-material/Email';
 import WhatsAppIcon from '@mui/icons-material/WhatsApp';
 import SmsIcon from '@mui/icons-material/Sms';
 import AttachFileIcon from '@mui/icons-material/AttachFile';
-import { useNavigate } from 'react-router-dom';
+import CloseIcon from '@mui/icons-material/Close';
+import { useNavigate, useLocation } from 'react-router-dom';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import {
     COMUNICADOS_MOCK, ESTADOS_COMUNICADO, calcularResumenComunicados,
@@ -50,6 +51,7 @@ const iconoCanal = (id) => {
 
 export default function Enviados() {
     const navigate = useNavigate();
+    const location = useLocation();
     const [snack, setSnack] = useState({ open: false, msg: '', sev: 'success' });
 
     const [busqueda, setBusqueda] = useState('');
@@ -59,6 +61,13 @@ export default function Enviados() {
     const [menuRow, setMenuRow] = useState(null);
 
     const [detalle, setDetalle] = useState(null);
+    // Preview del adjunto desde el modal de detalle (si tiene .file)
+    const [previewAdj, setPreviewAdj] = useState(null);
+    const previewUrl = useMemo(
+        () => (previewAdj?.file ? URL.createObjectURL(previewAdj.file) : null),
+        [previewAdj]
+    );
+    useEffect(() => () => { if (previewUrl) URL.revokeObjectURL(previewUrl); }, [previewUrl]);
 
     // Tick cada 5s: captura comunicados nuevos (enviados desde Elaborar),
     // programados que se disparan, cancelaciones, etc.
@@ -68,6 +77,18 @@ export default function Enviados() {
         return () => clearInterval(h);
     }, []);
     const forzarRefresh = () => setTick((t) => t + 1);
+
+    // Si llegamos desde una notificacion (click en la campanita), abrimos el modal
+    // de detalle del comunicado correspondiente.
+    useEffect(() => {
+        const idToOpen = location.state?.verDetalle;
+        if (!idToOpen) return;
+        const c = COMUNICADOS_MOCK.find((x) => x.id === idToOpen);
+        if (c) setDetalle(c);
+        // Limpiamos el state para que al refrescar no vuelva a abrirse
+        navigate(location.pathname, { replace: true, state: {} });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [location.state?.verDetalle]);
 
     const resumen = useMemo(() => calcularResumenComunicados(), [tick]);
 
@@ -210,7 +231,8 @@ export default function Enviados() {
                                         </Typography>
                                         {c.adjunto && (
                                             <Chip size="small" icon={<AttachFileIcon sx={{ fontSize: 14 }} />}
-                                                label={c.adjunto} sx={{ mt: 0.5, bgcolor: '#E4EEF5', color: 'primary.main', fontSize: 11 }} />
+                                                label={typeof c.adjunto === 'string' ? c.adjunto : c.adjunto.name}
+                                                sx={{ mt: 0.5, bgcolor: '#E4EEF5', color: 'primary.main', fontSize: 11 }} />
                                         )}
                                     </TableCell>
                                     <TableCell>
@@ -303,8 +325,23 @@ export default function Enviados() {
                             {detalle.adjunto && (
                                 <Box>
                                     <Typography variant="body2" sx={{ fontWeight: 700, mb: 0.5, color: '#132B3E' }}>Adjunto</Typography>
-                                    <Chip icon={<AttachFileIcon sx={{ fontSize: 16 }} />} label={detalle.adjunto}
-                                        sx={{ bgcolor: '#E4EEF5', color: 'primary.main' }} />
+                                    <Paper variant="outlined" sx={{ p: 1.5, display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
+                                        <AttachFileIcon color="primary" />
+                                        <Typography variant="body2" sx={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                            {typeof detalle.adjunto === 'string' ? detalle.adjunto : detalle.adjunto.name}
+                                        </Typography>
+                                        {detalle.adjunto?.file && (
+                                            <Button size="small" startIcon={<VisibilityIcon />}
+                                                onClick={() => setPreviewAdj(detalle.adjunto)}>
+                                                Ver
+                                            </Button>
+                                        )}
+                                    </Paper>
+                                    {!detalle.adjunto?.file && typeof detalle.adjunto !== 'string' && (
+                                        <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
+                                            El archivo ya no esta en memoria (se perdio al recargar la pagina).
+                                        </Typography>
+                                    )}
                                 </Box>
                             )}
                         </DialogContent>
@@ -313,6 +350,34 @@ export default function Enviados() {
                         </DialogActions>
                     </>
                 )}
+            </Dialog>
+
+            {/* Modal de preview del adjunto */}
+            <Dialog open={Boolean(previewAdj)} onClose={() => setPreviewAdj(null)} maxWidth="md" fullWidth>
+                <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    Vista previa — {previewAdj?.name}
+                    <IconButton onClick={() => setPreviewAdj(null)}><CloseIcon /></IconButton>
+                </DialogTitle>
+                <DialogContent dividers sx={{ minHeight: 500, p: 0 }}>
+                    {previewAdj?.type === 'application/pdf' && previewUrl && (
+                        <iframe src={previewUrl} title="preview" style={{ width: '100%', height: '70vh', border: 0 }} />
+                    )}
+                    {previewAdj?.type?.startsWith('image/') && previewUrl && (
+                        <Box sx={{ textAlign: 'center', p: 2 }}>
+                            <img src={previewUrl} alt="preview" style={{ maxWidth: '100%', maxHeight: '70vh' }} />
+                        </Box>
+                    )}
+                    {previewAdj && !previewAdj.type?.startsWith('image/') && previewAdj.type !== 'application/pdf' && (
+                        <Box sx={{ p: 4, textAlign: 'center' }}>
+                            <Typography variant="body2" color="text.secondary">
+                                No hay vista previa disponible para este tipo de archivo.
+                            </Typography>
+                        </Box>
+                    )}
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={() => setPreviewAdj(null)}>Cerrar</Button>
+                </DialogActions>
             </Dialog>
 
             <Snackbar open={snack.open} autoHideDuration={2500} onClose={() => setSnack({ ...snack, open: false })}

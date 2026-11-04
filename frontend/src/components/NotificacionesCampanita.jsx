@@ -40,7 +40,12 @@ export default function NotificacionesCampanita() {
     const onClickNoti = (n) => {
         marcarLeida(n.id);
         cerrar();
-        if (n.ruta) navigate(n.ruta);
+        if (n.ruta) {
+            // Si la notificacion viene de un comunicado, pasamos su ID para que la pantalla
+            // Enviados abra directamente el modal de detalle con el mensaje y el adjunto.
+            const state = n.comunicadoId ? { verDetalle: n.comunicadoId } : undefined;
+            navigate(n.ruta, { state });
+        }
     };
 
     return (
