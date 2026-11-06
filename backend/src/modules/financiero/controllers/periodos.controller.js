@@ -60,4 +60,42 @@ async function registrarAgua(req, res, next) {
   } catch (err) { next(err); }
 }
 
-module.exports = { listar, crear, vistaPrevia, cerrar, listarAgua, registrarAgua };
+/** Cargo adicional con descripción para UNA unidad del periodo (critico 2.2: "Agua y otros"). */
+async function registrarExtra(req, res, next) {
+  try {
+    const id = idValido(req.params.id); const unidadId = idValido(req.params.unidadId);
+    if (!id || !unidadId) return res.status(400).json({ ok: false, error: 'id y unidadId deben ser enteros positivos' });
+    const data = await service.registrarExtra(id, unidadId, req.body || {}, req.user?.id ?? null);
+    res.status(201).json({ ok: true, mensaje: `${data.extra.descripcion}: Bs ${data.extra.monto} en ${data.departamento} (total mensual Bs ${data.montoTotal})`, data });
+  } catch (err) { next(err); }
+}
+
+async function eliminarExtra(req, res, next) {
+  try {
+    const id = idValido(req.params.id); const extraId = idValido(req.params.extraId);
+    if (!id || !extraId) return res.status(400).json({ ok: false, error: 'id y extraId deben ser enteros positivos' });
+    const data = await service.eliminarExtra(id, extraId, req.user?.id ?? null);
+    res.json({ ok: true, mensaje: `Cargo "${data.extraEliminado.descripcion}" eliminado`, data });
+  } catch (err) { next(err); }
+}
+
+/** Listado por tipo de departamento: Tipo Dpto · Dpto · Expensa · Agua · Extras · Total (critico 2.3). */
+async function listarCargos(req, res, next) {
+  try {
+    const id = idValido(req.params.id);
+    if (!id) return res.status(400).json({ ok: false, error: 'El id debe ser un entero positivo' });
+    res.json({ ok: true, data: await service.listarCargos(id, req.query) });
+  } catch (err) { next(err); }
+}
+
+/** Aplica los saldos a favor (anticipos) a los cargos del periodo (critico 5.1). */
+async function aplicarAnticipos(req, res, next) {
+  try {
+    const id = idValido(req.params.id);
+    if (!id) return res.status(400).json({ ok: false, error: 'El id debe ser un entero positivo' });
+    const data = await service.aplicarAnticipos(id, req.user?.id ?? null);
+    res.json({ ok: true, mensaje: `${data.aplicaciones.length} aplicaciones por Bs ${data.total}`, data });
+  } catch (err) { next(err); }
+}
+
+module.exports = { listar, crear, vistaPrevia, cerrar, listarAgua, registrarAgua, registrarExtra, eliminarExtra, listarCargos, aplicarAnticipos };

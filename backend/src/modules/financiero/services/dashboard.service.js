@@ -1,5 +1,6 @@
 // Indicadores del dashboard y lista de morosos (req. 5). Solo lectura: no toca saldos ni asientos.
 const prisma = require('../../../config/prisma');
+const { fechaActual } = require('../../../shared/fechaSistema');
 const { configMoraVigente } = require('./configuracion.service');
 const {
   inicioDiaUTC, rangoMes, soloFecha,
@@ -39,7 +40,8 @@ async function configMoraSegura(fecha) {
  * Lista de unidades morosas: expensas con saldo pendiente y fecha de vencimiento anterior a hoy,
  * agrupadas por unidad con su responsable de pago y la mora estimada a la fecha.
  */
-async function morosos({ minDias = 1, hoy = new Date() } = {}) {
+async function morosos({ minDias = 1, hoy = null } = {}) {
+  hoy = hoy || await fechaActual();
   const [expensas, configMora] = await Promise.all([
     prisma.expensa.findMany({
       where: { saldoPendiente: { gt: 0 }, fechaVencimiento: { lt: inicioDiaUTC(hoy) } },
@@ -53,7 +55,8 @@ async function morosos({ minDias = 1, hoy = new Date() } = {}) {
 }
 
 /** Indicadores para la pantalla de inicio: por cobrar, morosos, expensas del período, caja/bancos y resultado del mes. */
-async function dashboard({ hoy = new Date() } = {}) {
+async function dashboard({ hoy = null } = {}) {
+  hoy = hoy || await fechaActual();
   const { inicioMes, finMes } = rangoMes(hoy);
 
   const [periodoActual, porCobrarAgg, cuentas, movimientosMes, listaMorosos] = await Promise.all([
@@ -98,7 +101,8 @@ async function dashboard({ hoy = new Date() } = {}) {
  * y últimos movimientos. `periodo` llega como 'YYYY-MM'; si no se envía, se usa el último período emitido
  * o, si no hay ninguno, el mes actual.
  */
-async function finanzas({ periodo, hoy = new Date() } = {}) {
+async function finanzas({ periodo, hoy = null } = {}) {
+  hoy = hoy || await fechaActual();
   const periodos = await prisma.periodo.findMany({
     orderBy: [{ anio: 'desc' }, { mes: 'desc' }],
     select: { id: true, anio: true, mes: true },

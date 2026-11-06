@@ -27,6 +27,7 @@ function resumirEstadoCuenta({ expensas = [], anticipos = [], configMora = CONFI
       const r = calcularMora({
         saldoPendiente: deCentavos(saldoCent),
         tasaMensual: Number(configMora.tasaMensual ?? 0),
+        montoFijo: Number(configMora.montoFijo ?? 0),
         diasGracia: Number(configMora.diasGracia ?? 0),
         metodo: configMora.metodo || 'SIMPLE',
         fechaVencimiento: e.fechaVencimiento,

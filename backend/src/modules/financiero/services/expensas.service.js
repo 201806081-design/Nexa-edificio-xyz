@@ -1,13 +1,15 @@
 // Expensas: lectura con estado real (vencimiento por fecha) y mora estimada por fila (HU-FI-01 / US2.1).
 const prisma = require('../../../config/prisma');
 const { configMoraVigente } = require('./configuracion.service');
+const { fechaActual } = require('../../../shared/fechaSistema');
 const {
   inicioDiaUTC, estadosDesdeFiltro, enriquecerExpensa, resumirExpensas,
 } = require('../utils/expensasVista.utils');
 
 const INCLUDE_VISTA = {
-  unidad: { select: { id: true, codigo: true, tipo: true, piso: true } },
+  unidad: { select: { id: true, codigo: true, tipo: true, piso: true, categoria: true } },
   periodo: { select: { id: true, anio: true, mes: true, estado: true } },
+  extras: { orderBy: { id: 'asc' } },
 };
 
 /**
@@ -15,7 +17,8 @@ const INCLUDE_VISTA = {
  * Es idempotente y barata (un UPDATE con WHERE); se ejecuta antes de cada lectura
  * y puede invocarse a mano con POST /expensas/sincronizar.
  */
-async function sincronizarEstados({ hoy = new Date(), db = prisma } = {}) {
+async function sincronizarEstados({ hoy = null, db = prisma } = {}) {
+  hoy = hoy || await fechaActual();
   const corte = inicioDiaUTC(hoy);
   const r = await db.expensa.updateMany({
     where: { estado: { in: ['PENDIENTE', 'PARCIAL'] }, saldoPendiente: { gt: 0 }, fechaVencimiento: { lt: corte } },
@@ -39,7 +42,8 @@ function armarWhere({ unidadId, estado, anio, mes, periodoId } = {}) {
 }
 
 /** Listado para la pantalla "Expensas": filas enriquecidas + resumen del filtro aplicado. */
-async function listar(filtros = {}, { hoy = new Date() } = {}) {
+async function listar(filtros = {}, { hoy = null } = {}) {
+  hoy = hoy || await fechaActual();
   await sincronizarEstados({ hoy });
   const [filas, configMora] = await Promise.all([
     prisma.expensa.findMany({
@@ -54,7 +58,8 @@ async function listar(filtros = {}, { hoy = new Date() } = {}) {
 }
 
 /** Tarjetas superiores (totalGenerado, pendiente, pagado, vencido) de un período o de todo. */
-async function resumen({ anio, mes, periodoId } = {}, { hoy = new Date() } = {}) {
+async function resumen({ anio, mes, periodoId } = {}, { hoy = null } = {}) {
+  hoy = hoy || await fechaActual();
   await sincronizarEstados({ hoy });
   const [filas, configMora] = await Promise.all([
     prisma.expensa.findMany({ where: armarWhere({ anio, mes, periodoId }), include: INCLUDE_VISTA }),
@@ -77,12 +82,14 @@ async function resumen({ anio, mes, periodoId } = {}, { hoy = new Date() } = {})
   };
 }
 
-async function obtenerPorId(id, { hoy = new Date() } = {}) {
+async function obtenerPorId(id, { hoy = null } = {}) {
+  hoy = hoy || await fechaActual();
   const e = await prisma.expensa.findUnique({
     where: { id },
     include: {
       unidad: true,
       periodo: true,
+      extras: { orderBy: { id: 'asc' } },
       detalles: { include: { pago: { select: { id: true, fecha: true, metodo: true, referencia: true, monto: true } } } },
     },
   });

@@ -19,7 +19,7 @@ function deCentavos(centavos) {
 
 /**
  * Días de atraso efectivos: días transcurridos desde el vencimiento
- * menos los días de gracia. Nunca negativo.
+ * menos los días de gracia. Nunca negativo. El día del vencimiento no cuenta como atraso.
  */
 function calcularDiasAtraso({ fechaVencimiento, fechaCalculo, diasGracia = 0 }) {
   const venc = new Date(fechaVencimiento);
@@ -32,21 +32,27 @@ function calcularDiasAtraso({ fechaVencimiento, fechaCalculo, diasGracia = 0 }) 
 }
 
 /**
- * Cálculo configurable de interés por mora (req. 2 del pliego).
+ * Cálculo configurable de interés por mora (req. 2 del pliego · critico 3.1 del docente).
  *
  *  SIMPLE:    mora = saldo × (tasa/100) × (diasAtraso/30)
  *  COMPUESTO: mora = saldo × [ (1+t)^meses × (1 + t × diasResto/30) − 1 ]
+ *  FIJO:      mora = montoFijo (una sola vez por expensa vencida, p. ej. Bs 50)
  *
  * @returns {{ diasAtraso: number, mora: number }}
  */
-function calcularMora({ saldoPendiente, tasaMensual, diasGracia = 0, fechaVencimiento, fechaCalculo, metodo = 'SIMPLE' }) {
+function calcularMora({ saldoPendiente, tasaMensual = 0, montoFijo = 0, diasGracia = 0, fechaVencimiento, fechaCalculo, metodo = 'SIMPLE' }) {
   const saldoCent = aCentavos(saldoPendiente);
-  const tasa = Number(tasaMensual);
-  if (!Number.isFinite(tasa) || tasa < 0) throw new Error(`Tasa inválida: ${tasaMensual}`);
-
   const diasAtraso = calcularDiasAtraso({ fechaVencimiento, fechaCalculo, diasGracia });
   if (diasAtraso === 0 || saldoCent === 0) return { diasAtraso, mora: 0 };
 
+  if (metodo === 'FIJO') {
+    const fijo = Number(montoFijo ?? 0);
+    if (!Number.isFinite(fijo) || fijo < 0) throw new Error(`Monto fijo inválido: ${montoFijo}`);
+    return { diasAtraso, mora: deCentavos(aCentavos(fijo)) };
+  }
+
+  const tasa = Number(tasaMensual);
+  if (!Number.isFinite(tasa) || tasa < 0) throw new Error(`Tasa inválida: ${tasaMensual}`);
   const t = tasa / 100;
   let factor;
   if (metodo === 'SIMPLE') {
@@ -81,4 +87,15 @@ function determinarEstadoExpensa({ saldoPendiente, monto, fechaVencimiento, fech
   return 'PENDIENTE';
 }
 
-module.exports = { aCentavos, deCentavos, calcularDiasAtraso, calcularMora, determinarEstadoExpensa };
+/** Parámetros de mora a partir de una fila de configuracion_mora (o null). */
+function parametrosMora(config) {
+  if (!config) return null;
+  return {
+    tasaMensual: Number(config.tasaMensual ?? 0),
+    montoFijo: Number(config.montoFijo ?? 0),
+    diasGracia: Number(config.diasGracia ?? 0),
+    metodo: config.metodo || 'SIMPLE',
+  };
+}
+
+module.exports = { aCentavos, deCentavos, calcularDiasAtraso, calcularMora, determinarEstadoExpensa, parametrosMora };

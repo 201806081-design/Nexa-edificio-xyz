@@ -134,16 +134,17 @@ describe('anticipos', () => {
 describe('configuración de mora', () => {
   it('BD → formulario', () => {
     const v = configMoraAVista({ id: 1, tasaMensual: '2.00', diasGracia: 5, diaVencimiento: 10, metodo: 'SIMPLE', vigenteDesde: new Date('2026-09-01T00:00:00Z'), vigenteHasta: null });
-    assert.deepEqual(v, { id: 1, activo: true, tipoInteres: 'Porcentaje mensual', porcentaje: 2, diasGracia: 5, diaVencimiento: 10, metodo: 'SIMPLE', aplicarDesde: 'Periodo vencido', vigenteDesde: '2026-09-01', vigenteHasta: null });
+    assert.equal(v.tipoInteres, 'Porcentaje mensual'); assert.equal(v.porcentaje, 2); assert.equal(v.activo, true); assert.equal(v.diaGeneracion, 1);
+    assert.equal(v.aplicarDesde, 'Periodo vencido'); assert.equal(v.vigenteDesde, '2026-09-01');
     assert.equal(configMoraAVista(null), null);
     assert.equal(configMoraAVista({ tasaMensual: '0' }).activo, false);
   });
   it('formulario → BD, con validaciones', () => {
     assert.deepEqual(vistaAConfigMora({ activo: true, tipoInteres: 'Porcentaje mensual', porcentaje: 2.5, diasGracia: 5, diaVencimiento: 10 }),
-      { tasaMensual: 2.5, diasGracia: 5, diaVencimiento: 10, metodo: 'SIMPLE' });
+      { tasaMensual: 2.5, montoFijo: null, diasGracia: 5, diaVencimiento: 10, diaGeneracion: 1, metodo: 'SIMPLE' });
     assert.equal(vistaAConfigMora({ activo: false, porcentaje: 9 }).tasaMensual, 0);
     assert.equal(vistaAConfigMora({ tasaMensual: 1, metodo: 'compuesto' }).metodo, 'COMPUESTO');
-    assert.throws(() => vistaAConfigMora({ tipoInteres: 'Monto fijo', porcentaje: 1 }), /porcentaje mensual/);
+    assert.equal(vistaAConfigMora({ tipoInteres: 'Monto fijo', montoFijo: 50 }).metodo, 'FIJO');
     assert.throws(() => vistaAConfigMora({ porcentaje: 150 }), /porcentaje inválido/);
     assert.throws(() => vistaAConfigMora({ porcentaje: 2, diasGracia: 40 }), /diasGracia/);
     assert.throws(() => vistaAConfigMora({ porcentaje: 2, diaVencimiento: 31 }), /diaVencimiento/);

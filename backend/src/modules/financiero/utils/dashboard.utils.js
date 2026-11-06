@@ -68,6 +68,7 @@ function agruparMorosos({ expensas = [], configMora = CONFIG_MORA_DEFAULT, hoy =
     const { mora } = calcularMora({
       saldoPendiente: deCentavos(saldoCent),
       tasaMensual: Number(cfg.tasaMensual ?? 0),
+      montoFijo: Number(cfg.montoFijo ?? 0),
       diasGracia: Number(cfg.diasGracia ?? 0),
       metodo: cfg.metodo || 'SIMPLE',
       fechaVencimiento: e.fechaVencimiento,

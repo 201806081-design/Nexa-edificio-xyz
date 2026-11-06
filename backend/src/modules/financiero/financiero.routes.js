@@ -37,6 +37,10 @@ router.post('/periodos/vista-previa', periodos.vistaPrevia);          // paso 2 
 router.patch('/periodos/:id/cerrar', soloAdmin, periodos.cerrar);
 router.get('/periodos/:id/agua', periodos.listarAgua);                   // pantalla Registrar agua (uno por uno)
 router.put('/periodos/:id/agua/:unidadId', soloAdmin, periodos.registrarAgua);
+router.get('/periodos/:id/cargos', periodos.listarCargos);               // listado por tipo de Dpto (critico 2.3)
+router.post('/periodos/:id/extras/:unidadId', soloAdmin, periodos.registrarExtra);   // cargo con descripcion (critico 2.2)
+router.delete('/periodos/:id/extras/:extraId', soloAdmin, periodos.eliminarExtra);
+router.post('/periodos/:id/aplicar-anticipos', soloAdmin, periodos.aplicarAnticipos); // saldo a favor → cargos (critico 5.1)
 
 // Unidades → estado de cuenta
 router.get('/unidades', unidades.listar);
@@ -45,6 +49,7 @@ router.get('/unidades/:id/estado-cuenta', unidades.estadoCuenta);
 
 // Pagos de expensas
 router.get('/pagos', pagos.listar);
+router.get('/pagos/simular', pagos.simular);                     // ?unidadId&monto&fecha · critico 4
 router.get('/pagos/:id', pagos.obtenerPorId);
 router.post('/pagos', soloAdmin, pagos.registrar);
 
@@ -59,6 +64,9 @@ router.post('/egresos', soloAdmin, ie.registrarEgreso);
 router.get('/configuracion/mora', configuracion.obtener);
 router.get('/configuracion/mora/historial', configuracion.historial);
 router.put('/configuracion/mora', soloAdmin, configuracion.actualizar);
+router.get('/configuracion/fecha-sistema', configuracion.fechaSistema);              // fecha real o simulada (critico 4)
+router.put('/configuracion/fecha-sistema', soloAdmin, configuracion.fijarFechaSistema);
+router.delete('/configuracion/fecha-sistema', soloAdmin, configuracion.restaurarFechaSistema);
 
 // Mora y pagos anticipados (pantalla Mora, HU-FI-05)
 router.get('/mora', mora.resumen);
