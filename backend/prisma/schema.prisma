@@ -43,6 +43,7 @@ enum TipoUnidad {
 enum MetodoMora {
   SIMPLE
   COMPUESTO
+  FIJO
 }
 
 enum EstadoPeriodo {
@@ -226,6 +227,8 @@ model ConfiguracionMora {
   tasaMensual    Decimal    @map("tasa_mensual") @db.Decimal(5, 2)
   diasGracia     Int        @default(0) @map("dias_gracia")
   diaVencimiento Int        @default(10) @map("dia_vencimiento")
+  diaGeneracion  Int        @default(1) @map("dia_generacion")
+  montoFijo      Decimal?   @map("monto_fijo") @db.Decimal(12, 2)
   metodo         MetodoMora @default(SIMPLE)
   vigenteDesde   DateTime   @map("vigente_desde") @db.Date
   vigenteHasta   DateTime?  @map("vigente_hasta") @db.Date
@@ -259,6 +262,7 @@ model Expensa {
   moraAcumulada    Decimal       @default(0) @map("mora_acumulada") @db.Decimal(12, 2)
   montoAgua        Decimal       @default(0) @map("monto_agua") @db.Decimal(12, 2)
   consumoM3        Decimal?      @map("consumo_m3") @db.Decimal(10, 2)
+  montoExtras      Decimal       @default(0) @map("monto_extras") @db.Decimal(12, 2)
   saldoPendiente   Decimal       @map("saldo_pendiente") @db.Decimal(12, 2)
   fechaVencimiento DateTime      @map("fecha_vencimiento") @db.Date
   estado           EstadoExpensa @default(PENDIENTE)
@@ -267,6 +271,7 @@ model Expensa {
   unidad   Unidad        @relation(fields: [unidadId], references: [id])
   periodo  Periodo       @relation(fields: [periodoId], references: [id])
   detalles PagoDetalle[]
+  extras   ExpensaExtra[]
 
   @@unique([unidadId, periodoId])
   @@index([estado])
@@ -611,4 +616,25 @@ model AsientoDetalle {
 
   @@index([cuentaContableId])
   @@map("asiento_detalle")
+}
+
+model ExpensaExtra {
+  id          Int      @id @default(autoincrement())
+  expensaId   Int      @map("expensa_id")
+  descripcion String   @db.VarChar(150)
+  monto       Decimal  @db.Decimal(12, 2)
+  creadoEn    DateTime @default(now()) @map("creado_en")
+
+  expensa Expensa @relation(fields: [expensaId], references: [id], onDelete: Cascade)
+
+  @@index([expensaId])
+  @@map("expensa_extra")
+}
+
+model ParametroSistema {
+  clave         String   @id @db.VarChar(50)
+  valor         String   @db.VarChar(255)
+  actualizadoEn DateTime @default(now()) @updatedAt @map("actualizado_en")
+
+  @@map("parametro_sistema")
 }

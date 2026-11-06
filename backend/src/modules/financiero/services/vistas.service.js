@@ -1,5 +1,6 @@
 // Datos en la forma exacta de las pantallas "Estado de cuenta" (US2.2) e "Ingresos y gastos" (US2.3).
 const prisma = require('../../../config/prisma');
+const { fechaActual } = require('../../../shared/fechaSistema');
 const { configMoraVigente } = require('./configuracion.service');
 const { sincronizarEstados } = require('./expensas.service');
 const { enriquecerExpensa, etiquetaUnidad, inicioDiaUTC } = require('../utils/expensasVista.utils');
@@ -9,7 +10,8 @@ const {
 } = require('../utils/vistas.utils');
 
 /** Pantalla "Estado de cuenta por departamento". anio/mes opcionales para acotar el historial. */
-async function estadoCuenta(unidadId, { anio, mes, hoy = new Date() } = {}) {
+async function estadoCuenta(unidadId, { anio, mes, hoy = null } = {}) {
+  hoy = hoy || await fechaActual();
   const unidad = await prisma.unidad.findUnique({
     where: { id: unidadId },
     include: {

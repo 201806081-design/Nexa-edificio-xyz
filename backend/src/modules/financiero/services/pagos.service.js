@@ -1,12 +1,17 @@
-// Registro de pagos de expensas (req. 2): aplica a expensas, caja/bancos, anticipos y asiento contable.
+// Registro de pagos de expensas (req. 2 · criticos 4.1-4.3 del docente): aplica a expensas, caja/bancos, anticipos y asiento.
+// La mora se cobra según la política vigente y la FECHA DEL SISTEMA (real o simulada), salvo que se indique cobrarMora:false.
 const prisma = require('../../../config/prisma');
 const { HttpError } = require('../../../shared/errors');
-const { calcularMora } = require('../utils/expensas.utils');
+const { calcularMora, parametrosMora } = require('../utils/expensas.utils');
 const { validarDatosPago, aplicarPagoAExpensas, lineasAsientoPago, estadoTrasPago } = require('../utils/pagos.utils');
 const { codigoCuentaOperativa } = require('../utils/contabilidad.utils');
 const { registrarMovimiento, bloquearCuenta, D } = require('./movimientos.service');
 const { asentar } = require('./contabilidad.service');
 const { configMoraVigente } = require('./configuracion.service');
+const { configMoraAVista } = require('../utils/expensasVista.utils');
+const { fechaActual } = require('../../../shared/fechaSistema');
+
+const soloFecha = (d) => (d ? new Date(d).toISOString().slice(0, 10) : null);
 
 async function listar({ unidadId, desde, hasta } = {}) {
   const where = { anulado: false };
@@ -40,16 +45,57 @@ async function obtenerPorId(id) {
 }
 
 /**
+ * Simulación previa de un pago (critico 4): qué expensas cubriría y cuánta mora corresponde
+ * a la fecha indicada (o a la fecha del sistema). No escribe nada.
+ */
+async function simular({ unidadId, monto, fecha, cobrarMora } = {}) {
+  const uid = Number(unidadId);
+  if (!Number.isInteger(uid) || uid <= 0) throw new HttpError(400, 'unidadId es obligatorio');
+  const fechaPago = fecha ? new Date(fecha) : await fechaActual();
+  if (Number.isNaN(fechaPago.getTime())) throw new HttpError(400, 'fecha inválida');
+  const cobrar = cobrarMora === undefined ? true : String(cobrarMora) !== 'false';
+  const config = cobrar ? await configMoraVigente(fechaPago) : null;
+  const pm = parametrosMora(config);
+  const expensas = await prisma.expensa.findMany({
+    where: { unidadId: uid, saldoPendiente: { gt: 0 } },
+    include: { periodo: { select: { anio: true, mes: true } } },
+    orderBy: [{ fechaVencimiento: 'asc' }, { id: 'asc' }],
+  });
+  const conMora = expensas.map((e) => {
+    const r = pm ? calcularMora({ saldoPendiente: Number(e.saldoPendiente), ...pm, fechaVencimiento: e.fechaVencimiento, fechaCalculo: fechaPago }) : { diasAtraso: 0, mora: 0 };
+    return { ...e, mora: r.mora, diasAtraso: r.diasAtraso };
+  });
+  const totalCapital = conMora.reduce((a, e) => a + Number(e.saldoPendiente), 0);
+  const totalMora = conMora.reduce((a, e) => a + e.mora, 0);
+  const aplicacion = monto ? aplicarPagoAExpensas(Number(monto), conMora, { moraPrimero: true }) : null;
+  return {
+    unidadId: uid,
+    fechaPago: soloFecha(fechaPago),
+    politica: configMoraAVista(config, fechaPago),
+    cobrarMora: cobrar,
+    expensas: conMora.map((e) => ({
+      id: e.id, periodo: `${String(e.periodo.mes).padStart(2, '0')}/${e.periodo.anio}`, fechaVencimiento: soloFecha(e.fechaVencimiento),
+      saldoPendiente: Number(e.saldoPendiente), diasAtraso: e.diasAtraso, mora: e.mora, totalConMora: Math.round((Number(e.saldoPendiente) + e.mora) * 100) / 100,
+      situacion: e.diasAtraso > 0 ? 'Después del vencimiento (con mora)' : (soloFecha(fechaPago) === soloFecha(e.fechaVencimiento) ? 'El día del vencimiento (sin mora)' : (fechaPago < e.fechaVencimiento ? 'Antes del vencimiento (sin mora)' : 'Vencida dentro de los días de gracia (sin mora)')),
+    })),
+    totales: { capital: Math.round(totalCapital * 100) / 100, mora: Math.round(totalMora * 100) / 100, totalAdeudado: Math.round((totalCapital + totalMora) * 100) / 100 },
+    aplicacion,
+  };
+}
+
+/**
  * Registra un pago. Todo ocurre en UNA transacción con bloqueo de fila sobre la cuenta y las expensas:
- *  1. Determina las expensas a cobrar (las indicadas o las pendientes más antiguas de la unidad).
- *  2. Calcula la mora de cada una (si cobrarMora) con la configuración vigente.
- *  3. Distribuye el monto: mora → capital → sobrante como anticipo.
- *  4. Registra el movimiento en caja/banco y actualiza el saldo.
- *  5. Crea el pago con su detalle, actualiza saldos y estados de las expensas, crea el anticipo.
+ *  1. Fecha del pago: la indicada o la FECHA DEL SISTEMA (permite simular antes / en / después del vencimiento).
+ *  2. Determina las expensas a cobrar (las indicadas o las pendientes más antiguas de la unidad).
+ *  3. Calcula la mora de cada una con la política vigente (porcentaje o monto fijo), salvo cobrarMora:false.
+ *  4. Distribuye el monto: mora → capital → sobrante como anticipo (saldo a favor).
+ *  5. Registra el movimiento en caja/banco, el pago con su detalle, actualiza expensas, crea el anticipo.
  *  6. Registra el asiento contable (Debe caja · Haber cuentas por cobrar / ingresos por mora / anticipos).
  */
 async function registrar(datos, usuarioId) {
   const p = validarDatosPago(datos);
+  if (!datos.fecha) p.fecha = await fechaActual();
+  const cobrarMora = datos.cobrarMora === undefined ? true : p.cobrarMora;
 
   return prisma.$transaction(async (tx) => {
     const unidad = await tx.unidad.findUnique({
@@ -74,17 +120,13 @@ async function registrar(datos, usuarioId) {
       throw new HttpError(422, 'Alguna de las expensas indicadas no existe, no pertenece a la unidad o ya está pagada');
     }
 
-    // Mora por expensa (0 si no se cobra)
-    const config = p.cobrarMora ? await configMoraVigente(p.fecha) : null;
-    const conMora = expensas.map((e) => ({
-      ...e,
-      mora: config
-        ? calcularMora({
-            saldoPendiente: Number(e.saldoPendiente), tasaMensual: Number(config.tasaMensual), diasGracia: config.diasGracia,
-            metodo: config.metodo, fechaVencimiento: e.fechaVencimiento, fechaCalculo: p.fecha,
-          }).mora
-        : 0,
-    }));
+    // Mora por expensa según la política vigente a la fecha del pago (0 si no se cobra)
+    const config = cobrarMora ? await configMoraVigente(p.fecha) : null;
+    const pm = parametrosMora(config);
+    const conMora = expensas.map((e) => {
+      const r = pm ? calcularMora({ saldoPendiente: Number(e.saldoPendiente), ...pm, fechaVencimiento: e.fechaVencimiento, fechaCalculo: p.fecha }) : { diasAtraso: 0, mora: 0 };
+      return { ...e, mora: r.mora, diasAtraso: r.diasAtraso };
+    });
 
     const aplicacion = aplicarPagoAExpensas(p.monto, conMora, { moraPrimero: true });
     if (aplicacion.aplicaciones.length === 0 && expensas.length > 0) {
@@ -96,7 +138,7 @@ async function registrar(datos, usuarioId) {
       ?? unidad.ocupaciones[0]?.copropietarioId
       ?? null;
 
-    const glosa = `Pago expensas ${unidad.codigo}${p.referencia ? ` · ${p.referencia}` : ''}`;
+    const glosa = `Pago expensas ${unidad.codigo}${p.metodo === 'QR' ? ' (QR)' : ''}${p.referencia ? ` · ${p.referencia}` : ''}`;
     const { movimiento, cuenta } = await registrarMovimiento(tx, {
       cuentaId: p.cuentaId, tipo: 'INGRESO', monto: p.monto, origenTipo: 'PAGO', descripcion: glosa, usuarioId, fecha: p.fecha,
     });
@@ -115,7 +157,6 @@ async function registrar(datos, usuarioId) {
       },
     });
 
-    // Actualizar expensas
     const expensasActualizadas = [];
     for (const a of aplicacion.aplicaciones) {
       const e = conMora.find((x) => x.id === a.expensaId);
@@ -124,10 +165,12 @@ async function registrar(datos, usuarioId) {
         where: { id: e.id },
         data: { saldoPendiente: D(saldo), estado, moraAcumulada: e.moraAcumulada.plus(D(a.mora)) },
       });
-      expensasActualizadas.push({ id: e.id, periodo: `${e.periodo.mes}/${e.periodo.anio}`, capital: a.capital, mora: a.mora, saldoPendiente: Number(actualizada.saldoPendiente), estado });
+      expensasActualizadas.push({
+        id: e.id, periodo: `${e.periodo.mes}/${e.periodo.anio}`, fechaVencimiento: soloFecha(e.fechaVencimiento), diasAtraso: e.diasAtraso,
+        moraCalculada: e.mora, capital: a.capital, mora: a.mora, saldoPendiente: Number(actualizada.saldoPendiente), estado,
+      });
     }
 
-    // Anticipo por el sobrante
     let anticipo = null;
     if (aplicacion.sobrante > 0) {
       anticipo = await tx.anticipo.create({
@@ -135,7 +178,6 @@ async function registrar(datos, usuarioId) {
       });
     }
 
-    // Asiento contable
     const asiento = await asentar(tx, {
       fecha: p.fecha, glosa, origenTipo: 'PAGO', origenId: pago.id,
       lineas: lineasAsientoPago({
@@ -144,8 +186,12 @@ async function registrar(datos, usuarioId) {
       }),
     }, usuarioId);
 
+    const conAtraso = expensasActualizadas.some((e) => e.diasAtraso > 0);
     return {
       pago: { id: pago.id, fecha: pago.fecha, monto: Number(pago.monto), metodo: pago.metodo, referencia: pago.referencia, unidad: unidad.codigo },
+      fechaConsiderada: soloFecha(p.fecha),
+      politica: configMoraAVista(config, p.fecha),
+      situacion: !cobrarMora ? 'Mora no cobrada (cobrarMora:false)' : (conAtraso ? 'Pago después del vencimiento: con mora' : 'Pago en fecha o antes del vencimiento: sin mora'),
       aplicaciones: expensasActualizadas,
       totales: { capital: aplicacion.totalCapital, mora: aplicacion.totalMora, anticipo: aplicacion.sobrante },
       anticipo: anticipo ? { id: anticipo.id, monto: Number(anticipo.monto) } : null,
@@ -155,4 +201,4 @@ async function registrar(datos, usuarioId) {
   });
 }
 
-module.exports = { listar, obtenerPorId, registrar };
+module.exports = { listar, obtenerPorId, registrar, simular };

@@ -1,5 +1,6 @@
 // Mora y pagos anticipados (HU-FI-05): datos de la pantalla "Mora" y detalle de anticipos.
 const prisma = require('../../../config/prisma');
+const { fechaActual } = require('../../../shared/fechaSistema');
 const { configMoraVigente } = require('./configuracion.service');
 const { sincronizarEstados } = require('./expensas.service');
 const {
@@ -13,7 +14,8 @@ const PERIODO = { select: { id: true, anio: true, mes: true } };
 const PAGO = { select: { id: true, fecha: true, monto: true, metodo: true, referencia: true, anulado: true } };
 
 /** Resumen + tablas de la pantalla Mora: saldos vencidos (con interés) y pagos anticipados. */
-async function resumen({ hoy = new Date() } = {}) {
+async function resumen({ hoy = null } = {}) {
+  hoy = hoy || await fechaActual();
   await sincronizarEstados({ hoy });
   const [configMora, vencidas, anticipos] = await Promise.all([
     configMoraVigente(hoy),
@@ -53,7 +55,8 @@ async function listarAnticipos({ unidadId, estado } = {}) {
 }
 
 /** Detalle de un anticipo (pantalla "Detalle del pago anticipado"), con proyección de períodos cubiertos. */
-async function anticipoPorId(id, { hoy = new Date() } = {}) {
+async function anticipoPorId(id, { hoy = null } = {}) {
+  hoy = hoy || await fechaActual();
   const a = await prisma.anticipo.findUnique({ where: { id }, include: { unidad: UNIDAD, pago: PAGO } });
   if (!a) return null;
 

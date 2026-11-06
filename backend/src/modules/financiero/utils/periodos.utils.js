@@ -131,7 +131,47 @@ function calcularAjusteAgua({ montoActual, montoAguaActual, saldoActual, montoAg
   };
 }
 
+/**
+ * Alta o baja de un cargo adicional con descripción (critico 2.2: "Agua y otros").
+ * delta > 0 agrega (p. ej. "Extra pintura edificio: 250"); delta < 0 lo quita.
+ */
+function aplicarDeltaCargo({ montoActual, montoExtrasActual, saldoActual, delta }) {
+  const deltaC = Math.round(Number(delta) * 100);
+  if (!Number.isFinite(deltaC) || deltaC === 0) throw new HttpError(400, 'El monto del cargo debe ser distinto de cero');
+  const montoC = aCentavos(montoActual) + deltaC;
+  const extrasC = aCentavos(montoExtrasActual ?? 0) + deltaC;
+  const saldoC = aCentavos(saldoActual) + deltaC;
+  if (extrasC < 0) throw new HttpError(422, 'Los extras no pueden quedar negativos');
+  if (saldoC < 0) throw new HttpError(422, 'El cargo no puede reducirse por debajo de lo ya pagado en esta expensa');
+  return { monto: deCentavos(montoC), montoExtras: deCentavos(extrasC), saldoPendiente: deCentavos(saldoC), delta: deCentavos(deltaC) };
+}
+
+/**
+ * Listado por tipo de departamento (critico 2.3): agrupa filas de cargos por categoría
+ * y calcula subtotales por grupo y totales generales.
+ * @param filas [{ categoria, expensa, agua, totalExtras, total, pagado, saldo }]
+ */
+function agruparCargosPorTipo(filas = []) {
+  const grupos = new Map();
+  const tot = { unidades: 0, expensa: 0, agua: 0, extras: 0, total: 0, pagado: 0, saldo: 0 };
+  const suma = (acc, f) => {
+    acc.unidades += 1;
+    acc.expensa += aCentavos(f.expensa); acc.agua += aCentavos(f.agua); acc.extras += aCentavos(f.totalExtras);
+    acc.total += aCentavos(f.total); acc.pagado += aCentavos(f.pagado); acc.saldo += aCentavos(f.saldo);
+  };
+  for (const f of filas) {
+    const clave = f.categoria ? `Tipo ${f.categoria}` : (f.tipo === 'DEPARTAMENTO' ? 'Sin tipo' : (f.tipo === 'PARQUEO' ? 'Parqueos' : f.tipo === 'BAULERA' ? 'Bauleras' : 'Otros'));
+    if (!grupos.has(clave)) grupos.set(clave, { grupo: clave, categoria: f.categoria ?? null, unidades: 0, expensa: 0, agua: 0, extras: 0, total: 0, pagado: 0, saldo: 0, filas: [] });
+    const g = grupos.get(clave);
+    suma(g, f); suma(tot, f);
+    g.filas.push(f);
+  }
+  const aBs = (o) => ({ ...o, expensa: deCentavos(o.expensa), agua: deCentavos(o.agua), extras: deCentavos(o.extras), total: deCentavos(o.total), pagado: deCentavos(o.pagado), saldo: deCentavos(o.saldo) });
+  return { grupos: [...grupos.values()].map(aBs), totales: aBs(tot) };
+}
+
 module.exports = {
+  aplicarDeltaCargo, agruparCargosPorTipo,
   MODOS, validarDatosPeriodo, calcularFechasPeriodo, montoParaUnidad, perteneceAlBloque,
   generarExpensasParaUnidades, calcularAjusteAgua,
 };

@@ -25,4 +25,9 @@ async function registrar(req, res, next) {
   } catch (err) { next(err); }
 }
 
-module.exports = { listar, obtenerPorId, registrar };
+/** Simula un pago a la fecha del sistema (o a `fecha`): mora por expensa y aplicación del monto, sin escribir. */
+async function simular(req, res, next) {
+  try { res.json({ ok: true, data: await service.simular(req.query) }); } catch (err) { next(err); }
+}
+
+module.exports = { listar, obtenerPorId, registrar, simular };

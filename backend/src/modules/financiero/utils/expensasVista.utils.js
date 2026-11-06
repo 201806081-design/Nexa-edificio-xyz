@@ -75,7 +75,8 @@ function enriquecerExpensa(e, { configMora = null, hoy = new Date() } = {}) {
   if (estado === 'VENCIDA' && configMora) {
     ({ diasAtraso, mora } = calcularMora({
       saldoPendiente: deCentavos(saldoC),
-      tasaMensual: Number(configMora.tasaMensual),
+      tasaMensual: Number(configMora.tasaMensual ?? 0),
+      montoFijo: Number(configMora.montoFijo ?? 0),
       diasGracia: Number(configMora.diasGracia ?? 0),
       fechaVencimiento: e.fechaVencimiento,
       fechaCalculo: hoy,
@@ -92,8 +93,10 @@ function enriquecerExpensa(e, { configMora = null, hoy = new Date() } = {}) {
     periodoDetalle: tienePeriodo ? { anio: e.periodo.anio, mes: e.periodo.mes } : null,
     monto: deCentavos(montoC),
     montoAgua: deCentavos(cent(e.montoAgua)),
-    montoFijo: deCentavos(montoC - cent(e.montoAgua)),
+    montoExtras: deCentavos(cent(e.montoExtras)),
+    montoFijo: deCentavos(montoC - cent(e.montoAgua) - cent(e.montoExtras)),
     consumoM3: e.consumoM3 !== null && e.consumoM3 !== undefined ? Number(e.consumoM3) : null,
+    extras: Array.isArray(e.extras) ? e.extras.map((x) => ({ id: x.id, descripcion: x.descripcion, monto: deCentavos(cent(x.monto)) })) : [],
     pagado: deCentavos(montoC - saldoC),
     saldo: deCentavos(saldoC),
     saldoPendiente: deCentavos(saldoC),
@@ -187,19 +190,41 @@ function proyectarAplicacionAnticipo({ saldoAFavor, expensaMensual, ultimoPeriod
   return out;
 }
 
-/** Configuración de mora de BD → formulario "Configurar interés". */
-function configMoraAVista(c) {
+const TIPO_FIJO = 'Monto fijo';
+
+/** Próxima fecha (UTC) en que cae el día `dia` a partir de `desde`, en este mes o el siguiente. */
+function proximaFecha(dia, desde = new Date()) {
+  const d = new Date(desde);
+  const y = d.getUTCFullYear(); const m = d.getUTCMonth();
+  const esteMes = new Date(Date.UTC(y, m, Math.min(dia, 28)));
+  if (esteMes >= inicioDiaUTC(d)) return esteMes;
+  return new Date(Date.UTC(y, m + 1, Math.min(dia, 28)));
+}
+
+/** Configuración de mora de BD → formulario "Configurar interés" (critico 3.1). */
+function configMoraAVista(c, hoy = new Date()) {
   if (!c) return null;
-  const tasa = Number(c.tasaMensual);
+  const tasa = Number(c.tasaMensual ?? 0);
+  const fijo = Number(c.montoFijo ?? 0);
+  const esFijo = c.metodo === 'FIJO';
+  const diaVenc = c.diaVencimiento ?? 10;
+  const diaGen = c.diaGeneracion ?? 1;
   return {
     id: c.id,
-    activo: tasa > 0,
-    tipoInteres: TIPO_INTERES,
-    porcentaje: tasa,
+    activo: esFijo ? fijo > 0 : tasa > 0,
+    tipoInteres: esFijo ? TIPO_FIJO : TIPO_INTERES,
+    porcentaje: esFijo ? null : tasa,
+    montoFijo: esFijo ? fijo : null,
     diasGracia: c.diasGracia ?? 0,
-    diaVencimiento: c.diaVencimiento ?? 10,
+    diaVencimiento: diaVenc,
+    diaGeneracion: diaGen,
     metodo: c.metodo || 'SIMPLE',
     aplicarDesde: (c.diasGracia ?? 0) > 0 ? 'Periodo vencido' : 'Fecha de vencimiento',
+    proximaGeneracion: soloFecha(proximaFecha(diaGen, hoy)),
+    proximoVencimiento: soloFecha(proximaFecha(diaVenc, hoy)),
+    descripcion: esFijo
+      ? `Mora de Bs ${fijo} por expensa vencida, después de ${c.diasGracia ?? 0} días de gracia`
+      : `${tasa} % mensual sobre el saldo vencido (${c.metodo === 'COMPUESTO' ? 'compuesto' : 'simple'}), después de ${c.diasGracia ?? 0} días de gracia`,
     vigenteDesde: soloFecha(c.vigenteDesde),
     vigenteHasta: soloFecha(c.vigenteHasta),
   };
@@ -207,13 +232,21 @@ function configMoraAVista(c) {
 
 /** Formulario "Configurar interés" → datos validados para BD (400 si algo no sirve). */
 function vistaAConfigMora(datos = {}) {
-  const tipo = datos.tipoInteres ?? TIPO_INTERES;
-  if (tipo !== TIPO_INTERES) throw new HttpError(400, 'Solo se admite interés como porcentaje mensual sobre el saldo vencido');
+  const tipo = String(datos.tipoInteres ?? (datos.montoFijo !== undefined && datos.porcentaje === undefined ? TIPO_FIJO : TIPO_INTERES));
+  const esFijo = tipo.trim().toLowerCase() === TIPO_FIJO.toLowerCase();
+  if (!esFijo && tipo !== TIPO_INTERES) throw new HttpError(400, `tipoInteres inválido: use "${TIPO_INTERES}" o "${TIPO_FIJO}"`);
 
   const activo = datos.activo === undefined ? true : Boolean(datos.activo);
-  const tasaRaw = datos.porcentaje ?? datos.tasaMensual;
-  const tasa = activo ? Number(tasaRaw) : 0;
-  if (activo && (!Number.isFinite(tasa) || tasa < 0 || tasa > 100)) throw new HttpError(400, 'porcentaje inválido (0-100)');
+  let tasa = 0; let montoFijo = null;
+  if (esFijo) {
+    montoFijo = activo ? Number(datos.montoFijo ?? datos.monto) : 0;
+    if (!Number.isFinite(montoFijo) || montoFijo < 0 || montoFijo > 100000) throw new HttpError(400, 'montoFijo inválido (0-100000)');
+    montoFijo = Math.round(montoFijo * 100) / 100;
+  } else {
+    tasa = activo ? Number(datos.porcentaje ?? datos.tasaMensual) : 0;
+    if (!Number.isFinite(tasa) || tasa < 0 || tasa > 100) throw new HttpError(400, 'porcentaje inválido (0-100)');
+    tasa = Math.round(tasa * 100) / 100;
+  }
 
   const diasGracia = datos.diasGracia === undefined ? 0 : Number(datos.diasGracia);
   if (!Number.isInteger(diasGracia) || diasGracia < 0 || diasGracia > 30) throw new HttpError(400, 'diasGracia inválido (0-30)');
@@ -221,14 +254,19 @@ function vistaAConfigMora(datos = {}) {
   const diaVencimiento = datos.diaVencimiento === undefined ? 10 : Number(datos.diaVencimiento);
   if (!Number.isInteger(diaVencimiento) || diaVencimiento < 1 || diaVencimiento > 28) throw new HttpError(400, 'diaVencimiento inválido (1-28)');
 
-  const metodo = String(datos.metodo || 'SIMPLE').toUpperCase();
-  if (!['SIMPLE', 'COMPUESTO'].includes(metodo)) throw new HttpError(400, 'metodo inválido: SIMPLE | COMPUESTO');
+  const diaGeneracion = datos.diaGeneracion === undefined ? 1 : Number(datos.diaGeneracion);
+  if (!Number.isInteger(diaGeneracion) || diaGeneracion < 1 || diaGeneracion > 28) throw new HttpError(400, 'diaGeneracion inválido (1-28)');
 
-  return { tasaMensual: Math.round(tasa * 100) / 100, diasGracia, diaVencimiento, metodo };
+  let metodo = 'FIJO';
+  if (!esFijo) {
+    metodo = String(datos.metodo || 'SIMPLE').toUpperCase();
+    if (!['SIMPLE', 'COMPUESTO'].includes(metodo)) throw new HttpError(400, 'metodo inválido: SIMPLE | COMPUESTO');
+  }
+  return { tasaMensual: tasa, montoFijo, diasGracia, diaVencimiento, diaGeneracion, metodo };
 }
 
 module.exports = {
-  MESES, ESTADO_UI, TIPO_INTERES,
+  MESES, ESTADO_UI, TIPO_INTERES, TIPO_FIJO, proximaFecha,
   etiquetaPeriodo, etiquetaUnidad, soloFecha, fechaCorta, inicioDiaUTC,
   estadosDesdeFiltro, estadoVigente, enriquecerExpensa, resumirExpensas,
   filasSaldosVencidos, codigoAnticipo, filaAnticipo, proyectarAplicacionAnticipo,
