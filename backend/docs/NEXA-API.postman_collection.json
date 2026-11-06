@@ -1510,6 +1510,481 @@
           "response": []
         }
       ]
+    },
+    {
+      "name": "Criticos del docente (6-nov) · mora fija, fecha del sistema, QR, extras, listado por tipo, anticipos",
+      "item": [
+        {
+          "name": "3.1 Politica · Monto fijo Bs 50, vence el 10, se genera el 1",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/financiero/configuracion/mora",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "financiero",
+                "configuracion",
+                "mora"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tipoInteres\": \"Monto fijo\",\n  \"montoFijo\": 50,\n  \"diasGracia\": 0,\n  \"diaVencimiento\": 10,\n  \"diaGeneracion\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "3.1 Politica · Porcentaje 5% mensual",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/financiero/configuracion/mora",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "financiero",
+                "configuracion",
+                "mora"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tipoInteres\": \"Porcentaje mensual\",\n  \"porcentaje\": 5,\n  \"metodo\": \"SIMPLE\",\n  \"diasGracia\": 0,\n  \"diaVencimiento\": 10,\n  \"diaGeneracion\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "3.1 Politica vigente (con proximas fechas)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/financiero/configuracion/mora",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "financiero",
+                "configuracion",
+                "mora"
+              ]
+            },
+            "description": ""
+          },
+          "response": []
+        },
+        {
+          "name": "4 Fecha del sistema · ver",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/financiero/configuracion/fecha-sistema",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "financiero",
+                "configuracion",
+                "fecha-sistema"
+              ]
+            },
+            "description": ""
+          },
+          "response": []
+        },
+        {
+          "name": "4.1 Fecha del sistema · fijar 05-nov (antes del vencimiento)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/financiero/configuracion/fecha-sistema",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "financiero",
+                "configuracion",
+                "fecha-sistema"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fecha\": \"2026-11-05\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "4.2 Fecha del sistema · fijar 10-nov (el dia del vencimiento)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/financiero/configuracion/fecha-sistema",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "financiero",
+                "configuracion",
+                "fecha-sistema"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fecha\": \"2026-11-10\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "4.3 Fecha del sistema · fijar 20-nov (despues del vencimiento)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/financiero/configuracion/fecha-sistema",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "financiero",
+                "configuracion",
+                "fecha-sistema"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fecha\": \"2026-11-20\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "4 Simular pago QR (mora y situacion por expensa)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/financiero/pagos/simular?unidadId=3&monto=400",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "financiero",
+                "pagos",
+                "simular"
+              ],
+              "query": [
+                {
+                  "key": "unidadId",
+                  "value": "3"
+                },
+                {
+                  "key": "monto",
+                  "value": "400"
+                }
+              ]
+            },
+            "description": ""
+          },
+          "response": []
+        },
+        {
+          "name": "4 Pagar por QR (mora segun politica y fecha del sistema)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/financiero/pagos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "financiero",
+                "pagos"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"unidadId\": 3,\n  \"cuentaId\": 2,\n  \"monto\": 400,\n  \"metodo\": \"QR\",\n  \"referencia\": \"QR-DEMO-001\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "4 Fecha del sistema · restaurar fecha real",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/financiero/configuracion/fecha-sistema",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "financiero",
+                "configuracion",
+                "fecha-sistema"
+              ]
+            },
+            "description": ""
+          },
+          "response": []
+        },
+        {
+          "name": "2.2 Extra con descripcion · Pintura edificio Bs 250 (DEP-301, periodo 3)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/financiero/periodos/3/extras/3",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "financiero",
+                "periodos",
+                "3",
+                "extras",
+                "3"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"descripcion\": \"Extra pintura edificio\",\n  \"monto\": 250\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "2.3 Listado por tipo de Dpto (periodo 3)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/financiero/periodos/3/cargos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "financiero",
+                "periodos",
+                "3",
+                "cargos"
+              ]
+            },
+            "description": ""
+          },
+          "response": []
+        },
+        {
+          "name": "2.3 Listado solo Tipo A",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/financiero/periodos/3/cargos?categoria=A",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "financiero",
+                "periodos",
+                "3",
+                "cargos"
+              ],
+              "query": [
+                {
+                  "key": "categoria",
+                  "value": "A"
+                }
+              ]
+            },
+            "description": ""
+          },
+          "response": []
+        },
+        {
+          "name": "5.1 Pago anticipado Bs 1000 (sobrante = saldo a favor)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/financiero/pagos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "financiero",
+                "pagos"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"unidadId\": 3,\n  \"cuentaId\": 2,\n  \"monto\": 1000,\n  \"metodo\": \"QR\",\n  \"referencia\": \"QR-DEMO-002\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "5.1 Aplicar saldos a favor al periodo 4",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/financiero/periodos/4/aplicar-anticipos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "financiero",
+                "periodos",
+                "4",
+                "aplicar-anticipos"
+              ]
+            },
+            "description": ""
+          },
+          "response": []
+        },
+        {
+          "name": "8.4 Lista de morosos",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/financiero/morosos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "financiero",
+                "morosos"
+              ]
+            },
+            "description": ""
+          },
+          "response": []
+        },
+        {
+          "name": "8.6 Historial de pagos por departamento (DEP-301)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/financiero/estado-cuenta/3",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "financiero",
+                "estado-cuenta",
+                "3"
+              ]
+            },
+            "description": ""
+          },
+          "response": []
+        }
+      ]
     }
   ],
   "auth": {
