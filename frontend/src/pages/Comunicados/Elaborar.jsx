@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import {
     Box, Typography, Paper, Button, Chip, Select, MenuItem, TextField,
     Checkbox, FormControlLabel, Radio, RadioGroup, InputAdornment, Alert,
@@ -17,7 +17,9 @@ import SmsIcon from '@mui/icons-material/Sms';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import CloseIcon from '@mui/icons-material/Close';
 import DeleteIcon from '@mui/icons-material/Delete';
+import QrCode2Icon from '@mui/icons-material/QrCode2';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { QRCodeSVG } from 'qrcode.react';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import {
     CANALES, PRIORIDADES,
@@ -60,13 +62,32 @@ export default function Elaborar() {
     // Si llegamos con un borrador cargado desde "Borradores", lo usamos como estado inicial.
     const borradorInicial = location.state?.borrador ?? null;
 
+    // Si llegamos desde "Compartir QR" (RegistrarPago / RegistrarAnticipo), prefill con QR.
+    const qrInicial = location.state?.qrData ?? '';
+    const qrTituloInicial = location.state?.qrTitulo ?? '';
+    const deptoPreseleccionado = location.state?.deptoPreseleccionado ?? null;
+
     const [borradorId, setBorradorId] = useState(borradorInicial?.id ?? null);
-    const [titulo, setTitulo] = useState(borradorInicial?.titulo ?? '');
+    const [titulo, setTitulo] = useState(
+        borradorInicial?.titulo ?? location.state?.titulo ?? ''
+    );
     const [destinatarioId, setDestinatarioId] = useState(borradorInicial?.destinatarioId ?? 'todos');
-    const [destinatariosEspecificos, setDestinatariosEspecificos] = useState(borradorInicial?.destinatariosEspecificos ?? []);
-    const [mostrarGranular, setMostrarGranular] = useState((borradorInicial?.destinatariosEspecificos ?? []).length > 0);
-    const [prioridad, setPrioridad] = useState(borradorInicial?.prioridad ?? 'Importante');
-    const [mensaje, setMensaje] = useState(borradorInicial?.mensaje ?? '');
+    const [destinatariosEspecificos, setDestinatariosEspecificos] = useState(() => {
+        if (borradorInicial?.destinatariosEspecificos) return borradorInicial.destinatariosEspecificos;
+        if (deptoPreseleccionado) return [deptoPreseleccionado];
+        return [];
+    });
+    const [mostrarGranular, setMostrarGranular] = useState(
+        (borradorInicial?.destinatariosEspecificos ?? []).length > 0 || !!deptoPreseleccionado
+    );
+    const [prioridad, setPrioridad] = useState(
+        borradorInicial?.prioridad ?? location.state?.prioridad ?? 'Importante'
+    );
+    const [mensaje, setMensaje] = useState(
+        borradorInicial?.mensaje ?? location.state?.mensaje ?? ''
+    );
+    const [qrData, setQrData] = useState(qrInicial);
+    const [qrTitulo, setQrTitulo] = useState(qrTituloInicial);
     const [adjunto, setAdjunto] = useState(null);
     const [previewAdjunto, setPreviewAdjunto] = useState(false);
     // Arranca solo con App tildado. Si venimos de un borrador, respetamos sus canales,
@@ -99,9 +120,23 @@ export default function Elaborar() {
     const cantidadFinal = destinatariosEspecificos.length > 0 ? destinatariosEspecificos.length : (grupo?.count ?? 0);
 
     // Si el usuario cambia de grupo, reseteamos la seleccion granular (los IDs no aplican).
+    // Pero NO en el primer mount: respetamos el deptoPreseleccionado que viene del QR share.
+    const didMountDestinatarios = useRef(false);
     useEffect(() => {
+        if (!didMountDestinatarios.current) {
+            didMountDestinatarios.current = true;
+            return;
+        }
         setDestinatariosEspecificos([]);
     }, [destinatarioId]);
+
+    // Limpiamos el location.state despues del primer render para que no re-aplique al refresh
+    useEffect(() => {
+        if (deptoPreseleccionado || qrInicial || location.state?.titulo) {
+            window.history.replaceState({}, '');
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     const toggleCanal = (id) => {
         if (!canalEstaDisponible(id)) return;
@@ -121,8 +156,14 @@ export default function Elaborar() {
         setTitulo(''); setDestinatarioId('todos'); setDestinatariosEspecificos([]);
         setMostrarGranular(false);
         setPrioridad('Importante'); setMensaje(''); setAdjunto(null);
+        setQrData(''); setQrTitulo('');
         setCanalesSel({ app: true, correo: true, whatsapp: false, sms: false });
         setProgramarAhora('ahora'); setFechaProgramada('');
+    };
+
+    const quitarQR = () => {
+        setQrData('');
+        setQrTitulo('');
     };
 
     const onGuardarBorrador = () => {
@@ -198,6 +239,17 @@ export default function Elaborar() {
             {borradorId && (
                 <Alert severity="info" sx={{ mb: 2 }}>
                     Estas editando el borrador <strong>{borradorId}</strong>. Al enviarlo se eliminara del listado de borradores.
+                </Alert>
+            )}
+
+            {qrData && (
+                <Alert severity="success" icon={false} sx={{ mb: 2, bgcolor: '#E4F4EE', color: '#2E7D5B' }}>
+                    <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                        ✓ Se incluira un QR de pago en este comunicado
+                    </Typography>
+                    <Typography variant="body2">
+                        El destinatario lo recibira junto con el mensaje para efectuar el pago.
+                    </Typography>
                 </Alert>
             )}
 
@@ -300,6 +352,43 @@ export default function Elaborar() {
                         sx={{ mb: 2, maxWidth: 240 }}>
                         {PRIORIDADES.map((p) => <MenuItem key={p} value={p}>{p}</MenuItem>)}
                     </Select>
+
+                    {/* QR del pago — bloque visual que se enviara junto con el comunicado */}
+                    {qrData && (
+                        <Box sx={{ mb: 2, bgcolor: '#F8FAFC', border: '1px solid #CFDCEA', borderRadius: 2, p: 2 }}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5, flexWrap: 'wrap' }}>
+                                <QrCode2Icon sx={{ color: 'primary.main' }} />
+                                <Typography variant="body2" sx={{ fontWeight: 700, flex: 1 }}>
+                                    QR de pago incluido en el comunicado
+                                </Typography>
+                                <IconButton size="small" onClick={quitarQR} aria-label="Quitar QR">
+                                    <DeleteIcon fontSize="small" />
+                                </IconButton>
+                            </Box>
+                            {qrTitulo && (
+                                <Typography variant="body2" sx={{ fontWeight: 600, color: 'primary.main', mb: 1.5 }}>
+                                    {qrTitulo}
+                                </Typography>
+                            )}
+                            <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
+                                <Box sx={{ bgcolor: '#fff', p: 1.5, borderRadius: 2, border: '1px solid #E4E7EB' }}>
+                                    <QRCodeSVG value={qrData} size={180} level="M" />
+                                </Box>
+                                <Box sx={{ flex: 1, minWidth: 180 }}>
+                                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
+                                        El QR se adjuntara al mensaje. El destinatario podra escanearlo desde su app bancaria
+                                        para efectuar el pago.
+                                    </Typography>
+                                    <Alert severity="info" icon={false} sx={{ bgcolor: '#E4EEF5', color: 'text.primary', fontSize: 12, mt: 1 }}>
+                                        <Typography variant="caption">
+                                            <strong>QR mock:</strong> no realiza el pago real. Cuando el backend integre la API bancaria,
+                                            este QR se reemplazara por el dinamico del banco.
+                                        </Typography>
+                                    </Alert>
+                                </Box>
+                            </Box>
+                        </Box>
+                    )}
 
                     {/* Mensaje */}
                     <Typography variant="body2" sx={{ fontWeight: 700, mb: 0.5, color: '#132B3E' }}>
@@ -418,6 +507,11 @@ export default function Elaborar() {
                         <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
                             Llega a <strong>{cantidadFinal}</strong> destinatarios por {canalesElegidos.length} canal{canalesElegidos.length !== 1 ? 'es' : ''}.
                         </Typography>
+                        {qrData && (
+                            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+                                Incluye <strong>QR de pago</strong>.
+                            </Typography>
+                        )}
                         {programarAhora === 'programar' && fechaProgramada && (
                             <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
                                 Programado para <strong>{new Date(fechaProgramada).toLocaleString('es-BO')}</strong>

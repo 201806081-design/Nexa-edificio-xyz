@@ -260,8 +260,11 @@ export default function RegistrarPago() {
         navigate('/comunicados/elaborar', {
             state: {
                 deptoPreseleccionado: depto.id,
-                titulo: `QR de pago - Depto ${depto.id}`,
+                titulo: `QR de pago expensa - Depto ${depto.id}`,
                 mensaje: `Estimado/a ${nombre},\n\nLe enviamos el codigo QR para el pago de las expensas del Depto ${depto.id}.\n\nMonto a pagar: ${formatBs(montoDisplay)}\nReferencia: ${referencia}\n\nPor favor escanee el QR desde su aplicacion bancaria para efectuar el pago.\n\nAdministracion Edificio XYZ`,
+                prioridad: 'Importante',
+                qrData: datosQR,
+                qrTitulo: `Pago expensa Depto ${depto.id} - ${formatBs(montoDisplay)}`,
             },
         });
     };
@@ -550,7 +553,7 @@ export default function RegistrarPago() {
                             </Box>
 
                             {/* Bloque QR mock cuando medio === 'QR' */}
-                            {medio === 'QR' && depto && (
+                            {medio === 'QR' && (
                                 <Box sx={{ mt: 2, bgcolor: '#F8FAFC', border: '1px solid #CFDCEA', borderRadius: 2, p: 2 }}>
                                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5, flexWrap: 'wrap' }}>
                                         <QrCode2Icon sx={{ color: 'primary.main' }} />
@@ -563,29 +566,35 @@ export default function RegistrarPago() {
                                             </IconButton>
                                         </Tooltip>
                                     </Box>
-                                    <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
-                                        <Box sx={{ bgcolor: '#fff', p: 1.5, borderRadius: 2, border: '1px solid #E4E7EB' }}>
-                                            <QRCodeSVG value={datosQR || 'EDIFICIO-XYZ'} size={140} level="M" />
+                                    {!depto ? (
+                                        <Alert severity="info" sx={{ bgcolor: '#E4EEF5', color: 'text.primary' }}>
+                                            Seleccione un departamento para generar el QR.
+                                        </Alert>
+                                    ) : (
+                                        <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
+                                            <Box sx={{ bgcolor: '#fff', p: 1.5, borderRadius: 2, border: '1px solid #E4E7EB' }}>
+                                                <QRCodeSVG value={datosQR || 'EDIFICIO-XYZ'} size={200} level="M" />
+                                            </Box>
+                                            <Box sx={{ flex: 1, minWidth: 180 }}>
+                                                <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                                                    Referencia
+                                                </Typography>
+                                                <Typography variant="body2" sx={{ fontWeight: 700, mb: 1 }}>{referencia}</Typography>
+                                                <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                                                    Banco destino
+                                                </Typography>
+                                                <Typography variant="body2" sx={{ fontWeight: 700, mb: 1.5 }}>Banco Mercantil · 7781</Typography>
+                                                <Button fullWidth variant="contained" startIcon={<ShareIcon />}
+                                                    onClick={compartirPorComunicados}
+                                                    sx={{ textTransform: 'none' }}>
+                                                    Compartir con el residente
+                                                </Button>
+                                                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5, fontStyle: 'italic' }}>
+                                                    Abre Comunicados con el QR listo para enviar.
+                                                </Typography>
+                                            </Box>
                                         </Box>
-                                        <Box sx={{ flex: 1, minWidth: 180 }}>
-                                            <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-                                                Referencia
-                                            </Typography>
-                                            <Typography variant="body2" sx={{ fontWeight: 700, mb: 1 }}>{referencia}</Typography>
-                                            <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-                                                Banco destino
-                                            </Typography>
-                                            <Typography variant="body2" sx={{ fontWeight: 700, mb: 1.5 }}>Banco Mercantil · 7781</Typography>
-                                            <Button fullWidth variant="contained" startIcon={<ShareIcon />}
-                                                onClick={compartirPorComunicados}
-                                                sx={{ textTransform: 'none' }}>
-                                                Compartir con el residente
-                                            </Button>
-                                            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5, fontStyle: 'italic' }}>
-                                                Abre Comunicados con el depto pre-seleccionado.
-                                            </Typography>
-                                        </Box>
-                                    </Box>
+                                    )}
                                     <Alert severity="info" icon={false} sx={{ bgcolor: '#E4EEF5', color: 'text.primary', mt: 1.5, fontSize: 12 }}>
                                         <Typography variant="caption">
                                             <strong>QR mock:</strong> no realiza el pago real. Cuando el backend integre la API bancaria, este QR
