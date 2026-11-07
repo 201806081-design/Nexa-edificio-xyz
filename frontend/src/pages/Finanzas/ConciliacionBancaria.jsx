@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import {
     Box, Typography, Paper, Button, Chip, IconButton, Select, MenuItem, TextField, InputAdornment,
     Table, TableHead, TableBody, TableRow, TableCell, Alert,
@@ -17,8 +17,9 @@ import SouthIcon from '@mui/icons-material/South';
 import { useNavigate } from 'react-router-dom';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import {
-    PERIODOS, CUENTAS_BANCARIAS, ESTADOS_CONCILIACION, TIPOS_MOV_BANCO, MOVIMIENTOS_BANCARIOS,
+    CUENTAS_BANCARIAS, ESTADOS_CONCILIACION, TIPOS_MOV_BANCO, MOVIMIENTOS_BANCARIOS,
 } from '../../constants/conciliacionMock';
+import { periodosDisponibles } from '../../constants/expensasMock';
 import { formatBs } from '../../constants/finanzasMock';
 
 const coincidenciaColor = (c) => {
@@ -38,7 +39,22 @@ const tipoChipSx = (tipo) => (tipo === 'Ingreso'
 export default function ConciliacionBancaria() {
     const navigate = useNavigate();
     const [cuenta, setCuenta] = useState(CUENTAS_BANCARIAS[0]);
-    const [periodo, setPeriodo] = useState(PERIODOS[0]);
+
+    // Periodos dinamicos (igual que Expensas): solo meses ya cerrados.
+    const [tick, setTick] = useState(0);
+    const periodos = useMemo(() => periodosDisponibles(), [tick]);
+    const [periodo, setPeriodo] = useState(() => periodosDisponibles()[0] || 'Octubre 2026');
+
+    useEffect(() => {
+        const h = setInterval(() => setTick((t) => t + 1), 5000);
+        return () => clearInterval(h);
+    }, []);
+    useEffect(() => {
+        if (periodos.length > 0 && !periodos.includes(periodo)) {
+            setPeriodo(periodos[0]);
+        }
+    }, [periodos, periodo]);
+
     const [estado, setEstado] = useState('Todos');
     const [tipo, setTipo] = useState('Todos');
     const [busqueda, setBusqueda] = useState('');
@@ -88,7 +104,6 @@ export default function ConciliacionBancaria() {
                 Compara los movimientos del banco con lo registrado en el sistema (ingresos y egresos)
             </Typography>
 
-            {/* Fila de acciones (patron Expensas) */}
             <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', justifyContent: { xs: 'stretch', md: 'flex-end' }, mb: 2 }}>
                 <Button variant="outlined" startIcon={<ArrowBackIcon />}
                     onClick={() => navigate('/finanzas/pagos')}
@@ -101,7 +116,6 @@ export default function ConciliacionBancaria() {
                 </Button>
             </Box>
 
-            {/* Explicacion rapida */}
             <Alert severity="info" icon={false} sx={{ bgcolor: '#E4EEF5', color: 'text.primary', mb: 2 }}>
                 <Typography variant="body2" sx={{ fontWeight: 700, mb: 0.5 }}>¿Para que sirve esta pantalla?</Typography>
                 <Typography variant="body2">
@@ -111,7 +125,6 @@ export default function ConciliacionBancaria() {
                 </Typography>
             </Alert>
 
-            {/* 4 tarjetas de resumen con iconos y colores semanticos */}
             <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(4, 1fr)' }, gap: 2, mb: 2 }}>
                 {RESUMEN.map((r) => (
                     <Paper key={r.label} sx={{ p: 2.5, borderRadius: 2, display: 'flex', alignItems: 'center', gap: 2 }}>
@@ -127,7 +140,6 @@ export default function ConciliacionBancaria() {
                 ))}
             </Box>
 
-            {/* Filtros */}
             <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'flex-end', mb: 3 }}>
                 <Box sx={{ flex: 1, minWidth: 160 }}>
                     <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Cuenta bancaria</Typography>
@@ -138,7 +150,7 @@ export default function ConciliacionBancaria() {
                 <Box sx={{ flex: 1, minWidth: 140 }}>
                     <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Periodo</Typography>
                     <Select fullWidth value={periodo} onChange={(e) => setPeriodo(e.target.value)}>
-                        {PERIODOS.map((p) => <MenuItem key={p} value={p}>{p}</MenuItem>)}
+                        {periodos.map((p) => <MenuItem key={p} value={p}>{p}</MenuItem>)}
                     </Select>
                 </Box>
                 <Box sx={{ flex: 1, minWidth: 130 }}>
@@ -160,7 +172,6 @@ export default function ConciliacionBancaria() {
                 </Box>
             </Box>
 
-            {/* Tabla de movimientos */}
             <Paper sx={{ p: 3, borderRadius: 2 }}>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
                     <Typography variant="body2" sx={{ fontWeight: 600 }}>Movimientos para conciliar</Typography>
