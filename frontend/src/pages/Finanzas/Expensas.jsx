@@ -14,11 +14,15 @@ import TaskAltIcon from '@mui/icons-material/TaskAlt';
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
 import PaidIcon from '@mui/icons-material/Paid';
 import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined';
+import LocalOfferIcon from '@mui/icons-material/LocalOffer';
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import { useNavigate, useLocation } from 'react-router-dom';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import {
-    PERIODOS, ESTADOS_EXPENSA, DEPARTAMENTOS_FILTRO, EXPENSAS_MOCK, DEPARTAMENTOS_ACTIVOS,
+    ESTADOS_EXPENSA, DEPARTAMENTOS_FILTRO, EXPENSAS_MOCK, DEPARTAMENTOS_ACTIVOS,
     CONFIG_AGUA, calcularAgua, estadoChipSx,
+    periodosDisponibles, periodoEnCurso, totalExtras,
+    agregarExtra, eliminarExtra, recalcularTotalExpensa,
 } from '../../constants/expensasMock';
 import { formatBs } from '../../constants/finanzasMock';
 
@@ -27,12 +31,17 @@ const PAGE_SIZE = 10;
 export default function Expensas() {
     const navigate = useNavigate();
     const location = useLocation();
-    const [periodo, setPeriodo] = useState('Octubre 2026');
+
+    // Periodos dinamicos (igual que Personal): solo meses ya cerrados.
+    const [tick, setTick] = useState(0);
+    const periodos = useMemo(() => periodosDisponibles(), [tick]);
+    const [periodo, setPeriodo] = useState(() => periodosDisponibles()[0] || 'Octubre 2026');
+    const periodoActualEnCurso = periodoEnCurso();
+
     const [departamento, setDepartamento] = useState('Todos');
     const [estado, setEstado] = useState('Todos');
     const [busqueda, setBusqueda] = useState('');
     const [limite, setLimite] = useState(PAGE_SIZE);
-    const [tick, setTick] = useState(0);
 
     const [menuAnchor, setMenuAnchor] = useState(null);
     const [filaSel, setFilaSel] = useState(null);
@@ -41,14 +50,29 @@ export default function Expensas() {
     const [aguaAbierto, setAguaAbierto] = useState(false);
     const [lecturaAnt, setLecturaAnt] = useState('');
     const [lecturaAct, setLecturaAct] = useState('');
-    // Desbloqueo excepcional de la lectura anterior (medidor cambiado, danado, etc.)
     const [anteriorDesbloqueada, setAnteriorDesbloqueada] = useState(false);
-    // Campo "Agua (Bs)" editable. Si el admin lo toca, queda dirty y deja de
-    // recalcularse automaticamente cuando cambia la lectura actual.
     const [aguaInput, setAguaInput] = useState('');
     const [aguaDirty, setAguaDirty] = useState(false);
 
+    // --- Modal: Registrar/editar gastos extras ---
+    const [extrasAbierto, setExtrasAbierto] = useState(false);
+    const [extraDescr, setExtraDescr] = useState('');
+    const [extraMonto, setExtraMonto] = useState('');
+
     const [snack, setSnack] = useState({ open: false, msg: '', sev: 'success' });
+
+    // Tick cada 5s para refrescar periodos disponibles si cambia la fecha del sistema
+    useEffect(() => {
+        const h = setInterval(() => setTick((t) => t + 1), 5000);
+        return () => clearInterval(h);
+    }, []);
+
+    // Si el periodo seleccionado deja de estar disponible, caer al mas reciente valido
+    useEffect(() => {
+        if (periodos.length > 0 && !periodos.includes(periodo)) {
+            setPeriodo(periodos[0]);
+        }
+    }, [periodos, periodo]);
 
     // Snack desde navegacion (ej. al volver de GenerarExpensas)
     useEffect(() => {
@@ -64,7 +88,6 @@ export default function Expensas() {
 
     const abrirAgua = (r) => {
         setFilaSel(r);
-        // Lectura anterior: si la expensa ya tiene una guardada, usarla; sino, tomar la ultimaLectura del depto
         let lecAntInicial = r.lecturaAnt;
         if (lecAntInicial == null) {
             const d = DEPARTAMENTOS_ACTIVOS.find((x) => x.id === r.depto);
@@ -73,8 +96,7 @@ export default function Expensas() {
         const lecActInicial = r.lecturaAct != null ? r.lecturaAct : lecAntInicial;
         setLecturaAnt(String(lecAntInicial));
         setLecturaAct(String(lecActInicial));
-        setAnteriorDesbloqueada(false); // siempre arranca bloqueada
-        // Agua inicial: si la expensa ya tenia, usarla (marcada como dirty); sino autocalcular
+        setAnteriorDesbloqueada(false);
         if (r.agua && r.agua > 0) {
             setAguaInput(String(r.agua));
             setAguaDirty(true);
@@ -89,7 +111,6 @@ export default function Expensas() {
 
     const cerrarAgua = () => { setAguaAbierto(false); setFilaSel(null); };
 
-    // Auto-recalcular el agua cuando cambia la lectura actual (si el admin no la edito a mano)
     useEffect(() => {
         if (!aguaAbierto || aguaDirty) return;
         const consumo = Math.max(0, (Number(lecturaAct) || 0) - (Number(lecturaAnt) || 0));
@@ -114,13 +135,12 @@ export default function Expensas() {
         const aguaFinal = Math.max(0, Number(aguaInput) || 0);
         const m3 = Math.max(0, (Number(lecturaAct) || 0) - (Number(lecturaAnt) || 0));
         row.agua = aguaFinal;
-        row.total = row.base + aguaFinal;
         row.lecturaAnt = Number(lecturaAnt) || 0;
         row.lecturaAct = Number(lecturaAct) || 0;
         row.m3 = m3;
         row.estado = row.estado === 'Agua pendiente' ? 'Lista' : row.estado;
         row.fechaAgua = new Date().toLocaleDateString('es-BO');
-        // Actualizar la ultimaLectura del depto para el proximo periodo
+        recalcularTotalExpensa(row); // actualiza total incluyendo extras
         const d = DEPARTAMENTOS_ACTIVOS.find((x) => x.id === row.depto);
         if (d) d.ultimaLectura = row.lecturaAct;
         const sufijo = aguaDirty ? ' (monto manual)' : '';
@@ -129,9 +149,44 @@ export default function Expensas() {
         cerrarAgua();
     };
 
-    // Redirige a "Registrar pago" con el depto y periodo precargados.
-    // El pago real + sincronizacion (anticipo, marcar expensa como Pagada) se hace alla,
-    // asi todo pago queda registrado en PAGOS_MOCK y sincronizado con Dashboard/Resumen/Flujo de caja.
+    // --- Extras ---
+    const abrirExtras = () => {
+        setExtraDescr('');
+        setExtraMonto('');
+        setExtrasAbierto(true);
+        cerrarMenu();
+    };
+    const cerrarExtras = () => setExtrasAbierto(false);
+
+    const confirmarAgregarExtra = () => {
+        const descr = extraDescr.trim();
+        const monto = Number(extraMonto) || 0;
+        if (!descr) {
+            setSnack({ open: true, msg: 'La descripcion del gasto extra es obligatoria', sev: 'warning' });
+            return;
+        }
+        if (monto <= 0) {
+            setSnack({ open: true, msg: 'Ingresa un monto valido para el gasto extra', sev: 'warning' });
+            return;
+        }
+        const row = EXPENSAS_MOCK.find((e) => e.id === filaSel.id);
+        if (!row) return;
+        agregarExtra(row, { descripcion: descr, monto });
+        setExtraDescr('');
+        setExtraMonto('');
+        setTick((t) => t + 1);
+        setSnack({ open: true, msg: `Gasto extra "${descr}" (${formatBs(monto)}) agregado a depto ${row.depto}`, sev: 'success' });
+    };
+
+    const quitarExtra = (extraId) => {
+        const row = EXPENSAS_MOCK.find((e) => e.id === filaSel.id);
+        if (!row) return;
+        eliminarExtra(row, extraId);
+        setTick((t) => t + 1);
+        setSnack({ open: true, msg: `Gasto extra eliminado`, sev: 'success' });
+    };
+
+    // Redirige a "Registrar pago"
     const irARegistrarPago = () => {
         const f = filaSel;
         cerrarMenu();
@@ -147,7 +202,7 @@ export default function Expensas() {
 
     const nombreMes = (periodo || '').split(' ')[0] || 'periodo';
 
-    // KPIs en Bs (alineados con v1) + conteo de pendientes
+    // KPIs en Bs
     const kpis = useMemo(() => {
         const delMes = EXPENSAS_MOCK.filter((e) => e.periodo === periodo);
         const totalGenerado = delMes.reduce((s, e) => s + (e.total || 0), 0);
@@ -173,17 +228,23 @@ export default function Expensas() {
     const visibles = filas.slice(0, limite);
     const hayMas = filas.length > limite;
 
-    // Para el modal: m3 preview y nota de minimo
     const m3Consumo = Math.max(0, (Number(lecturaAct) || 0) - (Number(lecturaAnt) || 0));
-    const aplicaMinimo = aguaAbierto && m3Consumo <= CONFIG_AGUA.minimoM3;
 
     return (
         <DashboardLayout>
-            {/* Header igual al estilo v1 */}
+            {/* Header */}
             <Typography variant="h1" color="primary.main" sx={{ mb: 0.5 }}>Expensas mensuales</Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                Consulta y gestiona las expensas de los departamentos
+                Consulta y gestiona las expensas de los departamentos.
             </Typography>
+
+            {/* Aviso: el mes en curso todavia no esta disponible */}
+            <Alert severity="info" icon={false} sx={{ bgcolor: '#E4EEF5', color: 'text.primary', mb: 2 }}>
+                <Typography variant="body2">
+                    El mes en curso (<strong>{periodoActualEnCurso}</strong>) aun no se puede generar.
+                    Aparecera como periodo disponible cuando termine.
+                </Typography>
+            </Alert>
 
             {/* Botones top-right: Configuracion intereses + Generar expensa */}
             <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', justifyContent: { xs: 'stretch', md: 'flex-end' }, mb: 2 }}>
@@ -226,7 +287,7 @@ export default function Expensas() {
                 <Box sx={{ flex: 1, minWidth: 150 }}>
                     <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Periodo</Typography>
                     <Select fullWidth value={periodo} onChange={(e) => { setPeriodo(e.target.value); setLimite(PAGE_SIZE); }}>
-                        {PERIODOS.map((p) => <MenuItem key={p} value={p}>{p}</MenuItem>)}
+                        {periodos.map((p) => <MenuItem key={p} value={p}>{p}</MenuItem>)}
                     </Select>
                 </Box>
                 <Box sx={{ flex: 1, minWidth: 150 }}>
@@ -243,14 +304,14 @@ export default function Expensas() {
                 </Box>
             </Box>
 
-            {/* Tabla (sin columna N.º) */}
+            {/* Tabla */}
             <Paper sx={{ p: 3, borderRadius: 2 }}>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
                     <Typography variant="body2" sx={{ fontWeight: 600 }}>Expensas de {periodo}</Typography>
                     <Typography variant="body2" color="text.secondary">{filas.length} {filas.length === 1 ? 'registro' : 'registros'}</Typography>
                 </Box>
                 <Box sx={{ overflowX: 'auto' }}>
-                    <Table size="small" sx={{ minWidth: 860 }}>
+                    <Table size="small" sx={{ minWidth: 980 }}>
                         <TableHead>
                             <TableRow sx={{ bgcolor: '#F1F5FA' }}>
                                 <TableCell><strong>Departamento</strong></TableCell>
@@ -258,6 +319,7 @@ export default function Expensas() {
                                 <TableCell><strong>Responsable</strong></TableCell>
                                 <TableCell align="right"><strong>Expensa base</strong></TableCell>
                                 <TableCell align="right"><strong>Agua</strong></TableCell>
+                                <TableCell align="right"><strong>Extras</strong></TableCell>
                                 <TableCell align="right"><strong>Total</strong></TableCell>
                                 <TableCell><strong>Estado</strong></TableCell>
                                 <TableCell align="center"><strong>Acciones</strong></TableCell>
@@ -266,12 +328,14 @@ export default function Expensas() {
                         <TableBody>
                             {visibles.length === 0 ? (
                                 <TableRow>
-                                    <TableCell colSpan={8} align="center" sx={{ color: 'text.secondary', py: 3 }}>
+                                    <TableCell colSpan={9} align="center" sx={{ color: 'text.secondary', py: 3 }}>
                                         No hay expensas para {periodo}. Genera para empezar.
                                     </TableCell>
                                 </TableRow>
                             ) : visibles.map((r) => {
                                 const pendiente = r.estado === 'Agua pendiente';
+                                const extrasSum = totalExtras(r);
+                                const extrasCount = (r.extras || []).length;
                                 return (
                                     <TableRow key={r.id} sx={pendiente ? { bgcolor: '#FFF9EB' } : {}}>
                                         <TableCell sx={{ fontWeight: 600 }}>Depto. {r.depto}</TableCell>
@@ -283,6 +347,13 @@ export default function Expensas() {
                                         <TableCell align="right" sx={{ fontWeight: 600 }}>{formatBs(r.base)}</TableCell>
                                         <TableCell align="right" sx={{ fontWeight: 600, color: pendiente ? '#B6802A' : '#2E9D78' }}>
                                             {pendiente ? '—' : formatBs(r.agua)}
+                                        </TableCell>
+                                        <TableCell align="right" sx={{ fontWeight: 600, color: extrasSum > 0 ? '#1F5F8B' : 'text.secondary' }}>
+                                            {extrasSum > 0 ? (
+                                                <Tooltip title={`${extrasCount} gasto${extrasCount !== 1 ? 's' : ''} extra`}>
+                                                    <span>{formatBs(extrasSum)}</span>
+                                                </Tooltip>
+                                            ) : '—'}
                                         </TableCell>
                                         <TableCell align="right" sx={{ fontWeight: 700, color: pendiente ? '#64748B' : '#1a2733' }}>
                                             {pendiente ? '—' : formatBs(r.total)}
@@ -342,9 +413,6 @@ export default function Expensas() {
             </Paper>
 
             {/* Menu de acciones (solo cuando ya hay agua) */}
-            {/* "Editar agua" NO aparece cuando la expensa ya esta Pagada: cambiar la */}
-            {/* lectura despues del cobro reabriria la expensa como pendiente y seria */}
-            {/* inconsistente con el pago ya registrado. Solo editable mientras no se cobre. */}
             <Menu anchorEl={menuAnchor} open={Boolean(menuAnchor)} onClose={cerrarMenu}>
                 <MenuItem onClick={verDetalle}>
                     <VisibilityOutlinedIcon fontSize="small" sx={{ mr: 1, color: '#1F5F8B' }} />
@@ -356,6 +424,12 @@ export default function Expensas() {
                         Editar agua
                     </MenuItem>
                 )}
+                {filaSel?.estado !== 'Pagada' && (
+                    <MenuItem onClick={abrirExtras}>
+                        <LocalOfferIcon fontSize="small" sx={{ mr: 1, color: '#B6802A' }} />
+                        {(filaSel?.extras || []).length > 0 ? 'Editar gastos extras' : 'Registrar gastos extras'}
+                    </MenuItem>
+                )}
                 {filaSel?.estado === 'Lista' && (
                     <MenuItem onClick={irARegistrarPago}>
                         <PaidIcon fontSize="small" sx={{ mr: 1, color: '#2E9D78' }} />
@@ -365,7 +439,7 @@ export default function Expensas() {
             </Menu>
 
             {/* ============================================================ */}
-            {/* Dialog: Registrar agua (unico modo: medidor)                 */}
+            {/* Dialog: Registrar agua                                       */}
             {/* ============================================================ */}
             <Dialog open={aguaAbierto} onClose={cerrarAgua} maxWidth="sm" fullWidth>
                 <DialogTitle sx={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -395,7 +469,6 @@ export default function Expensas() {
                                 {filaSel.responsable} · {filaSel.periodo} · Expensa base <strong>{formatBs(filaSel.base)}</strong>
                             </Typography>
 
-                            {/* Cartel de advertencia cuando la anterior esta desbloqueada */}
                             {anteriorDesbloqueada && (
                                 <Box sx={{ bgcolor: '#FDF0D5', borderRadius: 2, p: 1.25, mb: 1.5, border: '1px solid #F3DBAE' }}>
                                     <Typography variant="caption" sx={{ color: '#8E6318', display: 'block' }}>
@@ -405,7 +478,6 @@ export default function Expensas() {
                                 </Box>
                             )}
 
-                            {/* Lecturas + agua editable (3 columnas) */}
                             <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr 1fr' }, gap: 2, mb: 1.5 }}>
                                 <TextField label="Lectura anterior (m³)" type="number" fullWidth
                                     value={lecturaAnt}
@@ -429,7 +501,6 @@ export default function Expensas() {
                                     }} />
                             </Box>
 
-                            {/* Boton para volver al calculo del medidor cuando el admin edito el monto a mano */}
                             {aguaDirty && (
                                 <Box sx={{ mb: 1.5 }}>
                                     <Button size="small" variant="text" onClick={recalcularAguaDesdeMedidor}
@@ -439,7 +510,6 @@ export default function Expensas() {
                                 </Box>
                             )}
 
-                            {/* Chips de referencia FIJOS */}
                             <Box sx={{ display: 'flex', gap: 1, mb: 2, flexWrap: 'wrap', alignItems: 'center' }}>
                                 <Chip label={`Agua / m³ : ${formatBs(CONFIG_AGUA.tarifaPorM3)}`} size="small"
                                     sx={{ bgcolor: '#E4EEF5', color: '#1F5F8B', fontWeight: 600 }} />
@@ -447,7 +517,6 @@ export default function Expensas() {
                                     sx={{ bgcolor: '#FDF0D5', color: '#B6802A', fontWeight: 600 }} />
                             </Box>
 
-                            {/* Preview: usa el agua final del input (editable), no la autocalculada */}
                             <Box sx={{ bgcolor: '#F8FAFC', borderRadius: 2, p: 2, border: '1px solid #CFDCEA' }}>
                                 <Typography variant="caption" sx={{ fontWeight: 700, display: 'block', mb: 1 }}>Vista previa</Typography>
                                 <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 1.5 }}>
@@ -463,7 +532,9 @@ export default function Expensas() {
                                     </Box>
                                     <Box sx={{ textAlign: 'center' }}>
                                         <Typography variant="caption" color="text.secondary">Total expensa</Typography>
-                                        <Typography variant="h6" sx={{ fontWeight: 700 }}>{formatBs(filaSel.base + (Number(aguaInput) || 0))}</Typography>
+                                        <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                                            {formatBs((filaSel.base || 0) + (Number(aguaInput) || 0) + totalExtras(filaSel))}
+                                        </Typography>
                                     </Box>
                                 </Box>
                             </Box>
@@ -476,6 +547,111 @@ export default function Expensas() {
                         disabled={!lecturaAct || (Number(lecturaAct) < Number(lecturaAnt))}>
                         Confirmar
                     </Button>
+                </DialogActions>
+            </Dialog>
+
+            {/* ============================================================ */}
+            {/* Dialog: Registrar/editar gastos extras                       */}
+            {/* ============================================================ */}
+            <Dialog open={extrasAbierto} onClose={cerrarExtras} maxWidth="sm" fullWidth>
+                <DialogTitle sx={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <LocalOfferIcon sx={{ color: '#B6802A' }} />
+                    Gastos extras — Depto {filaSel?.depto}
+                    {filaSel?.tipo && (
+                        <Chip label={`Tipo ${filaSel.tipo}`} size="small"
+                            sx={{ bgcolor: '#E4EEF5', color: '#1F5F8B', fontWeight: 600, height: 20 }} />
+                    )}
+                </DialogTitle>
+                <DialogContent dividers>
+                    {filaSel && (
+                        <Box>
+                            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                                Agrega cargos adicionales a esta expensa (ej. "Pintura edificio", "Rotura vidrio"). El total se recalcula automaticamente.
+                            </Typography>
+
+                            {/* Formulario agregar */}
+                            <Box sx={{ display: 'flex', gap: 1, mb: 2, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+                                <Box sx={{ flex: 2, minWidth: 200 }}>
+                                    <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Descripcion</Typography>
+                                    <TextField fullWidth size="small" value={extraDescr}
+                                        onChange={(e) => setExtraDescr(e.target.value)}
+                                        placeholder="Ej. Pintura edificio" />
+                                </Box>
+                                <Box sx={{ flex: 1, minWidth: 120 }}>
+                                    <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Monto</Typography>
+                                    <TextField fullWidth size="small" type="number" value={extraMonto}
+                                        onChange={(e) => setExtraMonto(e.target.value)}
+                                        slotProps={{ input: { startAdornment: <InputAdornment position="start">Bs</InputAdornment> } }} />
+                                </Box>
+                                <Button variant="contained" startIcon={<AddIcon />} onClick={confirmarAgregarExtra}>
+                                    Agregar
+                                </Button>
+                            </Box>
+
+                            <Divider sx={{ my: 2 }} />
+
+                            {/* Lista de extras actuales */}
+                            <Typography variant="body2" sx={{ fontWeight: 700, mb: 1 }}>
+                                Gastos registrados ({(filaSel.extras || []).length})
+                            </Typography>
+                            {(filaSel.extras || []).length === 0 ? (
+                                <Typography variant="body2" color="text.secondary" sx={{ py: 2, textAlign: 'center' }}>
+                                    Aun no hay gastos extras para este depto en {filaSel.periodo}.
+                                </Typography>
+                            ) : (
+                                <Table size="small">
+                                    <TableHead>
+                                        <TableRow sx={{ bgcolor: '#F1F5FA' }}>
+                                            <TableCell><strong>Descripcion</strong></TableCell>
+                                            <TableCell><strong>Fecha</strong></TableCell>
+                                            <TableCell align="right"><strong>Monto</strong></TableCell>
+                                            <TableCell align="center"><strong></strong></TableCell>
+                                        </TableRow>
+                                    </TableHead>
+                                    <TableBody>
+                                        {(filaSel.extras || []).map((ex) => (
+                                            <TableRow key={ex.id}>
+                                                <TableCell>{ex.descripcion}</TableCell>
+                                                <TableCell><Typography variant="caption" color="text.secondary">{ex.fecha}</Typography></TableCell>
+                                                <TableCell align="right" sx={{ fontWeight: 700 }}>{formatBs(ex.monto)}</TableCell>
+                                                <TableCell align="center">
+                                                    <IconButton size="small" onClick={() => quitarExtra(ex.id)}
+                                                        sx={{ color: '#D9534F' }}>
+                                                        <DeleteOutlineIcon fontSize="small" />
+                                                    </IconButton>
+                                                </TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                            )}
+
+                            {/* Resumen */}
+                            <Box sx={{ bgcolor: '#F8FAFC', borderRadius: 2, p: 2, mt: 2, border: '1px solid #CFDCEA' }}>
+                                <Box sx={{ display: 'flex', justifyContent: 'space-between', py: 0.5 }}>
+                                    <Typography variant="body2" color="text.secondary">Expensa base</Typography>
+                                    <Typography variant="body2">{formatBs(filaSel.base)}</Typography>
+                                </Box>
+                                <Box sx={{ display: 'flex', justifyContent: 'space-between', py: 0.5 }}>
+                                    <Typography variant="body2" color="text.secondary">Agua</Typography>
+                                    <Typography variant="body2">{formatBs(filaSel.agua || 0)}</Typography>
+                                </Box>
+                                <Box sx={{ display: 'flex', justifyContent: 'space-between', py: 0.5 }}>
+                                    <Typography variant="body2" color="text.secondary">Gastos extras</Typography>
+                                    <Typography variant="body2" sx={{ color: '#B6802A', fontWeight: 600 }}>
+                                        {formatBs(totalExtras(filaSel))}
+                                    </Typography>
+                                </Box>
+                                <Box sx={{ display: 'flex', justifyContent: 'space-between', py: 0.75, borderTop: '1px dashed #CFDCEA', mt: 0.5 }}>
+                                    <Typography variant="body2" sx={{ fontWeight: 700 }}>Nuevo total</Typography>
+                                    <Typography variant="body2" sx={{ fontWeight: 700 }}>{formatBs(filaSel.total)}</Typography>
+                                </Box>
+                            </Box>
+                        </Box>
+                    )}
+                </DialogContent>
+                <DialogActions>
+                    <Button variant="contained" onClick={cerrarExtras}>Cerrar</Button>
                 </DialogActions>
             </Dialog>
 
@@ -529,6 +705,34 @@ export default function Expensas() {
                                     </Typography>
                                 </Box>
                             </Box>
+
+                            {/* Gastos extras (si hay) */}
+                            {(filaSel.extras || []).length > 0 && (
+                                <>
+                                    <Typography variant="body2" sx={{ fontWeight: 700, mb: 1 }}>
+                                        Gastos extras ({(filaSel.extras || []).length})
+                                    </Typography>
+                                    <Box sx={{ bgcolor: '#F8FAFC', border: '1px solid #CFDCEA', borderRadius: 2, p: 1.5, mb: 2 }}>
+                                        {(filaSel.extras || []).map((ex) => (
+                                            <Box key={ex.id} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', py: 0.5, borderBottom: '1px dashed #E4E7EB', '&:last-child': { borderBottom: 0 } }}>
+                                                <Box>
+                                                    <Typography variant="body2" sx={{ fontWeight: 600 }}>{ex.descripcion}</Typography>
+                                                    <Typography variant="caption" color="text.secondary">{ex.fecha}</Typography>
+                                                </Box>
+                                                <Typography variant="body2" sx={{ fontWeight: 700, color: '#B6802A' }}>
+                                                    + {formatBs(ex.monto)}
+                                                </Typography>
+                                            </Box>
+                                        ))}
+                                        <Box sx={{ display: 'flex', justifyContent: 'space-between', py: 0.5, mt: 0.5, borderTop: '1px solid #CFDCEA' }}>
+                                            <Typography variant="body2" sx={{ fontWeight: 700 }}>Subtotal extras</Typography>
+                                            <Typography variant="body2" sx={{ fontWeight: 700, color: '#B6802A' }}>
+                                                {formatBs(totalExtras(filaSel))}
+                                            </Typography>
+                                        </Box>
+                                    </Box>
+                                </>
+                            )}
 
                             <Box sx={{ p: 2, bgcolor: '#F1F5FA', borderRadius: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                 <Typography variant="body2" sx={{ fontWeight: 700 }}>Total expensa</Typography>
