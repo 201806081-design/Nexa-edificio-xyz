@@ -8,6 +8,9 @@
 //       - lectura anterior: autocargada (readOnly, salvo "Ajustar anterior")
 //       - lectura actual : la ingresa el admin
 //       - agua (Bs)      : autocalculada; el admin puede sobreescribirla
+//    3) REGISTRAR gastos extras (opcional, despues del agua, antes del pago):
+//       - lista de {descripcion, monto} por expensa.
+//       - total = base + agua + sumatoria(extras).
 //    Mientras el estado sea "Agua pendiente" el pago queda bloqueado.
 //
 //    "Vencida" = expensa que paso el dia de vencimiento sin pagarse.
@@ -17,6 +20,13 @@
 //  objetos de configuracionMock y moraMock (mutar en un lado se refleja en el otro).
 //  CONFIG_AGUA extiende configuracionMock.CONFIG_AGUA con los campos del flujo
 //  nuevo (tarifaPorM3, minimoM3, minimoBs) para que v1 y v2 compartan datos.
+//
+//  --- PERIODOS DINAMICOS ---
+//  El selector de periodo en Expensas.jsx usa `periodosDisponibles()` que
+//  devuelve los MESES YA CERRADOS desde Octubre 2026 (inicio del edificio)
+//  hasta el mes anterior al actual del sistema. El mes en curso NUNCA aparece
+//  (todavia no termino). Si se simula una fecha futura, los nuevos meses
+//  cerrados aparecen solos.
 //
 //  Cada expensa guarda alias v1 (departamento, monto, lecturaAnterior,
 //  lecturaActual) ademas de los campos v2, para que Pagos.jsx y otras pantallas
@@ -36,7 +46,6 @@ export const ALICUOTAS = EXPENSA_BASE;
 export const CONFIG_MORA = CONFIG_MORA_SHARED;
 
 // --- Agua: extiende el objeto compartido con los campos del flujo nuevo ---
-// Si configuracionMock ya tenia precioM3/tarifaMinima, los conservamos y agregamos los v2.
 if (CONFIG_AGUA_SHARED.tarifaPorM3 === undefined) CONFIG_AGUA_SHARED.tarifaPorM3 = CONFIG_AGUA_SHARED.precioM3 ?? 3;
 if (CONFIG_AGUA_SHARED.minimoM3 === undefined) CONFIG_AGUA_SHARED.minimoM3 = 5;
 if (CONFIG_AGUA_SHARED.minimoBs === undefined) CONFIG_AGUA_SHARED.minimoBs = CONFIG_AGUA_SHARED.tarifaMinima ?? 15;
@@ -58,8 +67,6 @@ export const DEPARTAMENTOS_FILTRO = ['Todos', '101', '102', '103', '201', '202',
 export const ESTADOS_EXPENSA = ['Todos', 'Agua pendiente', 'Lista', 'Pagada', 'Vencida'];
 
 // Catalogo de departamentos activos.
-// 'ultimaLectura' = ultima lectura del medidor registrada (se usa como "lectura
-// anterior" al abrir el modal de registrar agua y se actualiza con la lectura actual).
 export const DEPARTAMENTOS_ACTIVOS = [
     { id: '101', depto: '101', departamento: 'Depto. 101', tipo: 'A', responsable: 'Ana Lopez', base: EXPENSA_BASE.A, ultimaLectura: 103, lecturaAnterior: 103 },
     { id: '102', depto: '102', departamento: 'Depto. 102', tipo: 'B', responsable: 'Luis Garcia', base: EXPENSA_BASE.B, ultimaLectura: 120, lecturaAnterior: 120 },
@@ -73,7 +80,6 @@ export const DEPARTAMENTOS_ACTIVOS = [
 ];
 
 // Calculo del agua por medidor (unico modo automatico).
-// Admite un segundo parametro con la tarifa (default: CONFIG_AGUA.tarifaPorM3).
 export const calcularAgua = (m3, tarifa = CONFIG_AGUA.tarifaPorM3) => {
     const consumo = Math.max(0, Number(m3) || 0);
     const t = Math.max(0, Number(tarifa) || 0);
@@ -83,67 +89,145 @@ export const calcularAgua = (m3, tarifa = CONFIG_AGUA.tarifaPorM3) => {
     return { agua: Math.round(consumo * t), m3: consumo };
 };
 
+// ============================================================
+//  GASTOS EXTRAS
+// ============================================================
+// Cada expensa puede tener 0..N extras: { id, descripcion, monto, fecha }.
+// El total de la expensa = base + agua + sumatoria(extras).
+// Las semillas no tienen extras por default; el admin los agrega via UI.
+
+// Suma de los extras de una fila (soporta extras undefined/null).
+export const totalExtras = (row) => {
+    const arr = row?.extras || [];
+    return arr.reduce((s, e) => s + (Number(e.monto) || 0), 0);
+};
+
+// Total correcto de una expensa = base + agua + extras.
+export const totalExpensa = (row) => (row?.base || 0) + (row?.agua || 0) + totalExtras(row);
+
+// Recalcula row.total segun la composicion actual + extras.
+// Se llama despues de agregar/editar/eliminar extras y despues de registrar agua.
+export const recalcularTotalExpensa = (row) => {
+    if (!row) return;
+    row.total = totalExpensa(row);
+    row.monto = row.total; // alias v1 para Pagos.jsx
+};
+
+// Agrega un extra a la fila y recalcula el total.
+export const agregarExtra = (row, { descripcion, monto }) => {
+    if (!row) return;
+    if (!row.extras) row.extras = [];
+    const ultId = row.extras.reduce((m, e) => Math.max(m, e.id || 0), 0);
+    row.extras.push({
+        id: ultId + 1,
+        descripcion: String(descripcion || '').trim(),
+        monto: Math.max(0, Number(monto) || 0),
+        fecha: new Date().toLocaleDateString('es-BO'),
+    });
+    recalcularTotalExpensa(row);
+};
+
+// Elimina un extra por id y recalcula el total.
+export const eliminarExtra = (row, id) => {
+    if (!row || !row.extras) return;
+    row.extras = row.extras.filter((e) => e.id !== id);
+    recalcularTotalExpensa(row);
+};
+
+// ============================================================
+//  PERIODOS DINAMICOS
+// ============================================================
+
+const MESES_LARGOS = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+    'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+
+// Inicio del edificio = Octubre 2026 (0-indexed: mes=9).
+const PRIMER_PERIODO = { anio: 2026, mes: 9 };
+
+// Devuelve los periodos ya cerrados hasta la fecha del sistema, mas reciente primero.
+// Hoy = 6-Nov-2026      -> ['Octubre 2026']
+// Simulando Feb-2027   -> ['Enero 2027', 'Diciembre 2026', 'Noviembre 2026', 'Octubre 2026']
+// El mes en curso NUNCA aparece (aun no termino).
+export const periodosDisponibles = () => {
+    const hoy = new Date();
+    const primerDiaMesActual = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
+    const periodos = [];
+    let anio = PRIMER_PERIODO.anio;
+    let mes = PRIMER_PERIODO.mes;
+    let seguro = 0;
+    while (seguro++ < 240) {
+        const inicioSiguiente = new Date(anio, mes + 1, 1);
+        if (inicioSiguiente > primerDiaMesActual) break;
+        periodos.push(`${MESES_LARGOS[mes]} ${anio}`);
+        mes++;
+        if (mes >= 12) { mes = 0; anio++; }
+    }
+    return periodos.reverse();
+};
+
+// Mes en curso segun fecha del sistema ("Noviembre 2026").
+// Util para el aviso "la expensa de este mes aun no se puede generar".
+export const periodoEnCurso = () => {
+    const hoy = new Date();
+    return `${MESES_LARGOS[hoy.getMonth()]} ${hoy.getFullYear()}`;
+};
+
 // Semillas (Octubre 2026 con mezcla de estados + 1 vencida de Septiembre para demo).
-// Cada entrada incluye TANTO los campos v2 (depto, total, lecturaAnt, lecturaAct)
-// COMO los alias v1 (departamento, monto, lecturaAnterior, lecturaActual) para
-// que Pagos.jsx y otras pantallas sigan funcionando sin cambios.
 export const EXPENSAS_MOCK = [
     // --- Octubre 2026 ---
-    // 101 Octubre: ya pagada por PG-0041 (Transferencia Bs 315)
     {
         id: 'EX-0001', depto: '101', departamento: 'Depto. 101', tipo: 'A', responsable: 'Ana Lopez', periodo: 'Octubre 2026',
         base: 300, agua: 15, m3: 3, lecturaAnt: 100, lecturaAct: 103, lecturaAnterior: 100, lecturaActual: 103,
+        extras: [],
         monto: 315, total: 315, estado: 'Pagada', pagado: 315, aguaNota: '', fechaGen: '01/10/2026', fechaAgua: '02/10/2026'
     },
-    // 102 Octubre: pago parcial por PG-0039 (Efectivo Bs 200 de 365)
     {
         id: 'EX-0002', depto: '102', departamento: 'Depto. 102', tipo: 'B', responsable: 'Luis Garcia', periodo: 'Octubre 2026',
         base: 350, agua: 15, m3: 5, lecturaAnt: 115, lecturaAct: 120, lecturaAnterior: 115, lecturaActual: 120,
+        extras: [],
         monto: 365, total: 365, estado: 'Lista', pagado: 200, aguaNota: '', fechaGen: '01/10/2026', fechaAgua: '03/10/2026'
     },
     {
         id: 'EX-0003', depto: '103', departamento: 'Depto. 103', tipo: 'A', responsable: 'Pedro Mamani', periodo: 'Octubre 2026',
         base: 300, agua: 0, m3: null, lecturaAnt: null, lecturaAct: null, lecturaAnterior: null, lecturaActual: null,
+        extras: [],
         monto: 300, total: 300, estado: 'Agua pendiente', pagado: 0, aguaNota: '', fechaGen: '01/10/2026', fechaAgua: null
     },
     {
         id: 'EX-0004', depto: '201', departamento: 'Depto. 201', tipo: 'A', responsable: 'Sofia Flores', periodo: 'Octubre 2026',
         base: 300, agua: 0, m3: null, lecturaAnt: null, lecturaAct: null, lecturaAnterior: null, lecturaActual: null,
+        extras: [],
         monto: 300, total: 300, estado: 'Agua pendiente', pagado: 0, aguaNota: '', fechaGen: '01/10/2026', fechaAgua: null
     },
-    // 202 Octubre: pagada con anticipo PA-0010 (aplicacion de credito a favor Bs 365)
     {
         id: 'EX-0005', depto: '202', departamento: 'Depto. 202', tipo: 'B', responsable: 'Luis Perez', periodo: 'Octubre 2026',
         base: 350, agua: 15, m3: 4, lecturaAnt: 200, lecturaAct: 204, lecturaAnterior: 200, lecturaActual: 204,
+        extras: [],
         monto: 365, total: 365, estado: 'Pagada', pagado: 365, aguaNota: '', fechaGen: '01/10/2026', fechaAgua: '02/10/2026'
     },
     {
         id: 'EX-0006', depto: '203', departamento: 'Depto. 203', tipo: 'B', responsable: 'Carlos Mendoza', periodo: 'Octubre 2026',
         base: 350, agua: 0, m3: null, lecturaAnt: null, lecturaAct: null, lecturaAnterior: null, lecturaActual: null,
+        extras: [],
         monto: 350, total: 350, estado: 'Agua pendiente', pagado: 0, aguaNota: '', fechaGen: '01/10/2026', fechaAgua: null
     },
     {
         id: 'EX-0007', depto: '301', departamento: 'Depto. 301', tipo: 'C', responsable: 'Rocio Alba', periodo: 'Octubre 2026',
         base: 400, agua: 0, m3: null, lecturaAnt: null, lecturaAct: null, lecturaAnterior: null, lecturaActual: null,
+        extras: [],
         monto: 400, total: 400, estado: 'Agua pendiente', pagado: 0, aguaNota: '', fechaGen: '01/10/2026', fechaAgua: null
     },
-    // 302 Octubre: ya pagada por PG-0040 (QR Bs 415)
     {
         id: 'EX-0008', depto: '302', departamento: 'Depto. 302', tipo: 'C', responsable: 'Maria Rojas', periodo: 'Octubre 2026',
         base: 400, agua: 15, m3: 3, lecturaAnt: 150, lecturaAct: 153, lecturaAnterior: 150, lecturaActual: 153,
+        extras: [],
         monto: 415, total: 415, estado: 'Pagada', pagado: 415, aguaNota: '', fechaGen: '01/10/2026', fechaAgua: '02/10/2026'
     },
     {
         id: 'EX-0009', depto: '303', departamento: 'Depto. 303', tipo: 'C', responsable: 'Rafael Cruz', periodo: 'Octubre 2026',
         base: 400, agua: 0, m3: null, lecturaAnt: null, lecturaAct: null, lecturaAnterior: null, lecturaActual: null,
+        extras: [],
         monto: 400, total: 400, estado: 'Agua pendiente', pagado: 0, aguaNota: '', fechaGen: '01/10/2026', fechaAgua: null
-    },
-
-    // --- Septiembre 2026 (vencida, demo) ---
-    {
-        id: 'EX-0010', depto: '203', departamento: 'Depto. 203', tipo: 'B', responsable: 'Carlos Mendoza', periodo: 'Septiembre 2026',
-        base: 350, agua: 15, m3: 5, lecturaAnt: 145, lecturaAct: 150, lecturaAnterior: 145, lecturaActual: 150,
-        monto: 365, total: 365, estado: 'Vencida', pagado: 0, aguaNota: '', fechaGen: '01/09/2026', fechaAgua: '02/09/2026'
     },
 ];
 

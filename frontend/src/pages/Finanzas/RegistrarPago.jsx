@@ -1,10 +1,14 @@
 import { useState, useEffect, useMemo } from 'react';
 import {
     Box, Typography, Paper, Button, Select, MenuItem, TextField, Alert, Chip,
-    Table, TableHead, TableBody, TableRow, TableCell, Checkbox, FormControlLabel,
+    Table, TableHead, TableBody, TableRow, TableCell, Checkbox, FormControlLabel, IconButton, Tooltip,
 } from '@mui/material';
 import SavingsIcon from '@mui/icons-material/Savings';
+import QrCode2Icon from '@mui/icons-material/QrCode2';
+import ShareIcon from '@mui/icons-material/Share';
+import RefreshIcon from '@mui/icons-material/Refresh';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { QRCodeSVG } from 'qrcode.react';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import {
     MEDIOS_PAGO, PAGOS_MOCK, HISTORIAL_ANTICIPOS,
@@ -14,7 +18,6 @@ import { DEUDAS_VENCIDAS, CONFIG_MORA } from '../../constants/moraMock';
 import { REGLAS_PERIODO } from '../../constants/configuracionMock';
 import { formatBs } from '../../constants/finanzasMock';
 
-// Calcula el total con mora acumulada segun CONFIG_MORA (compuesto o simple)
 const calcularConMora = (deudaOriginal, meses) => {
     const tasa = (Number(CONFIG_MORA.interesMensual) || 0) / 100;
     const m = Math.max(0, Number(meses) || 0);
@@ -24,9 +27,6 @@ const calcularConMora = (deudaOriginal, meses) => {
     return Math.round(deudaOriginal * ((1 + tasa) ** m) * 100) / 100;
 };
 
-// Meses vencidos entre el periodo de la deuda y la fecha de referencia (reloj
-// del sistema). Misma formula que Mora.jsx y EstadoCuenta.jsx para que las tres
-// pantallas muestren los mismos numeros.
 const MESES_ES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
     'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 const calcularMesesVencidos = (periodoTexto, fechaHoy, diaVenc) => {
@@ -47,8 +47,6 @@ const calcularMesesVencidos = (periodoTexto, fechaHoy, diaVenc) => {
     return count;
 };
 
-// Pagos ya aplicados a un depto en un periodo (efectivo + credito aplicado).
-// Usa p.total del formato nuevo; cae a p.monto + p.creditoAplicado del viejo.
 const pagadoDeudaVencida = (deptoId, periodo) => PAGOS_MOCK
     .filter((p) => p.depto === deptoId
         && (p.periodoAplicado || '').toLowerCase().includes((periodo || '').toLowerCase().split(' ')[0]))
@@ -58,7 +56,6 @@ const pagadoDeudaVencida = (deptoId, periodo) => PAGOS_MOCK
         return s + totalPago;
     }, 0);
 
-// Distribuye un monto entre las deudas, de la mas antigua a la mas nueva
 function distribuir(deudas, monto) {
     let restante = Number(monto) || 0;
     return deudas.map((d) => {
@@ -68,18 +65,24 @@ function distribuir(deudas, monto) {
     });
 }
 
-// Genera el siguiente codigo de pago (PG-00XX)
 function siguienteCodigo() {
     const nums = PAGOS_MOCK.map((p) => Number(String(p.id).replace(/\D/g, '')) || 0);
     const next = (nums.length ? Math.max(...nums) : 42) + 1;
     return `PG-${String(next).padStart(4, '0')}`;
 }
 
-// '2026-10-19' -> '19/10/2026'
 const fechaBonita = (iso) => {
     if (!iso) return '';
     const [y, m, d] = iso.split('-');
     return `${d}/${m}/${y}`;
+};
+
+// Genera una referencia QR mock: QR-YYMMDD-NNNNN
+const generarRefQR = () => {
+    const d = new Date();
+    const stamp = `${String(d.getFullYear()).slice(-2)}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
+    const rand = String(Math.floor(Math.random() * 100000)).padStart(5, '0');
+    return `QR-${stamp}-${rand}`;
 };
 
 const PASOS = ['1. Selecciona el departamento', '2. Distribuye el monto', '3. Confirma el pago'];
@@ -108,7 +111,6 @@ const REF_CONFIG = {
     },
 };
 
-// Fecha de hoy en formato YYYY-MM-DD
 const hoyIso = () => {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -118,26 +120,15 @@ export default function RegistrarPago() {
     const navigate = useNavigate();
     const location = useLocation();
 
-    // --- Lista unificada de deptos con deuda ---
-    // Fuentes de verdad: EXPENSAS_MOCK + DEUDAS_VENCIDAS (ambas con mora dinamica).
-    // Antes tambien se leia DEPARTAMENTOS_DEUDA (lista legacy del pagosMock), pero
-    // ese mock no estaba sincronizado con EXPENSAS_MOCK: mostraba periodos y montos
-    // que no coincidian con Estado de cuenta ni con Mora e intereses. Se quito para
-    // que las tres pantallas (Registrar pago, Estado de cuenta y Mora) muestren
-    // siempre las mismas deudas.
     const deptosDisponibles = useMemo(() => {
         const mapa = new Map();
-        // Fecha de referencia y dia de vencimiento (compartidos con Mora y EstadoCuenta)
         const refHoy = new Date();
         const diaVenc = REGLAS_PERIODO.diaVencimiento;
 
-        // 1) Agregar los de EXPENSAS_MOCK que tengan saldo pendiente, calculando
-        //    la mora acumulada si ya paso el dia de vencimiento (igual que Mora).
         EXPENSAS_MOCK.forEach((e) => {
             if (e.estado === 'Pagada') return;
             const original = Number(e.total || e.monto) || 0;
             const pagado = Number(e.pagado) || 0;
-            // Si ya se pago al menos la deuda original, no sigue acumulando mora
             const meses = pagado >= original
                 ? 0
                 : calcularMesesVencidos(e.periodo, refHoy, diaVenc);
@@ -166,9 +157,6 @@ export default function RegistrarPago() {
                 });
             }
         });
-        // 2) Agregar DEUDAS_VENCIDAS (meses pasados con mora acumulada) — misma fuente que Mora.
-        //    Tambien recalculamos meses con la fecha del sistema para que escale cuando
-        //    el admin cambia la fecha del Windows.
         DEUDAS_VENCIDAS.forEach((dv) => {
             const pagado = pagadoDeudaVencida(dv.depto, dv.periodo);
             const meses = pagado >= dv.deudaOriginal
@@ -178,7 +166,6 @@ export default function RegistrarPago() {
             const pendiente = Math.max(0, Math.round((totalConMora - pagado) * 100) / 100);
             if (pendiente < 0.01) return;
             if (!mapa.has(dv.depto)) {
-                // Buscar el nombre real del responsable en DEPARTAMENTOS_ACTIVOS
                 const activo = DEPARTAMENTOS_ACTIVOS.find((a) => a.id === dv.depto);
                 const nombre = activo ? activo.responsable : `Depto. ${dv.depto}`;
                 mapa.set(dv.depto, {
@@ -196,13 +183,12 @@ export default function RegistrarPago() {
                     totalDeuda: totalConMora,
                     pagado,
                     pendiente,
-                    expensaId: null, // no esta en EXPENSAS_MOCK; es solo deuda vencida
+                    expensaId: null,
                     mora: Math.round((totalConMora - dv.deudaOriginal) * 100) / 100,
                     meses,
                 });
             }
         });
-        // 3) Recalcular saldoPendiente y ordenar deudas por periodo (mas antiguo primero)
         const MES_IDX = {
             enero: 1, febrero: 2, marzo: 3, abril: 4, mayo: 5, junio: 6,
             julio: 7, agosto: 8, septiembre: 9, octubre: 10, noviembre: 11, diciembre: 12
@@ -231,7 +217,6 @@ export default function RegistrarPago() {
     const saldoPendiente = depto ? depto.saldoPendiente : 0;
     const refCfg = REF_CONFIG[medio] || REF_CONFIG['Transferencia'];
 
-    // Credito disponible del depto (suma de todos los anticipos con saldo a favor)
     const creditoDepto = useMemo(() => {
         if (!depto) return 0;
         return HISTORIAL_ANTICIPOS
@@ -239,7 +224,6 @@ export default function RegistrarPago() {
             .reduce((s, a) => s + (a.credito || 0), 0);
     }, [depto]);
 
-    // Credito a aplicar efectivamente (nunca mas que lo necesario)
     const efectivoNum = Number(monto) || 0;
     const creditoReal = aplicarCredito && depto
         ? Math.min(creditoDepto, Math.max(0, saldoPendiente - efectivoNum))
@@ -251,18 +235,40 @@ export default function RegistrarPago() {
     const excedeSaldo = totalEfectivo > saldoPendiente;
     const nuevoSaldo = saldoPendiente - totalAplicado;
 
-    // Pago 100% con credito: no hay efectivo, solo se aplica saldo a favor del depto
     const soloCredito = depto && efectivoNum === 0 && creditoReal > 0;
-
-    // Si hay efectivo y el medio exige referencia (Transferencia, QR, Cheque), la
-    // referencia es obligatoria. Para Efectivo es opcional (recibo interno).
     const refObligatoria = !REF_CONFIG[medio]?.opcional;
     const faltaReferencia = !soloCredito && efectivoNum > 0 && refObligatoria && !referencia.trim();
 
     const distribuidoOk = depto && totalEfectivo > 0 && totalAplicado === totalEfectivo
         && !excedeSaldo && !faltaReferencia;
 
-    // Cambiar depto: reinicia aplicaciones, precarga pagadoPor, resetea credito
+    // Auto-generar referencia QR cuando se elige QR y no hay referencia
+    useEffect(() => {
+        if (medio === 'QR' && !referencia) {
+            setReferencia(generarRefQR());
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [medio]);
+
+    const regenerarQR = () => setReferencia(generarRefQR());
+
+    // Compartir el QR con el residente via Comunicados
+    const compartirPorComunicados = () => {
+        if (!depto) return;
+        const nombre = (depto.responsable || '').split(' · ')[0];
+        const montoDisplay = efectivoNum > 0 ? efectivoNum : saldoPendiente;
+        navigate('/comunicados/elaborar', {
+            state: {
+                deptoPreseleccionado: depto.id,
+                titulo: `QR de pago expensa - Depto ${depto.id}`,
+                mensaje: `Estimado/a ${nombre},\n\nLe enviamos el codigo QR para el pago de las expensas del Depto ${depto.id}.\n\nMonto a pagar: ${formatBs(montoDisplay)}\nReferencia: ${referencia}\n\nPor favor escanee el QR desde su aplicacion bancaria para efectuar el pago.\n\nAdministracion Edificio XYZ`,
+                prioridad: 'Importante',
+                qrData: datosQR,
+                qrTitulo: `Pago expensa Depto ${depto.id} - ${formatBs(montoDisplay)}`,
+            },
+        });
+    };
+
     const cambiarDepto = (id) => {
         setDeptoId(id);
         const d = deptosDisponibles.find((x) => x.id === id);
@@ -277,7 +283,6 @@ export default function RegistrarPago() {
         setAplicarCredito(false);
     };
 
-    // Autocarga desde location.state (viene de Expensas -> "Registrar pago")
     useEffect(() => {
         const s = location.state;
         if (s?.deptoPrecargado) {
@@ -286,18 +291,15 @@ export default function RegistrarPago() {
                 setDeptoId(d.id);
                 setAplicaciones(d.deudas.map((x) => ({ periodo: x.periodo, aplicar: 0, expensaId: x.expensaId })));
                 setPagadoPor((d.responsable || '').split(' · ')[0]);
-                // Precargar el monto pendiente y auto-distribuir
                 const montoP = s.montoPendiente || d.saldoPendiente;
                 setMonto(String(montoP));
                 setAplicaciones(distribuir(d.deudas, montoP));
             }
-            // Limpiar state para no repetir en refresh
             window.history.replaceState({}, '');
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    // Monto -> auto-distribuye en aplicaciones (deuda mas antigua primero)
     const cambiarMonto = (valor) => {
         setMonto(valor);
         const efectivo = Number(valor) || 0;
@@ -306,7 +308,6 @@ export default function RegistrarPago() {
         if (depto) setAplicaciones(distribuir(depto.deudas, totalADistribuir));
     };
 
-    // Toggle credito -> redistribuye incluyendo o excluyendo el credito
     const toggleCredito = (checked) => {
         setAplicarCredito(checked);
         const efectivo = Number(monto) || 0;
@@ -315,7 +316,6 @@ export default function RegistrarPago() {
         if (depto) setAplicaciones(distribuir(depto.deudas, totalADistribuir));
     };
 
-    // Editar manualmente una casilla "Aplicar" -> sincroniza "Monto pagado"
     const cambiarAplicar = (periodo, valor) => {
         const nuevas = aplicaciones.map((a) => (a.periodo === periodo ? { ...a, aplicar: valor } : a));
         setAplicaciones(nuevas);
@@ -324,7 +324,6 @@ export default function RegistrarPago() {
         setMonto(String(Math.max(0, total - credito)));
     };
 
-    // Clic en el chip "pendiente" -> auto-rellena "Aplicar"
     const aplicarPendiente = (periodo, pendiente) => {
         const nuevas = aplicaciones.map((a) => (a.periodo === periodo ? { ...a, aplicar: pendiente } : a));
         setAplicaciones(nuevas);
@@ -333,7 +332,6 @@ export default function RegistrarPago() {
         setMonto(String(Math.max(0, total - credito)));
     };
 
-    // Pagar todos los pendientes de un solo clic
     const pagarSaldoCompleto = () => {
         if (!depto) return;
         const nuevas = depto.deudas.map((d) => ({ periodo: d.periodo, aplicar: d.pendiente, expensaId: d.expensaId }));
@@ -355,11 +353,9 @@ export default function RegistrarPago() {
 
         const periodos = distribucion.filter((x) => x.aplicado > 0).map((x) => x.periodo).join(' / ');
 
-        // Si el pago es 100% con credito, no hay medio ni referencia reales
         const medioFinal = soloCredito ? 'Crédito a favor' : medio;
         const referenciaFinal = soloCredito ? '' : referencia;
 
-        // 1) Agregar el pago al PAGOS_MOCK
         PAGOS_MOCK.unshift({
             id: codigo,
             fecha: fechaBonita(fecha),
@@ -369,14 +365,13 @@ export default function RegistrarPago() {
             medio: medioFinal,
             referencia: referenciaFinal,
             periodoAplicado: periodos,
-            monto: efectivoNum,                  // solo lo que entro en efectivo
-            creditoAplicado: creditoReal,         // crédito aplicado del anticipo
-            total: totalEfectivo,                 // suma de efectivo + crédito
+            monto: efectivoNum,
+            creditoAplicado: creditoReal,
+            total: totalEfectivo,
             saldoPosterior: nuevoSaldo,
             estado,
         });
 
-        // 2) Marcar expensas en EXPENSAS_MOCK como Pagada cuando corresponde
         aplicaciones.forEach((a) => {
             if (!a.expensaId || !a.aplicar) return;
             const exp = EXPENSAS_MOCK.find((e) => e.id === a.expensaId);
@@ -386,7 +381,6 @@ export default function RegistrarPago() {
             if (exp.pagado >= totalExp) exp.estado = 'Pagada';
         });
 
-        // 3) Descontar credito aplicado del HISTORIAL_ANTICIPOS (mas antiguos primero)
         if (creditoReal > 0) {
             let restante = creditoReal;
             HISTORIAL_ANTICIPOS
@@ -423,6 +417,14 @@ export default function RegistrarPago() {
         });
     };
 
+    // Datos codificados en el QR mock (esto no realiza un pago real; en integracion con
+    // backend se reemplaza por el QR dinamico que devuelva el banco)
+    const datosQR = useMemo(() => {
+        if (!depto) return '';
+        const montoDisplay = efectivoNum > 0 ? efectivoNum : saldoPendiente;
+        return `EDIFICIO-XYZ|DEPTO=${depto.id}|MONTO=${montoDisplay}|REF=${referencia}|BANCO=MERCANTIL-7781`;
+    }, [depto, efectivoNum, saldoPendiente, referencia]);
+
     return (
         <DashboardLayout>
             <Typography variant="h1" color="primary.main" sx={{ mb: 0.5 }}>Registrar pago</Typography>
@@ -430,7 +432,6 @@ export default function RegistrarPago() {
                 Asocia el pago con un departamento y distribuyelo entre sus deudas pendientes
             </Typography>
 
-            {/* Pasos */}
             <Alert severity="info" icon={false} sx={{ bgcolor: '#E4EEF5', color: 'text.primary', mb: 2 }}>
                 <Box sx={{ display: 'flex', gap: 3, flexWrap: 'wrap', mb: 0.5 }}>
                     {PASOS.map((p) => <Typography key={p} variant="body2" sx={{ fontWeight: 700, color: 'primary.main' }}>{p}</Typography>)}
@@ -459,7 +460,6 @@ export default function RegistrarPago() {
                         </Box>
                     )}
 
-                    {/* Credito disponible del depto */}
                     {depto && creditoDepto > 0 && (
                         <Box sx={{ bgcolor: '#E4F4EE', border: '1px solid #C6E6D7', borderRadius: 2, p: 2, mb: 2 }}>
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
@@ -485,7 +485,6 @@ export default function RegistrarPago() {
                         </Box>
                     )}
 
-                    {/* Pagado por (editable, precarga con el responsable) */}
                     {depto && (
                         <>
                             <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Pagado por</Typography>
@@ -518,7 +517,6 @@ export default function RegistrarPago() {
                     </Box>
 
                     {soloCredito ? (
-                        /* Pago cubierto 100% con credito: no se piden medio ni referencia */
                         <Box sx={{ bgcolor: '#E4F4EE', border: '1px solid #C6E6D7', borderRadius: 2, p: 2, mt: 1 }}>
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
                                 <SavingsIcon sx={{ color: '#2E9D78' }} fontSize="small" />
@@ -529,7 +527,7 @@ export default function RegistrarPago() {
                             <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
                                 Este pago no requiere medio ni número de referencia porque se descuenta del
                                 saldo a favor que el departamento ya tenía por un anticipo previo.
-                                El registro quedará guardado con medio “Crédito a favor”.
+                                El registro quedará guardado con medio "Crédito a favor".
                             </Typography>
                         </Box>
                     ) : (
@@ -547,13 +545,64 @@ export default function RegistrarPago() {
                                 </Box>
                             </Box>
 
-                            {/* Ayuda contextual segun el medio */}
                             <Box sx={{ bgcolor: '#E4EEF5', borderRadius: 2, p: 1.5, mt: 1.5 }}>
                                 <Typography variant="caption" sx={{ color: 'primary.main', fontWeight: 600 }} display="block">
                                     {medio}
                                 </Typography>
                                 <Typography variant="caption" color="text.secondary">{refCfg.ayuda}</Typography>
                             </Box>
+
+                            {/* Bloque QR mock cuando medio === 'QR' */}
+                            {medio === 'QR' && (
+                                <Box sx={{ mt: 2, bgcolor: '#F8FAFC', border: '1px solid #CFDCEA', borderRadius: 2, p: 2 }}>
+                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5, flexWrap: 'wrap' }}>
+                                        <QrCode2Icon sx={{ color: 'primary.main' }} />
+                                        <Typography variant="body2" sx={{ fontWeight: 700, flex: 1 }}>
+                                            QR para el residente
+                                        </Typography>
+                                        <Tooltip title="Regenerar referencia">
+                                            <IconButton size="small" onClick={regenerarQR}>
+                                                <RefreshIcon fontSize="small" />
+                                            </IconButton>
+                                        </Tooltip>
+                                    </Box>
+                                    {!depto ? (
+                                        <Alert severity="info" sx={{ bgcolor: '#E4EEF5', color: 'text.primary' }}>
+                                            Seleccione un departamento para generar el QR.
+                                        </Alert>
+                                    ) : (
+                                        <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
+                                            <Box sx={{ bgcolor: '#fff', p: 1.5, borderRadius: 2, border: '1px solid #E4E7EB' }}>
+                                                <QRCodeSVG value={datosQR || 'EDIFICIO-XYZ'} size={200} level="M" />
+                                            </Box>
+                                            <Box sx={{ flex: 1, minWidth: 180 }}>
+                                                <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                                                    Referencia
+                                                </Typography>
+                                                <Typography variant="body2" sx={{ fontWeight: 700, mb: 1 }}>{referencia}</Typography>
+                                                <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                                                    Banco destino
+                                                </Typography>
+                                                <Typography variant="body2" sx={{ fontWeight: 700, mb: 1.5 }}>Banco Mercantil · 7781</Typography>
+                                                <Button fullWidth variant="contained" startIcon={<ShareIcon />}
+                                                    onClick={compartirPorComunicados}
+                                                    sx={{ textTransform: 'none' }}>
+                                                    Compartir con el residente
+                                                </Button>
+                                                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5, fontStyle: 'italic' }}>
+                                                    Abre Comunicados con el QR listo para enviar.
+                                                </Typography>
+                                            </Box>
+                                        </Box>
+                                    )}
+                                    <Alert severity="info" icon={false} sx={{ bgcolor: '#E4EEF5', color: 'text.primary', mt: 1.5, fontSize: 12 }}>
+                                        <Typography variant="caption">
+                                            <strong>QR mock:</strong> no realiza el pago real. Cuando el backend integre la API bancaria, este QR
+                                            se reemplaza por el dinamico del banco.
+                                        </Typography>
+                                    </Alert>
+                                </Box>
+                            )}
                         </>
                     )}
 
@@ -645,7 +694,6 @@ export default function RegistrarPago() {
                                 </Table>
                             </Box>
 
-                            {/* Resumen de actualizacion */}
                             <Box sx={{ bgcolor: '#E4EEF5', borderRadius: 2, p: 2, mt: 2 }}>
                                 <Typography variant="body2" sx={{ fontWeight: 700, mb: 1 }}>Resumen de actualizacion</Typography>
                                 <Box sx={{ display: 'flex', justifyContent: 'space-between', py: 0.5 }}>
@@ -679,7 +727,6 @@ export default function RegistrarPago() {
                 </Paper>
             </Box>
 
-            {/* Botones */}
             <Box sx={{ display: 'flex', gap: 2, mt: 2, flexDirection: { xs: 'column-reverse', md: 'row' }, justifyContent: { md: 'flex-end' } }}>
                 <Button variant="outlined" onClick={() => navigate('/finanzas/pagos')} sx={{ width: { xs: '100%', md: 'auto' } }}>
                     Cancelar

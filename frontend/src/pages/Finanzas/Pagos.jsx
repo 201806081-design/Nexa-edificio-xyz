@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import {
     Box, Typography, Paper, Button, Chip, IconButton, Select, MenuItem, TextField, InputAdornment,
     Table, TableHead, TableBody, TableRow, TableCell, ToggleButton, ToggleButtonGroup,
@@ -18,10 +18,11 @@ import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 import { useNavigate } from 'react-router-dom';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import {
-    PERIODOS, ESTADOS_PAGO, DEPARTAMENTOS_PAGO, PAGOS_MOCK, DEPARTAMENTOS_DEUDA,
+    ESTADOS_PAGO, DEPARTAMENTOS_PAGO, PAGOS_MOCK, DEPARTAMENTOS_DEUDA,
     HISTORIAL_ANTICIPOS,
 } from '../../constants/pagosMock';
 import * as ExpMod from '../../constants/expensasMock';
+import { periodosDisponibles } from '../../constants/expensasMock';
 import { DEUDAS_VENCIDAS, CONFIG_MORA } from '../../constants/moraMock';
 import { formatBs } from '../../constants/finanzasMock';
 
@@ -47,12 +48,8 @@ const fechaEnPeriodo = (fecha, periodoSel) => {
     return m === mesIdx && y === Number(anioSel);
 };
 
-// Devuelve el desglose del pago.
-// Prioridad: 1) composicion embebida en el propio pago (nuevo flujo),
-//            2) cruce con EXPENSAS_MOCK + DEUDAS_VENCIDAS (fallback).
 const calcularComposicion = (pago) => {
     if (!pago) return [];
-    // 1) Si el pago trae su propia composicion, usarla directo (fuente de verdad)
     if (Array.isArray(pago.composicion) && pago.composicion.length > 0) {
         return pago.composicion.map((c) => ({
             periodo: c.periodo,
@@ -65,7 +62,6 @@ const calcularComposicion = (pago) => {
             total: c.total ?? ((c.base ?? 0) + (c.agua ?? 0) + (c.mora ?? 0)),
         }));
     }
-    // 2) Fallback: cruzar con EXPENSAS_MOCK y DEUDAS_VENCIDAS
     const items = [];
     const expensas = EXPENSAS_MOCK.filter((e) =>
         e.departamento === `Depto. ${pago.depto}` &&
@@ -127,7 +123,6 @@ const estadoChipSx = (estado) => (estado === 'Completo'
 
 const PAGE_SIZE = 5;
 
-// --- Tarjeta de dato numerico simplificada (sin subtitulo) ---
 const StatMini = ({ label, value, color = '#1a2733', bg = '#fff', border = '#E2E8F0' }) => (
     <Box sx={{ p: 1.75, bgcolor: bg, borderRadius: 2, border: `1px solid ${border}`, textAlign: 'center' }}>
         <Typography variant="caption" color="text.secondary" sx={{ display: 'block', fontWeight: 600, mb: 0.5 }}>{label}</Typography>
@@ -135,8 +130,6 @@ const StatMini = ({ label, value, color = '#1a2733', bg = '#fff', border = '#E2E
     </Box>
 );
 
-// --- Card reusable que renderiza la composicion de UNA expensa (base + agua + consumo + mora + total) ---
-// Se usa tanto en el modal de Pago como en el de Anticipo.
 const ExpensaCard = ({ periodo, tipo, base, agua, m3Agua, mora, mesesMora, total, chipExtra }) => {
     const esVencida = mora > 0;
     return (
@@ -150,7 +143,6 @@ const ExpensaCard = ({ periodo, tipo, base, agua, m3Agua, mora, mesesMora, total
                 )}
             </Box>
 
-            {/* 3 cards: Expensa base + Agua + Consumo (solo numeros, sin subtitulos) */}
             <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, 1fr)' }, gap: 1.5, mb: esVencida ? 1.5 : 2 }}>
                 <StatMini label="Expensa base" value={formatBs(base)}
                     color="#1F5F8B" bg="#E4EEF5" border="#CFDCEA" />
@@ -160,7 +152,6 @@ const ExpensaCard = ({ periodo, tipo, base, agua, m3Agua, mora, mesesMora, total
                     color="#64748B" bg="#F1F5FA" border="#CFDCEA" />
             </Box>
 
-            {/* Card de mora (solo si hay) */}
             {esVencida && (
                 <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)' }, gap: 1.5, mb: 2 }}>
                     <StatMini label="Mora" value={`+ ${formatBs(mora)}`}
@@ -170,7 +161,6 @@ const ExpensaCard = ({ periodo, tipo, base, agua, m3Agua, mora, mesesMora, total
                 </Box>
             )}
 
-            {/* Total del periodo (sin repetir el nombre del mes) */}
             <Box sx={{ borderTop: '1px dashed #CFDCEA', pt: 1.25, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <Typography variant="body2" sx={{ fontWeight: 700 }}>Total</Typography>
                 <Typography variant="h5" sx={{ fontWeight: 700, color: '#1a2733' }}>{formatBs(total)}</Typography>
@@ -182,12 +172,26 @@ const ExpensaCard = ({ periodo, tipo, base, agua, m3Agua, mora, mesesMora, total
 export default function Pagos() {
     const navigate = useNavigate();
     const [tab, setTab] = useState('expensas');
-    const [periodo, setPeriodo] = useState('Octubre 2026');
+
+    // Periodos dinamicos (igual que Expensas): solo meses ya cerrados.
+    const [tick, setTick] = useState(0);
+    const periodos = useMemo(() => periodosDisponibles(), [tick]);
+    const [periodo, setPeriodo] = useState(() => periodosDisponibles()[0] || 'Octubre 2026');
+
+    useEffect(() => {
+        const h = setInterval(() => setTick((t) => t + 1), 5000);
+        return () => clearInterval(h);
+    }, []);
+    useEffect(() => {
+        if (periodos.length > 0 && !periodos.includes(periodo)) {
+            setPeriodo(periodos[0]);
+        }
+    }, [periodos, periodo]);
+
     const [departamento, setDepartamento] = useState('Todos');
     const [estado, setEstado] = useState('Todos');
     const [busqueda, setBusqueda] = useState('');
     const [limite, setLimite] = useState(PAGE_SIZE);
-    const [tick, setTick] = useState(0);
 
     const [menuAnchor, setMenuAnchor] = useState(null);
     const [pagoSel, setPagoSel] = useState(null);
@@ -322,7 +326,7 @@ export default function Pagos() {
                         <Box sx={{ flex: 1, minWidth: 150 }}>
                             <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Periodo</Typography>
                             <Select fullWidth value={periodo} onChange={(e) => { setPeriodo(e.target.value); setLimite(PAGE_SIZE); }}>
-                                {PERIODOS.map((p) => <MenuItem key={p} value={p}>{p}</MenuItem>)}
+                                {periodos.map((p) => <MenuItem key={p} value={p}>{p}</MenuItem>)}
                             </Select>
                         </Box>
                         <Box sx={{ flex: 1, minWidth: 150 }}>
@@ -532,7 +536,6 @@ export default function Pagos() {
                 <DialogContent dividers>
                     {pagoSel && (
                         <Box>
-                            {/* 1. Datos del pago */}
                             <Typography variant="body2" sx={{ fontWeight: 700, mb: 1 }}>Datos del pago</Typography>
                             <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr 1fr', sm: 'repeat(3, 1fr)' }, gap: 1.5, mb: 2 }}>
                                 <Box>
@@ -569,7 +572,6 @@ export default function Pagos() {
 
                             <Divider sx={{ my: 2 }} />
 
-                            {/* 2. Composicion con cards reusables */}
                             <Typography variant="body2" sx={{ fontWeight: 700, mb: 1 }}>Composicion de la expensa</Typography>
                             {composicion.length === 0 ? (
                                 <Box sx={{ bgcolor: '#FDF0D5', borderRadius: 2, p: 1.5, mb: 2 }}>
@@ -593,7 +595,6 @@ export default function Pagos() {
 
                             <Divider sx={{ my: 2 }} />
 
-                            {/* 3. Totales grandes del pago */}
                             <Typography variant="body2" sx={{ fontWeight: 700, mb: 1 }}>Resumen del cobro</Typography>
                             <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, 1fr)' }, gap: 2, mb: 1.5 }}>
                                 <Box sx={{ p: 2, bgcolor: '#F1F5FA', borderRadius: 2, textAlign: 'center' }}>
@@ -635,7 +636,6 @@ export default function Pagos() {
                 <DialogContent dividers>
                     {anticipoSel && (
                         <Box>
-                            {/* 1. Datos del anticipo */}
                             <Typography variant="body2" sx={{ fontWeight: 700, mb: 1 }}>Datos del anticipo</Typography>
                             <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr 1fr', sm: 'repeat(3, 1fr)' }, gap: 1.5, mb: 2 }}>
                                 <Box>
@@ -672,7 +672,6 @@ export default function Pagos() {
 
                             <Divider sx={{ my: 2 }} />
 
-                            {/* 2. Movimiento del anticipo */}
                             <Typography variant="body2" sx={{ fontWeight: 700, mb: 1 }}>Movimiento del anticipo</Typography>
                             <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, 1fr)' }, gap: 2, mb: 2 }}>
                                 <Box sx={{ p: 2, bgcolor: '#E4F4EE', borderRadius: 2, textAlign: 'center' }}>
@@ -691,7 +690,6 @@ export default function Pagos() {
 
                             <Divider sx={{ my: 2 }} />
 
-                            {/* 3. Expensas cubiertas (MISMA estructura del detalle de pago) */}
                             <Typography variant="body2" sx={{ fontWeight: 700, mb: 1 }}>Expensas cubiertas por este anticipo</Typography>
                             {(!anticipoSel.aplicaciones || anticipoSel.aplicaciones.length === 0) ? (
                                 <Box sx={{ bgcolor: '#E4F4EE', borderRadius: 2, p: 1.5, mb: 2 }}>
