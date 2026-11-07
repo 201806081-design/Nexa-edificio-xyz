@@ -1,34 +1,88 @@
-// Datos de prueba de conciliacion bancaria (HU-FI-02). Montos en Bs.
-// Incluye INGRESOS (depositos, transferencias recibidas, QR) y EGRESOS (retiros,
-// transferencias enviadas, debitos automaticos) para control contable completo.
+// Mock de conciliacion bancaria.
+// Los movimientos del banco se DERIVAN de PAGOS_MOCK y HISTORIAL_ANTICIPOS
+// (filtrando los que no son Efectivo, que no pasan por el banco).
+// Cada medio de pago va a un banco especifico:
+//   - Transferencia y QR  -> Banco Mercantil · 7781
+//   - Cheque              -> Banco Union · 1024
+//   - Efectivo            -> no entra en conciliacion (no toca banco)
+//
+// Esto significa que CUALQUIER pago no efectivo registrado en el sistema
+// aparece aqui automaticamente como movimiento del banco a conciliar.
 
-import { PERIODOS } from './finanzasMock';
+import { PAGOS_MOCK, HISTORIAL_ANTICIPOS, PERIODOS } from './pagosMock';
 export { PERIODOS };
 
-export const CUENTAS_BANCARIAS = ['Banco Union · 1024', 'Banco Mercantil · 7781'];
+export const CUENTAS_BANCARIAS = ['Todos', 'Banco Union · 1024', 'Banco Mercantil · 7781'];
 export const ESTADOS_CONCILIACION = ['Todos', 'Conciliado', 'Pendiente', 'Alerta'];
 export const TIPOS_MOV_BANCO = ['Todos', 'Ingreso', 'Egreso'];
 
-// Movimientos del banco a conciliar con los movimientos del sistema.
-// tipo: 'Ingreso' | 'Egreso'
-// coincidencia: 'Exacta' | 'Sugerida' | 'Sin coincidencia'
-// estado: 'Conciliado' | 'Pendiente' | 'Alerta'   (Alerta = egreso sin coincidencia)
-// sistemaRef: codigo del pago (PG-XXXX) o movimiento (MOV-XXXX) asociado, null si no hay
-export const MOVIMIENTOS_BANCARIOS = [
-    // ======== INGRESOS (depositos de residentes) ========
-    // -- Pagos de expensas (PG-XXXX) --
-    { id: 1, fecha: '19/10', tipo: 'Ingreso', referencia: 'TRF-2841', descripcion: 'Transferencia recibida — expensa', monto: 450, sistemaRef: 'PG-0042', depto: '203', coincidencia: 'Exacta', estado: 'Conciliado' },
-    { id: 2, fecha: '18/10', tipo: 'Ingreso', referencia: 'QR-9330', descripcion: 'Pago por QR — expensa', monto: 315, sistemaRef: 'PG-0041', depto: '101', coincidencia: 'Exacta', estado: 'Conciliado' },
-    { id: 3, fecha: '17/10', tipo: 'Ingreso', referencia: 'DEP-771', descripcion: 'Deposito en ventanilla — expensa', monto: 415, sistemaRef: 'PG-0040', depto: '302', coincidencia: 'Sugerida', estado: 'Pendiente' },
-    { id: 4, fecha: '16/10', tipo: 'Ingreso', referencia: 'TRF-0990', descripcion: 'Transferencia recibida', monto: 200, sistemaRef: null, depto: null, coincidencia: 'Sin coincidencia', estado: 'Pendiente' },
-    // -- Pago anticipado (PA-XXXX) --
-    { id: 9, fecha: '19/10', tipo: 'Ingreso', referencia: 'TRF-3012', descripcion: 'Transferencia recibida — anticipo', monto: 500, sistemaRef: 'PA-0012', depto: '303', coincidencia: 'Exacta', estado: 'Conciliado' },
+// Mapa medio de pago -> cuenta bancaria del edificio
+export const BANCOS_POR_MEDIO = {
+    'Transferencia': 'Banco Mercantil · 7781',
+    'QR': 'Banco Mercantil · 7781',
+    'Cheque': 'Banco Union · 1024',
+};
+export const bancoPorMedio = (medio) => BANCOS_POR_MEDIO[medio] || null;
 
-    // ======== EGRESOS registrados (coinciden con MOVIMIENTOS_LISTA) ========
-    { id: 5, fecha: '03/10', tipo: 'Egreso', referencia: 'TRF-5521', descripcion: 'Transferencia a proveedor', monto: 3000, sistemaRef: 'MOV-2026-10-003', depto: null, coincidencia: 'Exacta', estado: 'Conciliado' },
-    { id: 6, fecha: '04/10', tipo: 'Egreso', referencia: 'DEB-ENDE', descripcion: 'Debito automatico ENDE', monto: 1000, sistemaRef: 'MOV-2026-10-004', depto: null, coincidencia: 'Exacta', estado: 'Conciliado' },
-    { id: 7, fecha: '16/10', tipo: 'Egreso', referencia: 'TRF-6102', descripcion: 'Transferencia a proveedor', monto: 1500, sistemaRef: 'MOV-2026-10-014', depto: null, coincidencia: 'Sugerida', estado: 'Pendiente' },
+// IDs del sistema que arrancan ya CONCILIADOS (pagos viejos que el admin ya confirmo).
+// Los pagos mas recientes arrancan como 'Pendiente' para que el admin los concilie.
+const CONCILIADOS_INICIAL = new Set(['PG-0038', 'PA-0010', 'PA-0009']);
 
-    // ======== EGRESO SIN COINCIDENCIA — ALERTA (retiro no registrado) ========
-    { id: 8, fecha: '20/10', tipo: 'Egreso', referencia: 'RET-ATM-9821', descripcion: 'Retiro en cajero automatico', monto: 800, sistemaRef: null, depto: null, coincidencia: 'Sin coincidencia', estado: 'Alerta' },
+// Convierte un pago (o anticipo) en un movimiento bancario.
+// Devuelve null si el medio no pasa por el banco (Efectivo u otro no bancarizable).
+const movimientoDesdePago = (pago, { origen }) => {
+    const banco = bancoPorMedio(pago.medio);
+    if (!banco) return null;
+    const monto = pago.monto ?? pago.recibido ?? 0;
+    const yaConciliado = CONCILIADOS_INICIAL.has(pago.id);
+    const descripcion = origen === 'anticipo'
+        ? `${pago.medio} recibido — anticipo Dpto ${pago.depto}`
+        : `${pago.medio} recibido — expensa Dpto ${pago.depto}`;
+    return {
+        id: `BK-${pago.id}`,
+        fecha: pago.fecha,
+        cuenta: banco,
+        tipo: 'Ingreso',
+        referencia: pago.referencia || `REF-${pago.id}`,
+        descripcion,
+        monto,
+        sistemaRef: pago.id,
+        depto: pago.depto,
+        coincidencia: yaConciliado ? 'Exacta' : 'Sugerida',
+        estado: yaConciliado ? 'Conciliado' : 'Pendiente',
+    };
+};
+
+// Movimientos de alerta semilla: egresos sin registro en el sistema.
+// Sirven como ejemplo del flujo "Investigar" (ej. retiro no autorizado, debito sospechoso).
+export const MOVIMIENTOS_ALERTA_SEMILLA = [
+    {
+        id: 'BK-ALERT-01',
+        fecha: '20/10/2026',
+        cuenta: 'Banco Mercantil · 7781',
+        tipo: 'Egreso',
+        referencia: 'RET-ATM-9821',
+        descripcion: 'Retiro en cajero automatico sin registrar',
+        monto: 800,
+        sistemaRef: null,
+        depto: null,
+        coincidencia: 'Sin coincidencia',
+        estado: 'Alerta',
+    },
 ];
+
+// Deriva TODOS los movimientos bancarios: pagos + anticipos + alertas semilla.
+// Se llama en cada render, asi si el admin registra un pago nuevo, aparece acá
+// al toque como pendiente de conciliar.
+export const movimientosBancarios = () => {
+    const dePagos = PAGOS_MOCK
+        .map((p) => movimientoDesdePago(p, { origen: 'pago' }))
+        .filter(Boolean);
+    const deAnticipos = HISTORIAL_ANTICIPOS
+        .map((a) => movimientoDesdePago(a, { origen: 'anticipo' }))
+        .filter(Boolean);
+    return [...dePagos, ...deAnticipos, ...MOVIMIENTOS_ALERTA_SEMILLA];
+};
+
+// Export legacy (por compatibilidad con otros archivos que aun lo importen).
+export const MOVIMIENTOS_BANCARIOS = movimientosBancarios();
