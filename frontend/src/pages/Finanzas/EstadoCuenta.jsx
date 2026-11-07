@@ -280,6 +280,28 @@ const movimientoChipSx = (tipo) => (tipo === 'Pago'
 
 const movimientoIcon = (tipo) => (tipo === 'Pago' ? <PaidIcon fontSize="small" /> : <AccountBalanceWalletIcon fontSize="small" />);
 
+// Label de estado segun el tipo de movimiento.
+// Pagos: 'Completo' / 'Parcial' (lo que ya usa el sistema).
+// Anticipos: 'Disponible' / 'Con saldo a favor' / 'Aplicado' (sin la palabra "Parcial"
+// que confunde con pagos parciales — un anticipo nunca es un "pago parcial" porque es
+// un adelanto, no una cuota insuficiente).
+const labelEstadoMovimiento = (m) => {
+    if (m.tipo === 'Pago') return m.estado;
+    if (m.estado === 'Parcial') return 'Con saldo a favor';
+    return m.estado;
+};
+const chipEstadoMovimientoSx = (m) => {
+    if (m.tipo === 'Pago') {
+        return m.estado === 'Completo'
+            ? { bgcolor: '#E4F4EE', color: '#2E9D78' }
+            : { bgcolor: '#FDF0D5', color: '#B6802A' };
+    }
+    // Anticipo
+    if (m.estado === 'Disponible') return { bgcolor: '#E4F4EE', color: '#2E9D78' };
+    if (m.estado === 'Aplicado') return { bgcolor: '#E4EEF5', color: '#1F5F8B' };
+    return { bgcolor: '#FDF0D5', color: '#B6802A' }; // Con saldo a favor
+};
+
 export default function EstadoCuenta() {
     // Periodos dinamicos (igual que Conciliacion): meses cerrados + mes en curso + "Todos"
     const [tick, setTick] = useState(0);
@@ -407,55 +429,7 @@ export default function EstadoCuenta() {
                         ))}
                     </Box>
 
-                    {/* Historial por periodo (base + agua + mora) */}
-                    <Paper sx={{ p: 3, borderRadius: 2, mb: 2 }}>
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-                            <Typography variant="body2" sx={{ fontWeight: 600 }}>Historial por periodo</Typography>
-                            <Typography variant="body2" color="text.secondary">
-                                {consultado.historial.length} {consultado.historial.length === 1 ? 'periodo' : 'periodos'}
-                            </Typography>
-                        </Box>
-                        <Box sx={{ overflowX: 'auto' }}>
-                            <Table size="small" sx={{ minWidth: 720 }}>
-                                <TableHead>
-                                    <TableRow sx={{ bgcolor: '#F1F5FA' }}>
-                                        <TableCell><strong>Periodo</strong></TableCell>
-                                        <TableCell><strong>Base</strong></TableCell>
-                                        <TableCell><strong>Agua</strong></TableCell>
-                                        <TableCell><strong>Mora</strong></TableCell>
-                                        <TableCell><strong>Total</strong></TableCell>
-                                        <TableCell><strong>Pagado</strong></TableCell>
-                                        <TableCell><strong>Saldo</strong></TableCell>
-                                        <TableCell><strong>Estado</strong></TableCell>
-                                    </TableRow>
-                                </TableHead>
-                                <TableBody>
-                                    {consultado.historial.length === 0 ? (
-                                        <TableRow>
-                                            <TableCell colSpan={8} align="center" sx={{ color: 'text.secondary', py: 3 }}>
-                                                Sin movimientos para {consultado.departamento} en {consultado.periodoConsultado}.
-                                            </TableCell>
-                                        </TableRow>
-                                    ) : consultado.historial.map((h) => (
-                                        <TableRow key={h.periodo}>
-                                            <TableCell>{h.periodo}</TableCell>
-                                            <TableCell>{formatBs(h.base)}</TableCell>
-                                            <TableCell>{formatBs(h.agua)}</TableCell>
-                                            <TableCell sx={{ color: h.mora > 0 ? '#D9534F' : 'text.primary', fontWeight: h.mora > 0 ? 600 : 400 }}>
-                                                {formatBs(h.mora)}
-                                            </TableCell>
-                                            <TableCell sx={{ fontWeight: 700 }}>{formatBs(h.total)}</TableCell>
-                                            <TableCell sx={{ color: h.pagado > 0 ? '#2E9D78' : 'text.primary' }}>{formatBs(h.pagado)}</TableCell>
-                                            <TableCell sx={{ fontWeight: 600, color: h.saldo > 0 ? '#D9534F' : '#2E9D78' }}>{formatBs(h.saldo)}</TableCell>
-                                            <TableCell><Chip label={h.estado} size="small" sx={estadoChipSx(h.estado)} /></TableCell>
-                                        </TableRow>
-                                    ))}
-                                </TableBody>
-                            </Table>
-                        </Box>
-                    </Paper>
-
-                    {/* Movimientos (pagos + anticipos) */}
+                    {/* Movimientos del depto (pagos + anticipos) — arriba porque es la info clave */}
                     <Paper sx={{ p: 3, borderRadius: 2, mb: 2 }}>
                         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1, flexWrap: 'wrap', gap: 1 }}>
                             <Box>
@@ -505,7 +479,55 @@ export default function EstadoCuenta() {
                                             <TableCell align="right" sx={{ fontWeight: 600, color: (m.credito || 0) > 0 ? '#2E9D78' : 'text.secondary' }}>
                                                 {m.tipo === 'Anticipo' ? formatBs(m.credito || 0) : '—'}
                                             </TableCell>
-                                            <TableCell><Chip label={m.estado} size="small" sx={estadoChipSx(m.estado)} /></TableCell>
+                                            <TableCell><Chip label={labelEstadoMovimiento(m)} size="small" sx={chipEstadoMovimientoSx(m)} /></TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        </Box>
+                    </Paper>
+
+                    {/* Historial por periodo (base + agua + mora) — abajo porque es un desglose tecnico */}
+                    <Paper sx={{ p: 3, borderRadius: 2, mb: 2 }}>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                            <Typography variant="body2" sx={{ fontWeight: 600 }}>Historial por periodo</Typography>
+                            <Typography variant="body2" color="text.secondary">
+                                {consultado.historial.length} {consultado.historial.length === 1 ? 'periodo' : 'periodos'}
+                            </Typography>
+                        </Box>
+                        <Box sx={{ overflowX: 'auto' }}>
+                            <Table size="small" sx={{ minWidth: 720 }}>
+                                <TableHead>
+                                    <TableRow sx={{ bgcolor: '#F1F5FA' }}>
+                                        <TableCell><strong>Periodo</strong></TableCell>
+                                        <TableCell><strong>Base</strong></TableCell>
+                                        <TableCell><strong>Agua</strong></TableCell>
+                                        <TableCell><strong>Mora</strong></TableCell>
+                                        <TableCell><strong>Total</strong></TableCell>
+                                        <TableCell><strong>Pagado</strong></TableCell>
+                                        <TableCell><strong>Saldo</strong></TableCell>
+                                        <TableCell><strong>Estado</strong></TableCell>
+                                    </TableRow>
+                                </TableHead>
+                                <TableBody>
+                                    {consultado.historial.length === 0 ? (
+                                        <TableRow>
+                                            <TableCell colSpan={8} align="center" sx={{ color: 'text.secondary', py: 3 }}>
+                                                Sin movimientos para {consultado.departamento} en {consultado.periodoConsultado}.
+                                            </TableCell>
+                                        </TableRow>
+                                    ) : consultado.historial.map((h) => (
+                                        <TableRow key={h.periodo}>
+                                            <TableCell>{h.periodo}</TableCell>
+                                            <TableCell>{formatBs(h.base)}</TableCell>
+                                            <TableCell>{formatBs(h.agua)}</TableCell>
+                                            <TableCell sx={{ color: h.mora > 0 ? '#D9534F' : 'text.primary', fontWeight: h.mora > 0 ? 600 : 400 }}>
+                                                {formatBs(h.mora)}
+                                            </TableCell>
+                                            <TableCell sx={{ fontWeight: 700 }}>{formatBs(h.total)}</TableCell>
+                                            <TableCell sx={{ color: h.pagado > 0 ? '#2E9D78' : 'text.primary' }}>{formatBs(h.pagado)}</TableCell>
+                                            <TableCell sx={{ fontWeight: 600, color: h.saldo > 0 ? '#D9534F' : '#2E9D78' }}>{formatBs(h.saldo)}</TableCell>
+                                            <TableCell><Chip label={h.estado} size="small" sx={estadoChipSx(h.estado)} /></TableCell>
                                         </TableRow>
                                     ))}
                                 </TableBody>
