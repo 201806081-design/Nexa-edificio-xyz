@@ -20,7 +20,26 @@ import {
     CUENTAS_BANCARIAS, ESTADOS_CONCILIACION, TIPOS_MOV_BANCO,
     movimientosBancarios, BANCOS_POR_MEDIO,
 } from '../../constants/conciliacionMock';
-import { periodosDisponibles } from '../../constants/expensasMock';
+import { periodosDisponibles, periodoEnCurso } from '../../constants/expensasMock';
+
+// Periodos para conciliacion: los meses ya cerrados MAS el mes en curso.
+// La conciliacion se hace diariamente, asi que el mes actual debe estar
+// disponible aunque todavia no termine (ahi aparecen los pagos recien hechos).
+const periodosConciliacion = () => {
+    const enCurso = periodoEnCurso();
+    const cerrados = periodosDisponibles();
+    const todos = cerrados.includes(enCurso) ? cerrados : [enCurso, ...cerrados];
+    return todos;
+};
+
+// Parse "DD/MM/YYYY" -> timestamp para ordenar por fecha descendente
+const timestampFecha = (fecha) => {
+    if (!fecha) return 0;
+    const partes = fecha.split('/').map(Number);
+    if (partes.length < 2) return 0;
+    const [d, m, y] = partes.length === 3 ? partes : [partes[0], partes[1], 2026];
+    return new Date(y, (m || 1) - 1, d || 1).getTime();
+};
 import { formatBs } from '../../constants/finanzasMock';
 
 const coincidenciaColor = (c) => {
@@ -57,10 +76,10 @@ const fechaEnPeriodo = (fecha, periodoSel) => {
 export default function ConciliacionBancaria() {
     const navigate = useNavigate();
 
-    // Periodos dinamicos (igual que Expensas)
+    // Periodos: meses cerrados + mes en curso (para seguimiento diario)
     const [tick, setTick] = useState(0);
-    const periodos = useMemo(() => periodosDisponibles(), [tick]);
-    const [periodo, setPeriodo] = useState(() => periodosDisponibles()[0] || 'Octubre 2026');
+    const periodos = useMemo(() => periodosConciliacion(), [tick]);
+    const [periodo, setPeriodo] = useState(() => periodosConciliacion()[0] || periodoEnCurso());
     useEffect(() => {
         const h = setInterval(() => setTick((t) => t + 1), 5000);
         return () => clearInterval(h);
@@ -71,7 +90,8 @@ export default function ConciliacionBancaria() {
         }
     }, [periodos, periodo]);
 
-    const [cuenta, setCuenta] = useState('Todos');
+    // Siempre una cuenta por vez (Mercantil por default porque tiene mas movimientos)
+    const [cuenta, setCuenta] = useState(CUENTAS_BANCARIAS[0]);
     const [estado, setEstado] = useState('Todos');
     const [tipo, setTipo] = useState('Todos');
     const [busqueda, setBusqueda] = useState('');
@@ -120,12 +140,12 @@ export default function ConciliacionBancaria() {
         setSnack({ open: true, msg: 'Marcado como "en investigacion"', sev: 'warning' });
     };
 
-    // KPIs calculados sobre lo filtrado por periodo + cuenta
+    // KPIs calculados sobre lo filtrado por periodo + cuenta (siempre una cuenta por vez).
+    // Ordenados por fecha descendente (mas reciente arriba) para seguimiento diario.
     const movsEnVista = useMemo(() => {
-        return movs.filter((m) =>
-            (cuenta === 'Todos' || m.cuenta === cuenta) &&
-            fechaEnPeriodo(m.fecha, periodo)
-        );
+        return movs
+            .filter((m) => m.cuenta === cuenta && fechaEnPeriodo(m.fecha, periodo))
+            .sort((a, b) => timestampFecha(b.fecha) - timestampFecha(a.fecha));
     }, [movs, cuenta, periodo]);
 
     const total = movsEnVista.length;
@@ -227,18 +247,17 @@ export default function ConciliacionBancaria() {
             <Paper sx={{ p: 3, borderRadius: 2 }}>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1, flexWrap: 'wrap', gap: 1 }}>
                     <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                        Movimientos — {cuenta === 'Todos' ? 'todas las cuentas' : cuenta}
+                        Movimientos — {cuenta} · {periodo}
                     </Typography>
                     <Typography variant="body2" color="text.secondary">
                         {filtrados.length} de {movsEnVista.length}
                     </Typography>
                 </Box>
                 <Box sx={{ overflowX: 'auto' }}>
-                    <Table size="small" sx={{ minWidth: 1000 }}>
+                    <Table size="small" sx={{ minWidth: 880 }}>
                         <TableHead>
                             <TableRow sx={{ bgcolor: '#F1F5FA' }}>
                                 <TableCell><strong>Fecha / referencia</strong></TableCell>
-                                <TableCell><strong>Cuenta</strong></TableCell>
                                 <TableCell><strong>Tipo</strong></TableCell>
                                 <TableCell><strong>Descripcion</strong></TableCell>
                                 <TableCell align="right"><strong>Monto</strong></TableCell>
@@ -250,23 +269,18 @@ export default function ConciliacionBancaria() {
                         <TableBody>
                             {filtrados.length === 0 ? (
                                 <TableRow>
-                                    <TableCell colSpan={8} align="center" sx={{ color: 'text.secondary', py: 3 }}>
-                                        No hay movimientos para los filtros aplicados.
+                                    <TableCell colSpan={7} align="center" sx={{ color: 'text.secondary', py: 3 }}>
+                                        No hay movimientos en {cuenta} para {periodo}.
                                     </TableCell>
                                 </TableRow>
                             ) : filtrados.map((m) => {
                                 const esIngreso = m.tipo === 'Ingreso';
                                 const esAlerta = m.estado === 'Alerta';
-                                const cuentaCorta = (m.cuenta || '').split('·')[0]?.trim();
                                 return (
                                     <TableRow key={m.id} sx={esAlerta ? { bgcolor: '#FDEEEC' } : {}}>
                                         <TableCell>
                                             <Typography variant="body2" sx={{ fontWeight: 600 }}>{m.fecha}</Typography>
                                             <Typography variant="caption" color="text.secondary">{m.referencia}</Typography>
-                                        </TableCell>
-                                        <TableCell>
-                                            <Chip label={cuentaCorta} size="small"
-                                                sx={{ bgcolor: '#E4EEF5', color: '#1F5F8B', fontWeight: 600, height: 20 }} />
                                         </TableCell>
                                         <TableCell>
                                             <Chip

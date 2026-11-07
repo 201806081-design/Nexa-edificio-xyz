@@ -12,7 +12,9 @@
 import { PAGOS_MOCK, HISTORIAL_ANTICIPOS, PERIODOS } from './pagosMock';
 export { PERIODOS };
 
-export const CUENTAS_BANCARIAS = ['Todos', 'Banco Union · 1024', 'Banco Mercantil · 7781'];
+// Cuentas reales del edificio (sin "Todos" — siempre se ve una cuenta por vez,
+// porque el admin concilia banco por banco).
+export const CUENTAS_BANCARIAS = ['Banco Mercantil · 7781', 'Banco Union · 1024'];
 export const ESTADOS_CONCILIACION = ['Todos', 'Conciliado', 'Pendiente', 'Alerta'];
 export const TIPOS_MOV_BANCO = ['Todos', 'Ingreso', 'Egreso'];
 
