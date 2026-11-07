@@ -15,7 +15,7 @@ import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
 import PaidIcon from '@mui/icons-material/Paid';
 import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined';
 import LocalOfferIcon from '@mui/icons-material/LocalOffer';
-import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
+import DeleteIcon from '@mui/icons-material/Delete';
 import { useNavigate, useLocation } from 'react-router-dom';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import {
@@ -617,7 +617,7 @@ export default function Expensas() {
                                                 <TableCell align="center">
                                                     <IconButton size="small" onClick={() => quitarExtra(ex.id)}
                                                         sx={{ color: '#D9534F' }}>
-                                                        <DeleteOutlineIcon fontSize="small" />
+                                                        <DeleteIcon fontSize="small" />
                                                     </IconButton>
                                                 </TableCell>
                                             </TableRow>
