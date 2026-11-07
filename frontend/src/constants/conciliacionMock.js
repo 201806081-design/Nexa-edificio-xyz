@@ -64,12 +64,22 @@ export const MOVIMIENTOS_ALERTA_SEMILLA = [
         cuenta: 'Banco Mercantil · 7781',
         tipo: 'Egreso',
         referencia: 'RET-ATM-9821',
-        descripcion: 'Retiro en cajero automatico sin registrar',
+        descripcion: 'Retiro en cajero automatico - Mall Las Brisas, zona Sur',
         monto: 800,
         sistemaRef: null,
         depto: null,
         coincidencia: 'Sin coincidencia',
         estado: 'Alerta',
+        // Detalles extra para la investigacion (a futuro integrar con Google Maps)
+        detalles: {
+            cajero: 'ATM-BM-9821',
+            ubicacion: 'Mall Las Brisas, Av. Melchor Perez #1250, zona Sur, Cochabamba',
+            latitud: -17.4140,
+            longitud: -66.1653,
+            canal: 'Cajero propio Banco Mercantil',
+            horaOperacion: '14:32',
+            notas: 'Retiro no coincide con ningun gasto registrado. Revisar movimientos recientes del cajero y pedir video al banco.',
+        },
     },
 ];
 

@@ -229,14 +229,6 @@ export const EXPENSAS_MOCK = [
         extras: [],
         monto: 400, total: 400, estado: 'Agua pendiente', pagado: 0, aguaNota: '', fechaGen: '01/10/2026', fechaAgua: null
     },
-
-    // --- Septiembre 2026 (vencida, demo histórico) ---
-    {
-        id: 'EX-0010', depto: '203', departamento: 'Depto. 203', tipo: 'B', responsable: 'Carlos Mendoza', periodo: 'Septiembre 2026',
-        base: 350, agua: 15, m3: 5, lecturaAnt: 145, lecturaAct: 150, lecturaAnterior: 145, lecturaActual: 150,
-        extras: [],
-        monto: 365, total: 365, estado: 'Vencida', pagado: 0, aguaNota: '', fechaGen: '01/09/2026', fechaAgua: '02/09/2026'
-    },
 ];
 
 export const estadoChipSx = (estado) => {

@@ -394,6 +394,52 @@ export default function ConciliacionBancaria() {
                                         : 'Registre el pago para poder conciliarlo.'}
                                 </Alert>
                             )}
+
+                            {/* Detalles extra para la investigacion (si los hay) */}
+                            {verMov.detalles && (
+                                <>
+                                    <Divider sx={{ my: 1.5 }} />
+                                    <Typography variant="body2" sx={{ fontWeight: 700, mb: 1, color: '#D9534F' }}>
+                                        Datos para investigar
+                                    </Typography>
+                                    {verMov.detalles.cajero && (
+                                        <Box sx={{ display: 'flex', justifyContent: 'space-between', py: 0.5 }}>
+                                            <Typography variant="body2" color="text.secondary">Cajero / canal</Typography>
+                                            <Typography variant="body2" sx={{ fontWeight: 600 }}>{verMov.detalles.cajero}</Typography>
+                                        </Box>
+                                    )}
+                                    {verMov.detalles.canal && (
+                                        <Box sx={{ display: 'flex', justifyContent: 'space-between', py: 0.5 }}>
+                                            <Typography variant="body2" color="text.secondary">Tipo de canal</Typography>
+                                            <Typography variant="body2" sx={{ fontWeight: 600 }}>{verMov.detalles.canal}</Typography>
+                                        </Box>
+                                    )}
+                                    {verMov.detalles.horaOperacion && (
+                                        <Box sx={{ display: 'flex', justifyContent: 'space-between', py: 0.5 }}>
+                                            <Typography variant="body2" color="text.secondary">Hora de operacion</Typography>
+                                            <Typography variant="body2" sx={{ fontWeight: 600 }}>{verMov.detalles.horaOperacion}</Typography>
+                                        </Box>
+                                    )}
+                                    {verMov.detalles.ubicacion && (
+                                        <Box sx={{ py: 0.5 }}>
+                                            <Typography variant="body2" color="text.secondary">Ubicacion</Typography>
+                                            <Typography variant="body2" sx={{ fontWeight: 600 }}>{verMov.detalles.ubicacion}</Typography>
+                                            {verMov.detalles.latitud != null && verMov.detalles.longitud != null && (
+                                                <Typography variant="caption" color="text.secondary">
+                                                    Coord: {verMov.detalles.latitud}, {verMov.detalles.longitud}
+                                                    &nbsp;·&nbsp;
+                                                    <span style={{ fontStyle: 'italic' }}>(pendiente de integracion con Google Maps)</span>
+                                                </Typography>
+                                            )}
+                                        </Box>
+                                    )}
+                                    {verMov.detalles.notas && (
+                                        <Alert severity="warning" sx={{ mt: 1.5 }}>
+                                            <Typography variant="body2">{verMov.detalles.notas}</Typography>
+                                        </Alert>
+                                    )}
+                                </>
+                            )}
                         </DialogContent>
                         <DialogActions>
                             <Button onClick={() => setVerMov(null)}>Cerrar</Button>
