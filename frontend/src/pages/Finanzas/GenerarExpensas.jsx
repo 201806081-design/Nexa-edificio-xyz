@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import {
     Box, Typography, Paper, Button, Select, MenuItem, Chip, Snackbar, Alert, Divider, Table, TableHead, TableBody, TableRow, TableCell,
 } from '@mui/material';
@@ -9,20 +9,43 @@ import OpacityIcon from '@mui/icons-material/Opacity';
 import { useNavigate } from 'react-router-dom';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import {
-    PERIODOS, ALICUOTAS, DEPARTAMENTOS_ACTIVOS, EXPENSAS_MOCK,
+    ALICUOTAS, DEPARTAMENTOS_ACTIVOS, EXPENSAS_MOCK,
+    periodosDisponibles, periodoEnCurso,
 } from '../../constants/expensasMock';
 import { formatBs } from '../../constants/finanzasMock';
 
 export default function GenerarExpensas() {
     const navigate = useNavigate();
 
-    // Periodos sin generar aun
-    const periodosDisponibles = useMemo(() =>
-        PERIODOS.filter((p) => !EXPENSAS_MOCK.some((e) => e.periodo === p)),
-        []);
+    // Tick cada 5s: si cambia la fecha del sistema, los periodos disponibles se actualizan.
+    const [tick, setTick] = useState(0);
+    useEffect(() => {
+        const h = setInterval(() => setTick((t) => t + 1), 5000);
+        return () => clearInterval(h);
+    }, []);
 
-    const [periodo, setPeriodo] = useState(periodosDisponibles[0] || 'Noviembre 2026');
+    // Periodos que se pueden generar: meses YA CERRADOS (segun fecha del sistema)
+    // que todavia no tienen expensas generadas. El mes en curso nunca aparece.
+    const periodosGenerables = useMemo(() =>
+        periodosDisponibles().filter((p) => !EXPENSAS_MOCK.some((e) => e.periodo === p)),
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        [tick]);
+
+    const [periodo, setPeriodo] = useState(() => {
+        const disp = periodosDisponibles().filter((p) => !EXPENSAS_MOCK.some((e) => e.periodo === p));
+        return disp[0] || '';
+    });
+    const periodoActualEnCurso = periodoEnCurso();
+
     const [snack, setSnack] = useState({ open: false, msg: '', sev: 'success' });
+
+    // Si el periodo seleccionado deja de estar disponible (ej. se genero desde otra pestaña),
+    // caer al primero disponible.
+    useEffect(() => {
+        if (periodosGenerables.length > 0 && !periodosGenerables.includes(periodo)) {
+            setPeriodo(periodosGenerables[0]);
+        }
+    }, [periodosGenerables, periodo]);
 
     // Agrupa deptos por tipo para el preview
     const bloques = useMemo(() => {
@@ -40,6 +63,10 @@ export default function GenerarExpensas() {
     const yaGenerado = EXPENSAS_MOCK.some((e) => e.periodo === periodo);
 
     const confirmarGeneracion = () => {
+        if (!periodo) {
+            setSnack({ open: true, msg: 'No hay periodos disponibles para generar.', sev: 'warning' });
+            return;
+        }
         if (yaGenerado) {
             setSnack({ open: true, msg: `Las expensas de ${periodo} ya fueron generadas.`, sev: 'warning' });
             return;
@@ -55,6 +82,7 @@ export default function GenerarExpensas() {
                     periodo,
                     base: b.alicuota,
                     agua: 0, m3: null, lecturaAnt: null, lecturaAct: null, aguaNota: '',
+                    extras: [],
                     total: b.alicuota,
                     estado: 'Agua pendiente', pagado: 0,
                     fechaGen: fecha, fechaAgua: null,
@@ -76,10 +104,18 @@ export default function GenerarExpensas() {
             </Button>
 
             <Typography variant="h1" color="primary.main" sx={{ mb: 0.5 }}>Generar expensa</Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                 Paso 1 de 2 — Este paso asigna el <strong>monto base por tipo</strong>.
                 El agua se registra despues, uno por uno, desde la lista de expensas.
             </Typography>
+
+            {/* Aviso: el mes en curso todavia no se puede generar */}
+            <Alert severity="info" icon={false} sx={{ bgcolor: '#E4EEF5', color: 'text.primary', mb: 2 }}>
+                <Typography variant="body2">
+                    El mes en curso (<strong>{periodoActualEnCurso}</strong>) aun no se puede generar.
+                    Aparecera como periodo disponible cuando termine.
+                </Typography>
+            </Alert>
 
             {/* Nota del flujo */}
             <Paper sx={{ p: 2, borderRadius: 2, mb: 2, bgcolor: '#F1F5FA', display: 'flex', gap: 2, alignItems: 'center' }}>
@@ -98,13 +134,13 @@ export default function GenerarExpensas() {
             {/* Selector de periodo */}
             <Paper sx={{ p: 3, borderRadius: 2, mb: 2 }}>
                 <Typography variant="body2" sx={{ fontWeight: 700, mb: 1 }}>Periodo a generar</Typography>
-                {periodosDisponibles.length === 0 ? (
+                {periodosGenerables.length === 0 ? (
                     <Alert severity="info" sx={{ mb: 1 }}>
-                        Todos los periodos del catalogo ya fueron generados. Agrega mas periodos en el mock de finanzas si necesitas probar otros.
+                        Todos los periodos ya cerrados tienen expensas generadas. Esperar a que termine el mes en curso para habilitar el siguiente.
                     </Alert>
                 ) : (
                     <Select fullWidth value={periodo} onChange={(e) => setPeriodo(e.target.value)}>
-                        {periodosDisponibles.map((p) => <MenuItem key={p} value={p}>{p}</MenuItem>)}
+                        {periodosGenerables.map((p) => <MenuItem key={p} value={p}>{p}</MenuItem>)}
                     </Select>
                 )}
                 {yaGenerado && (
@@ -177,7 +213,7 @@ export default function GenerarExpensas() {
                     Cancelar
                 </Button>
                 <Button variant="contained" startIcon={<TaskAltIcon />} onClick={confirmarGeneracion}
-                    disabled={yaGenerado || periodosDisponibles.length === 0}>
+                    disabled={yaGenerado || periodosGenerables.length === 0}>
                     Confirmar generacion
                 </Button>
             </Box>

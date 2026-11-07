@@ -1,4 +1,7 @@
 // Datos de prueba de mora y pagos anticipados. Montos en Bs.
+// El sistema nacio en Octubre 2026 — NO hay deudas vencidas de meses anteriores.
+// Si en Noviembre quedan expensas de Octubre sin pagar, se calculan como mora
+// desde las EXPENSAS_MOCK con fecha de vencimiento pasada (logica de Mora.jsx).
 
 // ============================================================
 //  MORA E INTERESES
@@ -35,50 +38,40 @@ export const REGLA_MORA = {
     ejemplo: 'Ejemplo: Bs 360 -> primer mes Bs 396 -> segundo mes Bs 435,60.',
 };
 
-// Deudas vencidas con desglose: expensaBase (segun tipo de depto) + agua = deudaOriginal.
-// El interes se calcula sobre la deuda original y los meses vencidos.
-export const DEUDAS_VENCIDAS = [
-    { id: 1, depto: '101', tipo: 'A', periodo: 'Septiembre 2026', expensaBase: 300, agua: 60, deudaOriginal: 360, meses: 1 },  // recien vencida
-    { id: 2, depto: '202', tipo: 'B', periodo: 'Agosto 2026', expensaBase: 350, agua: 25, deudaOriginal: 375, meses: 2 },
-    { id: 3, depto: '303', tipo: 'C', periodo: 'Julio 2026', expensaBase: 400, agua: 20, deudaOriginal: 420, meses: 3 },
-];
+// Deudas vencidas: vacio al inicio porque el sistema nacio en Octubre 2026.
+// Si Octubre vencio (10-Oct) y alguna expensa quedo sin pagar, la mora se
+// calcula directamente desde EXPENSAS_MOCK en la pantalla de Mora, cruzando
+// la fecha de vencimiento con la fecha del sistema.
+export const DEUDAS_VENCIDAS = [];
 
 // ============================================================
-//  PAGOS ANTICIPADOS
+//  PAGOS ANTICIPADOS (compatibilidad con pantallas antiguas)
 // ============================================================
 
 export const DEPARTAMENTOS_ANTICIPO = [
-    { id: '101', etiqueta: '101 - Tipo A', responsable: 'Carlos Mendoza -- Propietario', expensaMensual: 300, saldoActual: 0 },
-    { id: '202', etiqueta: '202 - Tipo B', responsable: 'Ana Lopez -- Propietario', expensaMensual: 350, saldoActual: 0 },
-    { id: '303', etiqueta: '303 - Tipo C', responsable: 'Luis Rojas -- Propietario', expensaMensual: 400, saldoActual: 0 },
+    { id: '101', etiqueta: '101 - Tipo A', responsable: 'Ana Lopez -- Propietario', expensaMensual: 300, saldoActual: 0 },
+    { id: '202', etiqueta: '202 - Tipo B', responsable: 'Luis Perez -- Propietario', expensaMensual: 350, saldoActual: 0 },
+    { id: '303', etiqueta: '303 - Tipo C', responsable: 'Rafael Cruz -- Propietario', expensaMensual: 400, saldoActual: 0 },
 ];
 
-export const HISTORIAL_ANTICIPOS = [
-    { id: 1, departamento: 'Depto. 203', fecha: '05/10/2026', monto: 700, saldoDisponible: 350, estado: 'Aplicado parcialmente' },
-];
+export const HISTORIAL_ANTICIPOS = [];
 
 // ============================================================
 //  COMPATIBILIDAD: pantallas antiguas (si aun existen)
 // ============================================================
 
-export const RESUMEN_MORA = { deudasVencidas: 1408.77, interesAcumulado: 253.77, saldoAFavor: 0 };
-export const SALDOS_VENCIDOS = [
-    { id: 1, departamento: 'Depto. 101', periodo: 'Agosto 2026', capital: 360, interes: 36, totalPendiente: 396, estado: 'Vencido' },
-    { id: 2, departamento: 'Depto. 202', periodo: 'Julio 2026', capital: 375, interes: 78.75, totalPendiente: 453.75, estado: 'Vencido' },
-];
-export const PAGOS_ANTICIPADOS = [
-    { id: 1, fecha: '05/10/2026', departamento: 'Depto. 203', capital: 700, periodosCubiertos: 'Noviembre-Diciembre', saldoAFavor: 350, estado: 'Anticipado' },
-];
+export const RESUMEN_MORA = { deudasVencidas: 0, interesAcumulado: 0, saldoAFavor: 0 };
+export const SALDOS_VENCIDOS = [];
+export const PAGOS_ANTICIPADOS = [];
 export const CONFIG_INTERES = { activo: true, tipoInteres: 'Porcentaje mensual', porcentaje: 10, diasGracia: 5, aplicarDesde: 'Fecha de vencimiento' };
 export const TIPOS_INTERES = ['Porcentaje mensual', 'Monto fijo'];
 export const APLICAR_DESDE = ['Fecha de vencimiento', 'Periodo vencido'];
 export const APLICAR_DESPUES = ['Fecha de vencimiento', 'Periodo vencido'];
 export const MESES_APLICA = ['Noviembre 2026', 'Diciembre 2026', 'Enero 2027', 'Febrero 2027'];
 export const DETALLE_ANTICIPO = {
-    codigo: 'ANT-2026-10-203-001', departamento: 'Depto. 203', responsable: 'Carlos Mendoza -- Propietario',
-    fechaPago: '05/10/2026', montoAnticipado: 700, deudaPendiente: 0, saldoAFavor: 350,
+    codigo: 'ANT-2026-10-202-001', departamento: 'Depto. 202', responsable: 'Luis Perez -- Propietario',
+    fechaPago: '03/10/2026', montoAnticipado: 1500, deudaPendiente: 0, saldoAFavor: 1135,
     aplicacion: [
-        { periodo: 'Noviembre 2026', monto: 350, estado: 'Cubierta anticipadamente' },
-        { periodo: 'Diciembre 2026', monto: 350, estado: 'Cubierta anticipadamente' },
+        { periodo: 'Octubre 2026', monto: 365, estado: 'Cubierta' },
     ],
 };
