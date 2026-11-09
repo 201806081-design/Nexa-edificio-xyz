@@ -1,21 +1,7 @@
 // Datos de prueba del modulo Finanzas. Se reemplazaran con los del backend.
 // Todos los montos estan en bolivianos (Bs).
 
-// Periodo seleccionado por defecto y opciones del selector
-// Incluye meses pasados (historicos) y futuros (para generar expensas).
-export const PERIODO_ACTUAL = 'Octubre 2026';
-export const PERIODOS = [
-    // Futuros (disponibles para generar expensas)
-    'Febrero 2027',
-    'Enero 2027',
-    'Diciembre 2026',
-    'Noviembre 2026',
-    // Actual + historicos
-    'Octubre 2026',
-    'Septiembre 2026',
-    'Agosto 2026',
-    'Julio 2026',
-];
+// Los periodos (meses) ya no se escriben aqui: ver periodos.js
 
 // --- Helpers ---
 

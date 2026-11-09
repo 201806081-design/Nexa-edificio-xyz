@@ -16,7 +16,8 @@ import {
 } from 'recharts';
 import { useNavigate } from 'react-router-dom';
 import DashboardLayout from '../../layouts/DashboardLayout';
-import { PERIODOS, formatBs } from '../../constants/finanzasMock';
+import { formatBs } from '../../constants/finanzasMock';
+import { periodosConMovimientos } from '../../constants/periodos';
 import { PAGOS_MOCK, HISTORIAL_ANTICIPOS } from '../../constants/pagosMock';
 import { todosLosMovimientos } from '../../constants/movimientosMock';
 
@@ -67,7 +68,9 @@ const PALETA_EGRESOS = ['#D9534F', '#E5A33B', '#A05A2C', '#5B8DEF', '#C13584'];
 
 export default function FlujoCaja() {
     const navigate = useNavigate();
-    const [periodo, setPeriodo] = useState(PERIODOS[0]);
+    // Periodos: mes en curso + meses cerrados desde el inicio del sistema (periodos.js)
+    const periodos = useMemo(() => periodosConMovimientos(), []);
+    const [periodo, setPeriodo] = useState(() => periodos[0] || '');
     const [vista, setVista] = useState('barras');
 
     // Agregacion desde los mocks reales, FILTRADA por periodo (mes y anio)
@@ -170,7 +173,7 @@ export default function FlujoCaja() {
                     </Paper>
                 ))}
                 <Select value={periodo} onChange={(e) => setPeriodo(e.target.value)} fullWidth size="small" sx={{ bgcolor: '#fff' }}>
-                    {PERIODOS.map((p) => <MenuItem key={p} value={p}>{p}</MenuItem>)}
+                    {periodos.map((p) => <MenuItem key={p} value={p}>{p}</MenuItem>)}
                 </Select>
             </Box>
 

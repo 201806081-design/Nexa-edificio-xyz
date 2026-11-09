@@ -14,6 +14,8 @@
 // vuelve atras, el selector los esconde (aunque los datos quedan en memoria
 // para no perder pagos aplicados durante la simulacion).
 
+import { periodosCerrados, periodoEnCurso } from './periodos';
+
 export const CARGOS = ['Administrador', 'Portero', 'Limpieza', 'Mantenimiento', 'Seguridad'];
 
 export const ESTADOS_EMPLEADO = ['Todos', 'Activo', 'Inactivo'];
@@ -46,39 +48,10 @@ export const EMPLEADOS_MOCK = [
 //  PERIODOS DINAMICOS
 // ============================================================
 
-const MESES_LARGOS = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
-    'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
-
-// Inicio del edificio (operacion de personal): Octubre 2026 (0-indexed: mes=9)
-const PRIMER_PERIODO = { anio: 2026, mes: 9 };
-
-// Devuelve los periodos ya cerrados hasta la fecha del sistema, mas reciente primero.
-// Hoy = 3 Nov 2026     -> ['Octubre 2026']
-// Hoy simulado Feb 2027 -> ['Enero 2027', 'Diciembre 2026', 'Noviembre 2026', 'Octubre 2026']
-// El mes en curso NUNCA aparece (aun no termina).
-export const periodosDisponibles = () => {
-    const hoy = new Date();
-    const primerDiaMesActual = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
-    const periodos = [];
-    let anio = PRIMER_PERIODO.anio;
-    let mes = PRIMER_PERIODO.mes;
-    let seguro = 0;
-    while (seguro++ < 240) { // max 20 anios por las dudas
-        const inicioSiguiente = new Date(anio, mes + 1, 1);
-        if (inicioSiguiente > primerDiaMesActual) break;
-        periodos.push(`${MESES_LARGOS[mes]} ${anio}`);
-        mes++;
-        if (mes >= 12) { mes = 0; anio++; }
-    }
-    return periodos.reverse();
-};
-
-// Devuelve el periodo que esta "en curso" segun la fecha del sistema (no completado).
-// Util para el Alert "la planilla de Noviembre aun no esta disponible".
-export const periodoEnCurso = () => {
-    const hoy = new Date();
-    return `${MESES_LARGOS[hoy.getMonth()]} ${hoy.getFullYear()}`;
-};
+// Los periodos salen de la fuente unica (periodos.js).
+// periodosDisponibles = meses cerrados (la planilla del mes en curso aun no se paga).
+export const periodosDisponibles = periodosCerrados;
+export { periodoEnCurso };
 
 // Fabrica una fila de planilla "vacia" (sin bonos ni anticipos) para un empleado y periodo.
 const planillaFilaVacia = (empleado, periodo) => ({

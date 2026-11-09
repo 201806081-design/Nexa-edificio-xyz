@@ -9,8 +9,7 @@
 // Esto significa que CUALQUIER pago no efectivo registrado en el sistema
 // aparece aqui automaticamente como movimiento del banco a conciliar.
 
-import { PAGOS_MOCK, HISTORIAL_ANTICIPOS, PERIODOS } from './pagosMock';
-export { PERIODOS };
+import { PAGOS_MOCK, HISTORIAL_ANTICIPOS } from './pagosMock';
 
 // Cuentas reales del edificio (sin "Todos" — siempre se ve una cuenta por vez,
 // porque el admin concilia banco por banco).

@@ -20,17 +20,11 @@ import {
     CUENTAS_BANCARIAS, ESTADOS_CONCILIACION, TIPOS_MOV_BANCO,
     movimientosBancarios, BANCOS_POR_MEDIO,
 } from '../../constants/conciliacionMock';
-import { periodosDisponibles, periodoEnCurso } from '../../constants/expensasMock';
+import { periodosConMovimientos, periodoEnCurso } from '../../constants/periodos';
 
-// Periodos para conciliacion: los meses ya cerrados MAS el mes en curso.
-// La conciliacion se hace diariamente, asi que el mes actual debe estar
-// disponible aunque todavia no termine (ahi aparecen los pagos recien hechos).
-const periodosConciliacion = () => {
-    const enCurso = periodoEnCurso();
-    const cerrados = periodosDisponibles();
-    const todos = cerrados.includes(enCurso) ? cerrados : [enCurso, ...cerrados];
-    return todos;
-};
+// Periodos para conciliacion: meses cerrados MAS el mes en curso (fuente unica periodos.js).
+// La conciliacion se hace diariamente, asi que el mes actual debe estar disponible.
+const periodosConciliacion = () => periodosConMovimientos();
 
 // Parse "DD/MM/YYYY" -> timestamp para ordenar por fecha descendente
 const timestampFecha = (fecha) => {

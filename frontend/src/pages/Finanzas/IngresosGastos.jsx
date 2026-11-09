@@ -14,8 +14,9 @@ import DescriptionOutlinedIcon from '@mui/icons-material/DescriptionOutlined';
 import { useNavigate } from 'react-router-dom';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import {
-    PERIODOS, TIPOS_MOVIMIENTO, CATEGORIAS, todosLosMovimientos,
+    TIPOS_MOVIMIENTO, CATEGORIAS, todosLosMovimientos,
 } from '../../constants/movimientosMock';
+import { periodosConMovimientos } from '../../constants/periodos';
 import { formatBs } from '../../constants/finanzasMock';
 
 // 'Octubre 2026' -> {mes: 10, anio: 2026}
@@ -46,7 +47,9 @@ const RESUMEN = [
 
 export default function IngresosGastos() {
     const navigate = useNavigate();
-    const [periodo, setPeriodo] = useState('Octubre 2026');
+    // Periodos: mes en curso + meses cerrados desde el inicio del sistema (periodos.js)
+    const periodos = useMemo(() => periodosConMovimientos(), []);
+    const [periodo, setPeriodo] = useState(() => periodos[0] || '');
     const [tipo, setTipo] = useState('Todos');
     const [categoria, setCategoria] = useState('Todas');
     const [busqueda, setBusqueda] = useState('');
@@ -92,7 +95,7 @@ export default function IngresosGastos() {
                 <Box sx={{ flex: 1, minWidth: 160 }}>
                     <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Periodo</Typography>
                     <Select fullWidth value={periodo} onChange={(e) => setPeriodo(e.target.value)}>
-                        {PERIODOS.map((p) => <MenuItem key={p} value={p}>{p}</MenuItem>)}
+                        {periodos.map((p) => <MenuItem key={p} value={p}>{p}</MenuItem>)}
                     </Select>
                 </Box>
                 <Box sx={{ flex: 1, minWidth: 160 }}>

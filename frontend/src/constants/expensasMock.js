@@ -33,11 +33,11 @@
 //  sigan funcionando sin modificaciones.
 // ============================================================
 
-import { PERIODOS } from './finanzasMock';
+import { periodosCerrados, periodoEnCurso } from './periodos';
 import { EXPENSA_BASE, CONFIG_AGUA as CONFIG_AGUA_SHARED, REGLAS_PERIODO } from './configuracionMock';
 import { CONFIG_MORA as CONFIG_MORA_SHARED } from './moraMock';
 import { departamentos, numeroDe, numerosDepto, vincularResponsable } from './edificioMock';
-export { PERIODOS, REGLAS_PERIODO };
+export { REGLAS_PERIODO };
 
 // --- Tarifas por tipo de departamento (misma referencia que EXPENSA_BASE) ---
 export const TARIFAS = EXPENSA_BASE;
@@ -143,39 +143,10 @@ export const eliminarExtra = (row, id) => {
 //  PERIODOS DINAMICOS
 // ============================================================
 
-const MESES_LARGOS = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
-    'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
-
-// Inicio del edificio = Octubre 2026 (0-indexed: mes=9).
-const PRIMER_PERIODO = { anio: 2026, mes: 9 };
-
-// Devuelve los periodos ya cerrados hasta la fecha del sistema, mas reciente primero.
-// Hoy = 6-Nov-2026      -> ['Octubre 2026']
-// Simulando Feb-2027   -> ['Enero 2027', 'Diciembre 2026', 'Noviembre 2026', 'Octubre 2026']
-// El mes en curso NUNCA aparece (aun no termino).
-export const periodosDisponibles = () => {
-    const hoy = new Date();
-    const primerDiaMesActual = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
-    const periodos = [];
-    let anio = PRIMER_PERIODO.anio;
-    let mes = PRIMER_PERIODO.mes;
-    let seguro = 0;
-    while (seguro++ < 240) {
-        const inicioSiguiente = new Date(anio, mes + 1, 1);
-        if (inicioSiguiente > primerDiaMesActual) break;
-        periodos.push(`${MESES_LARGOS[mes]} ${anio}`);
-        mes++;
-        if (mes >= 12) { mes = 0; anio++; }
-    }
-    return periodos.reverse();
-};
-
-// Mes en curso segun fecha del sistema ("Noviembre 2026").
-// Util para el aviso "la expensa de este mes aun no se puede generar".
-export const periodoEnCurso = () => {
-    const hoy = new Date();
-    return `${MESES_LARGOS[hoy.getMonth()]} ${hoy.getFullYear()}`;
-};
+// Los periodos salen de la fuente unica (periodos.js).
+// periodosDisponibles = meses cerrados (el mes en curso no se puede generar).
+export const periodosDisponibles = periodosCerrados;
+export { periodoEnCurso };
 
 // Semillas: Octubre 2026 (primer mes del sistema, ya cerrado y con el agua registrada).
 // Escenario (cada expensa pagada tiene su fila en pagosMock.PAGOS_MOCK):

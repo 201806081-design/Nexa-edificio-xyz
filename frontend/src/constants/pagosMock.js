@@ -17,9 +17,7 @@
 // El responsable NO se escribe aqui: se lee del edificio (edificioMock) segun el depto.
 // pagadoPor si se guarda, porque es quien hizo el pago en ese momento.
 
-import { PERIODOS } from './finanzasMock';
 import { numerosDepto, vincularResponsable } from './edificioMock';
-export { PERIODOS };
 
 export const ESTADOS_PAGO = ['Todos', 'Completo', 'Parcial'];
 // Filtro de deptos: sale del edificio (edificioMock)

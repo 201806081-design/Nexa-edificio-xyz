@@ -22,7 +22,7 @@ import {
     HISTORIAL_ANTICIPOS, totalPago,
 } from '../../constants/pagosMock';
 import * as ExpMod from '../../constants/expensasMock';
-import { periodosDisponibles } from '../../constants/expensasMock';
+import { periodosConMovimientos } from '../../constants/periodos';
 import { CONFIG_MORA } from '../../constants/moraMock';
 import { formatBs } from '../../constants/finanzasMock';
 
@@ -161,10 +161,10 @@ export default function Pagos() {
     const navigate = useNavigate();
     const [tab, setTab] = useState('expensas');
 
-    // Periodos dinamicos (igual que Expensas): solo meses ya cerrados.
+    // Periodos: mes en curso + meses cerrados (los pagos de hoy deben verse). Fuente unica: periodos.js
     const [tick, setTick] = useState(0);
-    const periodos = useMemo(() => periodosDisponibles(), [tick]);
-    const [periodo, setPeriodo] = useState(() => periodosDisponibles()[0] || 'Octubre 2026');
+    const periodos = useMemo(() => periodosConMovimientos(), [tick]);
+    const [periodo, setPeriodo] = useState(() => periodosConMovimientos()[0] || '');
 
     useEffect(() => {
         const h = setInterval(() => setTick((t) => t + 1), 5000);

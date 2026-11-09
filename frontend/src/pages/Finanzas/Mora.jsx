@@ -17,11 +17,12 @@ import PaidIcon from '@mui/icons-material/Paid';
 import { useNavigate } from 'react-router-dom';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import {
-    CONFIG_MORA, APLICAR_MORA_DESDE, TIPOS_CALCULO, PERIODO_ACTUAL_MORA,
+    CONFIG_MORA, APLICAR_MORA_DESDE, TIPOS_CALCULO,
     REGLA_MORA,
 } from '../../constants/moraMock';
 import { REGLAS_PERIODO, DIAS_VENCIMIENTO } from '../../constants/configuracionMock';
 import { deudasVencidas, diaVencimiento as diaVencimientoNum } from '../../constants/deudasMock';
+import { periodoEnCurso } from '../../constants/periodos';
 import { formatBs } from '../../constants/finanzasMock';
 
 // Helpers de conversion mes "YYYY-MM" <-> "Octubre 2026"
@@ -327,7 +328,7 @@ export default function Mora() {
                     <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, 1fr)' }, gap: 1.5, mb: 2 }}>
                         <Box sx={{ bgcolor: '#E4EEF5', borderRadius: 2, p: 1.5 }}>
                             <Typography variant="body2" color="text.secondary">Periodo</Typography>
-                            <Typography variant="body2" sx={{ fontWeight: 700, color: 'primary.main' }}>{PERIODO_ACTUAL_MORA}</Typography>
+                            <Typography variant="body2" sx={{ fontWeight: 700, color: 'primary.main' }}>{periodoEnCurso()}</Typography>
                         </Box>
                         <Box sx={{ bgcolor: '#E4EEF5', borderRadius: 2, p: 1.5 }}>
                             <Typography variant="body2" color="text.secondary">Deudas por actualizar</Typography>

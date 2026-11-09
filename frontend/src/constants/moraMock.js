@@ -28,9 +28,6 @@ export const APLICAR_MORA_DESDE = [
 export const TIPOS_CALCULO = ['Compuesto', 'Simple'];
 export const VIGENTE_DESDE = ['Noviembre 2026', 'Diciembre 2026', 'Octubre 2026'];
 
-// Periodo sobre el que se actualizan los intereses
-export const PERIODO_ACTUAL_MORA = 'Octubre 2026';
-
 // Texto de la regla aplicada (aviso)
 export const REGLA_MORA = {
     texto: 'La mora se calcula una vez por cada mes vencido sobre la deuda actualizada.',

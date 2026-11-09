@@ -10,7 +10,8 @@ import BarChartIcon from '@mui/icons-material/BarChart';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import { useNavigate } from 'react-router-dom';
 import DashboardLayout from '../../layouts/DashboardLayout';
-import { PERIODO_ACTUAL, PERIODOS, formatBs } from '../../constants/finanzasMock';
+import { formatBs } from '../../constants/finanzasMock';
+import { periodosConMovimientos } from '../../constants/periodos';
 import { PAGOS_MOCK, HISTORIAL_ANTICIPOS } from '../../constants/pagosMock';
 import { todosLosMovimientos } from '../../constants/movimientosMock';
 import { saldoPendienteTotal } from '../../constants/deudasMock';
@@ -42,7 +43,9 @@ const ACCESOS = [
 
 export default function GestionFinanciera() {
     const navigate = useNavigate();
-    const [periodo, setPeriodo] = useState(PERIODO_ACTUAL);
+    // Periodos: mes en curso + meses cerrados desde el inicio del sistema (periodos.js)
+    const periodos = useMemo(() => periodosConMovimientos(), []);
+    const [periodo, setPeriodo] = useState(() => periodos[0] || '');
 
     // Calcula los KPIs en vivo desde los mocks reales (sincronizado con todo el sistema).
     // Ingresos y Gastos se filtran por el periodo seleccionado.
@@ -89,7 +92,7 @@ export default function GestionFinanciera() {
             <Box sx={{ maxWidth: 360, mb: 3 }}>
                 <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Periodo</Typography>
                 <Select fullWidth value={periodo} onChange={(e) => setPeriodo(e.target.value)}>
-                    {PERIODOS.map((p) => <MenuItem key={p} value={p}>{p}</MenuItem>)}
+                    {periodos.map((p) => <MenuItem key={p} value={p}>{p}</MenuItem>)}
                 </Select>
             </Box>
 

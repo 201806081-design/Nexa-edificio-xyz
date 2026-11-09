@@ -16,9 +16,8 @@ import PaidIcon from '@mui/icons-material/Paid';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import { formatBs } from '../../constants/finanzasMock';
-import {
-    EXPENSAS_MOCK, periodosDisponibles, periodoEnCurso,
-} from '../../constants/expensasMock';
+import { EXPENSAS_MOCK } from '../../constants/expensasMock';
+import { periodosConMovimientos, periodoEnCurso } from '../../constants/periodos';
 import { PAGOS_MOCK, HISTORIAL_ANTICIPOS, totalPago } from '../../constants/pagosMock';
 import { CONFIG_MORA } from '../../constants/moraMock';
 import { historialDepto, round2 } from '../../constants/deudasMock';
@@ -44,12 +43,7 @@ const fechaEnPeriodo = (fecha, periodoSel) => {
 // Lista de periodos para el selector: Todos + meses cerrados + mes en curso.
 // Igual que Conciliacion: el mes actual aparece aunque no haya terminado (para
 // ver anticipos y pagos del dia).
-const periodosParaCuenta = () => {
-    const enCurso = periodoEnCurso();
-    const cerrados = periodosDisponibles();
-    const todos = cerrados.includes(enCurso) ? cerrados : [enCurso, ...cerrados];
-    return ['Todos los periodos', ...todos];
-};
+const periodosParaCuenta = () => ['Todos los periodos', ...periodosConMovimientos()];
 
 const estadoChipSx = (estado) => {
     if (estado === 'Pagado') return { bgcolor: '#E4F4EE', color: '#2E9D78' };

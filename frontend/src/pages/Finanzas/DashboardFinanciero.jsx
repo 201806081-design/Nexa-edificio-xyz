@@ -10,7 +10,8 @@ import {
     PieChart, Pie, Cell, ResponsiveContainer,
 } from 'recharts';
 import DashboardLayout from '../../layouts/DashboardLayout';
-import { PERIODO_ACTUAL, PERIODOS, formatBs } from '../../constants/finanzasMock';
+import { formatBs } from '../../constants/finanzasMock';
+import { periodosConMovimientos } from '../../constants/periodos';
 import { PAGOS_MOCK, HISTORIAL_ANTICIPOS } from '../../constants/pagosMock';
 import { todosLosMovimientos } from '../../constants/movimientosMock';
 import { calcularDeudas, round2 } from '../../constants/deudasMock';
@@ -46,7 +47,9 @@ const mesesPrevios = (mesSel, anioSel, n = 4) => {
 const COLOR_ESTADO = { Pagadas: '#2E9D78', Pendientes: '#E5A33B', Vencidas: '#D9534F' };
 
 export default function DashboardFinanciero() {
-    const [periodo, setPeriodo] = useState(PERIODO_ACTUAL);
+    // Periodos: mes en curso + meses cerrados desde el inicio del sistema (periodos.js)
+    const periodos = useMemo(() => periodosConMovimientos(), []);
+    const [periodo, setPeriodo] = useState(() => periodos[0] || '');
 
     const datos = useMemo(() => {
         const { mes, anio } = parsePeriodo(periodo);
@@ -135,7 +138,7 @@ export default function DashboardFinanciero() {
             <Box sx={{ maxWidth: 360, mb: 3 }}>
                 <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Periodo</Typography>
                 <Select fullWidth value={periodo} onChange={(e) => setPeriodo(e.target.value)}>
-                    {PERIODOS.map((p) => <MenuItem key={p} value={p}>{p}</MenuItem>)}
+                    {periodos.map((p) => <MenuItem key={p} value={p}>{p}</MenuItem>)}
                 </Select>
             </Box>
 

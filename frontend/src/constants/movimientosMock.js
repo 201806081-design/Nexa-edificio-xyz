@@ -11,9 +11,7 @@
 //      gasto en sueldos siempre coincide con la planilla.
 // Las pantallas usan todosLosMovimientos(), que junta ambas fuentes.
 
-import { PERIODOS } from './finanzasMock';
 import { PAGOS_PERSONAL_MOCK, ANTICIPOS_PERSONAL_MOCK, cargoEmpleado } from './personalMock';
-export { PERIODOS };
 
 // Opciones de los selectores del formulario y filtros.
 // 'Personal' la usan solo los gastos que vienen de la planilla.
