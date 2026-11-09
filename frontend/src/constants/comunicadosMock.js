@@ -121,10 +121,10 @@ export const COMUNICADOS_MOCK = [
         estado: 'Enviado', adjunto: null, autor: 'Administrador',
     },
     {
-        id: 'CO-0002', fecha: '01/11/2026 12:00', titulo: 'Recordatorio de expensas',
-        mensaje: 'Les recordamos que las expensas del mes vencen el 10 de noviembre. Por favor regularicen su situacion para evitar moras.',
-        destinatarioId: 'morosos', destinatariosEspecificos: [], canalesIds: ['app'],
-        prioridad: 'Urgente', entregados: 3, totalDestinatarios: 3,
+        id: 'CO-0002', fecha: '01/11/2026 12:00', titulo: 'Expensas de octubre disponibles',
+        mensaje: 'Estimados copropietarios, ya estan generadas las expensas de octubre. Vencen el 10 de noviembre; despues de esa fecha se aplicara el interes por mora.',
+        destinatarioId: 'todos', destinatariosEspecificos: [], canalesIds: ['app'],
+        prioridad: 'Importante', entregados: 9, totalDestinatarios: 9,
         estado: 'Enviado', adjunto: null, autor: 'Administrador',
     },
     {

@@ -36,6 +36,11 @@ const periodoCoincide = (periodoAplicado, periodoSel) => {
     return (p.includes(mesSel) || p.includes(corto)) && p.includes(anioSel || '');
 };
 
+// Un pago es "recuperado" cuando cubre una expensa ya VENCIDA (con meses de mora).
+// Las expensas se pagan normalmente el mes siguiente a su periodo (se generan
+// cuando el mes termina), asi que el periodo no sirve para distinguirlo.
+const esPagoDeDeudaVencida = (p) => (p.composicion || []).some((c) => (c.mesesMora || 0) > 0 || (c.mora || 0) > 0);
+
 const MES_IDX = {
     enero: 1, febrero: 2, marzo: 3, abril: 4, mayo: 5, junio: 6,
     julio: 7, agosto: 8, septiembre: 9, octubre: 10, noviembre: 11, diciembre: 12,
@@ -203,12 +208,13 @@ export default function Pagos() {
     const resumenExp = useMemo(() => {
         const pagosDelMes = PAGOS_MOCK.filter((p) => fechaEnPeriodo(p.fecha, periodo));
         const registrados = pagosDelMes.length;
-        // Total aplicado a expensas (efectivo + credito a favor): coincide con "Pagado" de Expensas
+        // Total aplicado a expensas (efectivo + credito a favor) por los pagos hechos en el mes.
+        // Cobrado = pagos al dia; recuperado = pagos de deudas vencidas (con mora).
         const cobrado = pagosDelMes
-            .filter((p) => periodoCoincide(p.periodoAplicado, periodo))
+            .filter((p) => !esPagoDeDeudaVencida(p))
             .reduce((s, p) => s + totalPago(p), 0);
         const recuperado = pagosDelMes
-            .filter((p) => !periodoCoincide(p.periodoAplicado, periodo))
+            .filter((p) => esPagoDeDeudaVencida(p))
             .reduce((s, p) => s + totalPago(p), 0);
         return { cobrado, registrados, recuperado };
     }, [periodo, tick]);
@@ -223,9 +229,9 @@ export default function Pagos() {
     const nombreMes = (periodo || '').split(' ')[0] || 'periodo';
 
     const RESUMEN_EXP = [
-        { label: `Cobrado en ${nombreMes}`, valor: formatBs(resumenExp.cobrado), nota: 'Aplicado al periodo (incluye credito a favor)', icon: <TrendingUpIcon />, color: '#2E9D78', bg: '#E4F4EE' },
+        { label: `Cobrado en ${nombreMes}`, valor: formatBs(resumenExp.cobrado), nota: 'Pagos al dia del mes (incluye credito a favor)', icon: <TrendingUpIcon />, color: '#2E9D78', bg: '#E4F4EE' },
         { label: 'Pagos registrados', valor: `${resumenExp.registrados} pagos`, nota: 'Incluye pagos parciales', icon: <ReceiptLongIcon />, color: '#1F5F8B', bg: '#E4EEF5' },
-        { label: 'Saldo recuperado', valor: formatBs(resumenExp.recuperado), nota: 'Pagos a deudas de meses anteriores', icon: <SavingsIcon />, color: '#8E6DD1', bg: '#EFEAF8' },
+        { label: 'Saldo recuperado', valor: formatBs(resumenExp.recuperado), nota: 'Pagos de expensas vencidas (con mora)', icon: <SavingsIcon />, color: '#8E6DD1', bg: '#EFEAF8' },
     ];
 
     const RESUMEN_ANT = [
@@ -361,7 +367,7 @@ export default function Pagos() {
                                             </TableCell>
                                         </TableRow>
                                     ) : pagosVisibles.map((p) => {
-                                        const esRecuperado = !periodoCoincide(p.periodoAplicado, periodo);
+                                        const esRecuperado = esPagoDeDeudaVencida(p);
                                         return (
                                             <TableRow key={p.id} sx={esRecuperado ? { bgcolor: '#EFEAF8' } : {}}>
                                                 <TableCell sx={{ color: 'primary.main', fontWeight: 600 }}>{p.id}</TableCell>
@@ -419,7 +425,7 @@ export default function Pagos() {
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1, flexWrap: 'wrap' }}>
                                 <Box sx={{ width: 14, height: 14, bgcolor: '#EFEAF8', border: '1px solid #CFDCEA', borderRadius: 0.5 }} />
                                 <Typography variant="caption" color="text.secondary">
-                                    Filas en lila = pagos cobrados en {nombreMes} aplicados a deudas de meses anteriores (<strong>Saldo recuperado</strong>).
+                                    Filas en lila = pagos de {nombreMes} que cubrieron expensas ya vencidas, con mora (<strong>Saldo recuperado</strong>).
                                 </Typography>
                             </Box>
                         </Box>

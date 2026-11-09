@@ -148,69 +148,73 @@ export const eliminarExtra = (row, id) => {
 export const periodosDisponibles = periodosCerrados;
 export { periodoEnCurso };
 
-// Semillas: Octubre 2026 (primer mes del sistema, ya cerrado y con el agua registrada).
-// Escenario (cada expensa pagada tiene su fila en pagosMock.PAGOS_MOCK):
-//   101 Pagada PG-0037 (credito PA-0011)  | 102 pago parcial PG-0038 (debe 165)
+// Semillas: Octubre 2026 (primer mes del sistema).
+// LINEA DE TIEMPO (una expensa se genera cuando su mes TERMINA):
+//   octubre      -> el edificio opera; algunos copropietarios dejan anticipos
+//   01/11/2026   -> se generan las expensas de octubre
+//   02-03/11     -> se registra el agua de cada depto
+//   03-07/11     -> se aplican los anticipos y llegan los pagos (ver pagosMock)
+//   10/11/2026   -> vence octubre: quien no pago queda moroso (deudasMock)
+// Situacion de cada depto:
+//   101 Pagada PG-0037 (credito PA-0011)  | 102 pago parcial PG-0039 (debe 165)
 //   103 sin pagar                         | 201 Pagada PG-0041 (efectivo)
 //   202 Pagada PG-0036 (credito PA-0010)  | 203 sin pagar
-//   301 Pagada PG-0042 (QR)               | 302 Pagada PG-0039 (QR)
-//   303 Pagada PG-0040 (credito PA-0012)
-// Octubre vence el 10/nov/2026: desde ese dia 102, 103 y 203 quedan morosos
-// (lo calcula deudasMock.js, no se escribe a mano).
+//   301 Pagada PG-0042 (QR)               | 302 Pagada PG-0040 (QR)
+//   303 Pagada PG-0038 (credito PA-0012)
 export const EXPENSAS_MOCK = [
     {
         id: 'EX-0001', depto: '101', departamento: 'Depto. 101', tipo: 'A', periodo: 'Octubre 2026',
         base: 300, agua: 15, m3: 3, lecturaAnt: 100, lecturaAct: 103, lecturaAnterior: 100, lecturaActual: 103,
         extras: [],
-        monto: 315, total: 315, estado: 'Pagada', pagado: 315, aguaNota: '', fechaGen: '01/10/2026', fechaAgua: '02/10/2026'
+        monto: 315, total: 315, estado: 'Pagada', pagado: 315, aguaNota: '', fechaGen: '01/11/2026', fechaAgua: '02/11/2026'
     },
     {
         id: 'EX-0002', depto: '102', departamento: 'Depto. 102', tipo: 'B', periodo: 'Octubre 2026',
         base: 350, agua: 15, m3: 5, lecturaAnt: 115, lecturaAct: 120, lecturaAnterior: 115, lecturaActual: 120,
         extras: [],
-        monto: 365, total: 365, estado: 'Lista', pagado: 200, aguaNota: '', fechaGen: '01/10/2026', fechaAgua: '03/10/2026'
+        monto: 365, total: 365, estado: 'Lista', pagado: 200, aguaNota: '', fechaGen: '01/11/2026', fechaAgua: '03/11/2026'
     },
     {
         id: 'EX-0003', depto: '103', departamento: 'Depto. 103', tipo: 'A', periodo: 'Octubre 2026',
         base: 300, agua: 15, m3: 4, lecturaAnt: 86, lecturaAct: 90, lecturaAnterior: 86, lecturaActual: 90,
         extras: [],
-        monto: 315, total: 315, estado: 'Lista', pagado: 0, aguaNota: '', fechaGen: '01/10/2026', fechaAgua: '03/10/2026'
+        monto: 315, total: 315, estado: 'Lista', pagado: 0, aguaNota: '', fechaGen: '01/11/2026', fechaAgua: '03/11/2026'
     },
     {
         id: 'EX-0004', depto: '201', departamento: 'Depto. 201', tipo: 'A', periodo: 'Octubre 2026',
         base: 300, agua: 18, m3: 6, lecturaAnt: 174, lecturaAct: 180, lecturaAnterior: 174, lecturaActual: 180,
         extras: [],
-        monto: 318, total: 318, estado: 'Pagada', pagado: 318, aguaNota: '', fechaGen: '01/10/2026', fechaAgua: '03/10/2026'
+        monto: 318, total: 318, estado: 'Pagada', pagado: 318, aguaNota: '', fechaGen: '01/11/2026', fechaAgua: '03/11/2026'
     },
     {
         id: 'EX-0005', depto: '202', departamento: 'Depto. 202', tipo: 'B', periodo: 'Octubre 2026',
         base: 350, agua: 15, m3: 4, lecturaAnt: 200, lecturaAct: 204, lecturaAnterior: 200, lecturaActual: 204,
         extras: [],
-        monto: 365, total: 365, estado: 'Pagada', pagado: 365, aguaNota: '', fechaGen: '01/10/2026', fechaAgua: '02/10/2026'
+        monto: 365, total: 365, estado: 'Pagada', pagado: 365, aguaNota: '', fechaGen: '01/11/2026', fechaAgua: '02/11/2026'
     },
     {
         id: 'EX-0006', depto: '203', departamento: 'Depto. 203', tipo: 'B', periodo: 'Octubre 2026',
         base: 350, agua: 15, m3: 5, lecturaAnt: 145, lecturaAct: 150, lecturaAnterior: 145, lecturaActual: 150,
         extras: [],
-        monto: 365, total: 365, estado: 'Lista', pagado: 0, aguaNota: '', fechaGen: '01/10/2026', fechaAgua: '03/10/2026'
+        monto: 365, total: 365, estado: 'Lista', pagado: 0, aguaNota: '', fechaGen: '01/11/2026', fechaAgua: '03/11/2026'
     },
     {
         id: 'EX-0007', depto: '301', departamento: 'Depto. 301', tipo: 'C', periodo: 'Octubre 2026',
         base: 400, agua: 15, m3: 3, lecturaAnt: 57, lecturaAct: 60, lecturaAnterior: 57, lecturaActual: 60,
         extras: [],
-        monto: 415, total: 415, estado: 'Pagada', pagado: 415, aguaNota: '', fechaGen: '01/10/2026', fechaAgua: '02/10/2026'
+        monto: 415, total: 415, estado: 'Pagada', pagado: 415, aguaNota: '', fechaGen: '01/11/2026', fechaAgua: '02/11/2026'
     },
     {
         id: 'EX-0008', depto: '302', departamento: 'Depto. 302', tipo: 'C', periodo: 'Octubre 2026',
         base: 400, agua: 15, m3: 3, lecturaAnt: 150, lecturaAct: 153, lecturaAnterior: 150, lecturaActual: 153,
         extras: [],
-        monto: 415, total: 415, estado: 'Pagada', pagado: 415, aguaNota: '', fechaGen: '01/10/2026', fechaAgua: '02/10/2026'
+        monto: 415, total: 415, estado: 'Pagada', pagado: 415, aguaNota: '', fechaGen: '01/11/2026', fechaAgua: '02/11/2026'
     },
     {
         id: 'EX-0009', depto: '303', departamento: 'Depto. 303', tipo: 'C', periodo: 'Octubre 2026',
         base: 400, agua: 21, m3: 7, lecturaAnt: 163, lecturaAct: 170, lecturaAnterior: 163, lecturaActual: 170,
         extras: [],
-        monto: 421, total: 421, estado: 'Pagada', pagado: 421, aguaNota: '', fechaGen: '01/10/2026', fechaAgua: '03/10/2026'
+        monto: 421, total: 421, estado: 'Pagada', pagado: 421, aguaNota: '', fechaGen: '01/11/2026', fechaAgua: '03/11/2026'
     },
 ];
 // El responsable de cada expensa se lee del edificio segun su depto

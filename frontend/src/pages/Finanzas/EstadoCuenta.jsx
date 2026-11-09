@@ -112,8 +112,13 @@ function computeMovimientos(deptoId, periodoFiltro) {
             credito: a.credito,
             estado: a.estado,
         }));
+    // Un pago se muestra en el periodo de la expensa que cubre (ej. el pago del 05/11
+    // de la expensa de octubre aparece en "Octubre 2026") y tambien en el mes en que se hizo.
+    // Un anticipo se muestra en el mes en que se recibio.
     const todos = [...pagos, ...anticipos]
-        .filter((m) => periodoFiltro === 'Todos los periodos' || fechaEnPeriodo(m.fecha, periodoFiltro))
+        .filter((m) => periodoFiltro === 'Todos los periodos'
+            || fechaEnPeriodo(m.fecha, periodoFiltro)
+            || (m.tipo === 'Pago' && (m.periodoAsociado || '').includes(periodoFiltro)))
         .sort((a, b) => {
             // Orden descendente por fecha (DD/MM/YYYY)
             const fa = (a.fecha || '').split('/').reverse().join('');
