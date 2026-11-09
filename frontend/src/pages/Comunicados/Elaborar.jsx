@@ -62,8 +62,8 @@ export default function Elaborar() {
     const borradorInicial = location.state?.borrador ?? null;
 
     // Si llegamos desde "Compartir QR" (RegistrarPago / RegistrarAnticipo), prefill con QR.
-    const qrInicial = location.state?.qrData ?? '';
-    const qrTituloInicial = location.state?.qrTitulo ?? '';
+    const qrInicial = borradorInicial?.qrData || location.state?.qrData || '';
+    const qrTituloInicial = borradorInicial?.qrTitulo || location.state?.qrTitulo || '';
     const deptoPreseleccionado = location.state?.deptoPreseleccionado ?? null;
 
     const [borradorId, setBorradorId] = useState(borradorInicial?.id ?? null);
@@ -87,7 +87,8 @@ export default function Elaborar() {
     );
     const [qrData, setQrData] = useState(qrInicial);
     const [qrTitulo, setQrTitulo] = useState(qrTituloInicial);
-    const [adjunto, setAdjunto] = useState(null);
+    // Si el borrador tenia un archivo adjunto, se recupera (vive en memoria mientras la pagina este abierta)
+    const [adjunto, setAdjunto] = useState(borradorInicial?.adjunto?.file ?? null);
     const [previewAdjunto, setPreviewAdjunto] = useState(false);
     // Arranca solo con App tildado. Si venimos de un borrador, respetamos sus canales,
     // pero filtramos los que ya no son seleccionables (ej. correo si el backend lo deshabilita).
@@ -102,8 +103,8 @@ export default function Elaborar() {
         }
         return base;
     });
-    const [programarAhora, setProgramarAhora] = useState('ahora');
-    const [fechaProgramada, setFechaProgramada] = useState('');
+    const [programarAhora, setProgramarAhora] = useState(borradorInicial?.programarAhora ?? 'ahora');
+    const [fechaProgramada, setFechaProgramada] = useState(borradorInicial?.fechaProgramada ?? '');
 
     // URL del adjunto para preview (se regenera cuando cambia el archivo)
     const adjuntoUrl = useMemo(() => (adjunto ? URL.createObjectURL(adjunto) : null), [adjunto]);
@@ -128,7 +129,7 @@ export default function Elaborar() {
 
     // Limpiamos el location.state despues del primer render para que no re-aplique al refresh
     useEffect(() => {
-        if (deptoPreseleccionado || qrInicial || location.state?.titulo) {
+        if (borradorInicial || deptoPreseleccionado || qrInicial || location.state?.titulo) {
             window.history.replaceState({}, '');
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -171,6 +172,7 @@ export default function Elaborar() {
             id: borradorId, titulo: titulo.trim(), mensaje: mensaje.trim(),
             destinatarioId, destinatariosEspecificos,
             canalesIds: canalesElegidos, prioridad, adjunto,
+            qrData, qrTitulo, programarAhora, fechaProgramada,
         });
         setBorradorId(b.id);
         setSnack({ open: true, msg: `Borrador "${b.titulo}" guardado (${b.id})`, sev: 'success' });

@@ -174,6 +174,7 @@ const fechaBonitaDesde = (d = new Date()) => {
 const empaquetarAdjunto = (adjunto) => {
     if (!adjunto) return null;
     if (typeof adjunto === 'string') return { name: adjunto, type: null, file: null };
+    if ('file' in adjunto && !(adjunto instanceof Blob)) return adjunto; // ya empaquetado
     return { name: adjunto.name, type: adjunto.type || null, file: adjunto };
 };
 
@@ -257,12 +258,25 @@ export const procesarProgramadosVencidos = () => {
 
 // ----- Borradores -----
 
-export const guardarBorrador = ({ id, titulo, mensaje, destinatarioId, destinatariosEspecificos, canalesIds, prioridad, adjunto }) => {
+// Codigo del siguiente borrador: el mayor + 1 (no la cantidad, para que al borrar
+// uno no se repita un codigo y se sobrescriba otro borrador).
+const siguienteCodigoBorrador = () => {
+    const nums = BORRADORES_MOCK.map((b) => Number(String(b.id).replace(/\D/g, '')) || 0);
+    return `BR-${String((nums.length ? Math.max(...nums) : 0) + 1).padStart(4, '0')}`;
+};
+
+// Guarda TODO lo que tiene el formulario (incluidos el QR, el adjunto y la
+// programacion), para que al retomar el borrador quede exactamente igual.
+export const guardarBorrador = ({
+    id, titulo, mensaje, destinatarioId, destinatariosEspecificos, canalesIds, prioridad, adjunto,
+    qrData = '', qrTitulo = '', programarAhora = 'ahora', fechaProgramada = '',
+}) => {
     const data = {
-        id: id ?? `BR-${String(BORRADORES_MOCK.length + 1).padStart(4, '0')}`,
+        id: id ?? siguienteCodigoBorrador(),
         titulo, mensaje, destinatarioId,
         destinatariosEspecificos: destinatariosEspecificos || [],
-        canalesIds, prioridad, adjunto: adjunto?.name ?? null,
+        canalesIds, prioridad, adjunto: empaquetarAdjunto(adjunto),
+        qrData, qrTitulo, programarAhora, fechaProgramada,
         fechaGuardado: fechaBonitaDesde(),
     };
     const idx = BORRADORES_MOCK.findIndex((b) => b.id === data.id);
