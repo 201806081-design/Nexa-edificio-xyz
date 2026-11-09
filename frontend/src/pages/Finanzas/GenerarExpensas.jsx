@@ -7,6 +7,7 @@ import TaskAltIcon from '@mui/icons-material/TaskAlt';
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
 import OpacityIcon from '@mui/icons-material/Opacity';
 import { useNavigate } from 'react-router-dom';
+import { vincularResponsable } from '../../constants/edificioMock';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import {
     ALICUOTAS, DEPARTAMENTOS_ACTIVOS, EXPENSAS_MOCK,
@@ -76,17 +77,19 @@ export default function GenerarExpensas() {
         bloques.forEach((b) => {
             b.deptos.forEach((d) => {
                 serie += 1;
-                EXPENSAS_MOCK.push({
+                // Mismos campos que las semillas de expensasMock; el responsable se lee del edificio
+                EXPENSAS_MOCK.push(vincularResponsable({
                     id: `EX-${String(serie).padStart(4, '0')}`,
-                    depto: d.id, tipo: d.tipo, responsable: d.responsable,
+                    depto: d.id, departamento: `Depto. ${d.id}`, tipo: d.tipo,
                     periodo,
                     base: b.alicuota,
-                    agua: 0, m3: null, lecturaAnt: null, lecturaAct: null, aguaNota: '',
+                    agua: 0, m3: null, lecturaAnt: null, lecturaAct: null,
+                    lecturaAnterior: null, lecturaActual: null, aguaNota: '',
                     extras: [],
-                    total: b.alicuota,
+                    monto: b.alicuota, total: b.alicuota,
                     estado: 'Agua pendiente', pagado: 0,
                     fechaGen: fecha, fechaAgua: null,
-                });
+                }));
             });
         });
         navigate('/finanzas/expensas', {

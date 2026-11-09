@@ -178,12 +178,12 @@ export const periodoEnCurso = () => {
 };
 
 // Semillas: Octubre 2026 (primer mes del sistema, ya cerrado y con el agua registrada).
-// Escenario (debe coincidir con pagosMock):
-//   101 Pagada con anticipo PA-0011      | 102 pago parcial PG-0039 (debe 165)
-//   103 sin pagar                        | 201 Pagada con PG-0041
-//   202 Pagada con anticipo PA-0010      | 203 sin pagar
-//   301 Pagada con PG-0042               | 302 Pagada con PG-0040
-//   303 Pagada con anticipo PA-0012
+// Escenario (cada expensa pagada tiene su fila en pagosMock.PAGOS_MOCK):
+//   101 Pagada PG-0037 (credito PA-0011)  | 102 pago parcial PG-0038 (debe 165)
+//   103 sin pagar                         | 201 Pagada PG-0041 (efectivo)
+//   202 Pagada PG-0036 (credito PA-0010)  | 203 sin pagar
+//   301 Pagada PG-0042 (QR)               | 302 Pagada PG-0039 (QR)
+//   303 Pagada PG-0040 (credito PA-0012)
 // Octubre vence el 10/nov/2026: desde ese dia 102, 103 y 203 quedan morosos
 // (lo calcula deudasMock.js, no se escribe a mano).
 export const EXPENSAS_MOCK = [

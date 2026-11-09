@@ -105,7 +105,8 @@ export default function DashboardFinanciero() {
 
         // --- Ultimos movimientos (unificado, top 5) ---
         const unificado = [
-            ...PAGOS_MOCK.map((p) => ({ fecha: p.fecha, descripcion: `Pago ${p.id} — Dpto. ${p.depto}`, tipo: 'ingreso', monto: p.monto })),
+            // Solo pagos con dinero nuevo (los cubiertos con credito ya entraron como anticipo)
+            ...PAGOS_MOCK.filter((p) => (p.monto || 0) > 0).map((p) => ({ fecha: p.fecha, descripcion: `Pago ${p.id} — Dpto. ${p.depto}`, tipo: 'ingreso', monto: p.monto })),
             ...HISTORIAL_ANTICIPOS.map((a) => ({ fecha: a.fecha, descripcion: `Anticipo ${a.id} — Dpto. ${a.depto}`, tipo: 'ingreso', monto: a.recibido })),
             ...MOVIMIENTOS_LISTA.map((m) => ({ fecha: m.fecha, descripcion: m.descripcion, tipo: m.tipo === 'Ingreso' ? 'ingreso' : 'egreso', monto: m.monto })),
         ].sort((a, b) => {

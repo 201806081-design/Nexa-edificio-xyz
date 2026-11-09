@@ -139,6 +139,8 @@ export default function Expensas() {
         row.lecturaAnt = Number(lecturaAnt) || 0;
         row.lecturaAct = Number(lecturaAct) || 0;
         row.m3 = m3;
+        row.lecturaAnterior = row.lecturaAnt; // alias que usan otras pantallas
+        row.lecturaActual = row.lecturaAct;
         row.estado = row.estado === 'Agua pendiente' ? 'Lista' : row.estado;
         row.fechaAgua = new Date().toLocaleDateString('es-BO');
         recalcularTotalExpensa(row); // actualiza total incluyendo extras
@@ -208,7 +210,8 @@ export default function Expensas() {
         const delMes = EXPENSAS_MOCK.filter((e) => e.periodo === periodo);
         const totalGenerado = delMes.reduce((s, e) => s + (e.total || 0), 0);
         const pendientesCount = delMes.filter((e) => e.estado === 'Agua pendiente').length;
-        const pagado = delMes.filter((e) => e.estado === 'Pagada').reduce((s, e) => s + (e.total || 0), 0);
+        // Lo cobrado del periodo (incluye pagos parciales): coincide con "Cobrado" de Pagos
+        const pagado = delMes.reduce((s, e) => s + (Number(e.pagado) || 0), 0);
         const totalDeptos = delMes.length;
         return { totalGenerado, pendientesCount, pagado, totalDeptos };
     }, [periodo, tick]);

@@ -1,14 +1,18 @@
 // Datos de prueba de pagos de expensas (HU-FI-02). Montos en Bs.
 // El sistema arranca en Octubre 2026: NO hay pagos ni anticipos de meses anteriores.
-// Todo lo que esta aqui coincide con las expensas de Octubre 2026 (expensasMock.js):
-//   - EX-0001 Depto 101 (Pagada 315) -> cubierta con anticipo PA-0011
-//   - EX-0002 Depto 102 (pagado 200 de 365) -> PG-0039 Efectivo parcial
-//   - EX-0004 Depto 201 (Pagada 318) -> PG-0041 Efectivo
-//   - EX-0005 Depto 202 (Pagada 365) -> cubierta con anticipo PA-0010
-//   - EX-0007 Depto 301 (Pagada 415) -> PG-0042 QR
-//   - EX-0008 Depto 302 (Pagada 415) -> PG-0040 QR
-//   - EX-0009 Depto 303 (Pagada 421) -> cubierta con anticipo PA-0012
-//   - 103 y 203 no pagaron (las deudas las calcula deudasMock.js)
+//
+// REGLA: toda expensa pagada (total o parcialmente) tiene su fila en PAGOS_MOCK.
+// Si se pago con el saldo a favor de un anticipo, la fila tiene
+// medio 'Crédito a favor', monto 0 (no entro dinero ese dia) y creditoAplicado;
+// el anticipo guarda la aplicacion con pagoRef = id de ese pago.
+// (Es la misma convencion que usa la pantalla Registrar pago.)
+//
+// Octubre 2026 (coincide con expensasMock.js):
+//   PG-0036 202 Credito de PA-0010  365  | PG-0037 101 Credito de PA-0011  315
+//   PG-0038 102 Efectivo parcial    200  | PG-0039 302 QR                  415
+//   PG-0040 303 Credito de PA-0012  421  | PG-0041 201 Efectivo           318
+//   PG-0042 301 QR                  415  | 103 y 203 no pagaron
+//   Cobrado de octubre = 2.449 (lo mismo que suma Expensas)
 //
 // El responsable NO se escribe aqui: se lee del edificio (edificioMock) segun el depto.
 // pagadoPor si se guarda, porque es quien hizo el pago en ese momento.
@@ -26,12 +30,19 @@ export const MEDIOS_PAGO = ['Transferencia', 'Efectivo', 'QR', 'Cheque'];
 // Historial de pagos (mas reciente primero).
 // tipoDepto    -> chip Tipo A/B/C en "Datos del pago"
 // composicion  -> desglose base/agua/m3Agua/mora por periodo
+// Historial de pagos (mas reciente primero).
+// monto           -> dinero recibido en ese pago (efectivo, QR, transferencia...)
+// creditoAplicado -> parte cubierta con saldo a favor de anticipos
+// total           -> monto + creditoAplicado (lo que se aplico a las expensas)
+// tipoDepto       -> chip Tipo A/B/C en "Datos del pago"
+// composicion     -> desglose base/agua/m3Agua/mora por periodo
 export const PAGOS_MOCK = [
     {
         id: 'PG-0042', fecha: '21/10/2026', depto: '301', tipoDepto: 'C',
         pagadoPor: 'Rocio Alba',
         medio: 'QR', referencia: 'QR-241021-301',
-        periodoAplicado: 'Octubre 2026', monto: 415, saldoPosterior: 0, estado: 'Completo',
+        periodoAplicado: 'Octubre 2026', monto: 415,
+        total: 415, saldoPosterior: 0, estado: 'Completo',
         composicion: [
             { periodo: 'Octubre 2026', tipo: 'C', base: 400, agua: 15, m3Agua: 3, mora: 0, mesesMora: 0, total: 415 },
         ],
@@ -40,30 +51,66 @@ export const PAGOS_MOCK = [
         id: 'PG-0041', fecha: '20/10/2026', depto: '201', tipoDepto: 'A',
         pagadoPor: 'Sofia Flores',
         medio: 'Efectivo', referencia: 'EF-241020-201',
-        periodoAplicado: 'Octubre 2026', monto: 318, saldoPosterior: 0, estado: 'Completo',
+        periodoAplicado: 'Octubre 2026', monto: 318,
+        total: 318, saldoPosterior: 0, estado: 'Completo',
         composicion: [
             { periodo: 'Octubre 2026', tipo: 'A', base: 300, agua: 18, m3Agua: 6, mora: 0, mesesMora: 0, total: 318 },
         ],
     },
     {
-        id: 'PG-0040', fecha: '17/10/2026', depto: '302', tipoDepto: 'C',
+        id: 'PG-0040', fecha: '19/10/2026', depto: '303', tipoDepto: 'C',
+        pagadoPor: 'Rafael Cruz',
+        medio: 'Crédito a favor', referencia: '',
+        periodoAplicado: 'Octubre 2026', monto: 0,
+        creditoAplicado: 421, total: 421, saldoPosterior: 0, estado: 'Completo',
+        composicion: [
+            { periodo: 'Octubre 2026', tipo: 'C', base: 400, agua: 21, m3Agua: 7, mora: 0, mesesMora: 0, total: 421 },
+        ],
+    },
+    {
+        id: 'PG-0039', fecha: '17/10/2026', depto: '302', tipoDepto: 'C',
         pagadoPor: 'Maria Rojas',
         medio: 'QR', referencia: 'QR-241017-302',
-        periodoAplicado: 'Octubre 2026', monto: 415, saldoPosterior: 0, estado: 'Completo',
+        periodoAplicado: 'Octubre 2026', monto: 415,
+        total: 415, saldoPosterior: 0, estado: 'Completo',
         composicion: [
             { periodo: 'Octubre 2026', tipo: 'C', base: 400, agua: 15, m3Agua: 3, mora: 0, mesesMora: 0, total: 415 },
         ],
     },
     {
-        id: 'PG-0039', fecha: '16/10/2026', depto: '102', tipoDepto: 'B',
+        id: 'PG-0038', fecha: '16/10/2026', depto: '102', tipoDepto: 'B',
         pagadoPor: 'Luis Garcia',
         medio: 'Efectivo', referencia: 'EF-241016-102',
-        periodoAplicado: 'Octubre 2026', monto: 200, saldoPosterior: 165, estado: 'Parcial',
+        periodoAplicado: 'Octubre 2026', monto: 200,
+        total: 200, saldoPosterior: 165, estado: 'Parcial',
         composicion: [
             { periodo: 'Octubre 2026', tipo: 'B', base: 350, agua: 15, m3Agua: 5, mora: 0, mesesMora: 0, total: 365 },
         ],
     },
+    {
+        id: 'PG-0037', fecha: '12/10/2026', depto: '101', tipoDepto: 'A',
+        pagadoPor: 'Ana Lopez',
+        medio: 'Crédito a favor', referencia: '',
+        periodoAplicado: 'Octubre 2026', monto: 0,
+        creditoAplicado: 315, total: 315, saldoPosterior: 0, estado: 'Completo',
+        composicion: [
+            { periodo: 'Octubre 2026', tipo: 'A', base: 300, agua: 15, m3Agua: 3, mora: 0, mesesMora: 0, total: 315 },
+        ],
+    },
+    {
+        id: 'PG-0036', fecha: '03/10/2026', depto: '202', tipoDepto: 'B',
+        pagadoPor: 'Luis Perez',
+        medio: 'Crédito a favor', referencia: '',
+        periodoAplicado: 'Octubre 2026', monto: 0,
+        creditoAplicado: 365, total: 365, saldoPosterior: 0, estado: 'Completo',
+        composicion: [
+            { periodo: 'Octubre 2026', tipo: 'B', base: 350, agua: 15, m3Agua: 4, mora: 0, mesesMora: 0, total: 365 },
+        ],
+    },
 ];
+
+// Total aplicado a expensas por un pago (efectivo + credito a favor)
+export const totalPago = (p) => Number(p?.total) || (Number(p?.monto) || 0) + (Number(p?.creditoAplicado) || 0);
 
 // ============================================================
 //  PAGOS ANTICIPADOS (HU-FI-05)
@@ -80,7 +127,7 @@ export const HISTORIAL_ANTICIPOS = [
         recibido: 500, aplicado: 421, credito: 79, estado: 'Parcial',
         aplicaciones: [
             {
-                periodo: 'Octubre 2026', pagoRef: 'EX-0009', tipo: 'C',
+                periodo: 'Octubre 2026', pagoRef: 'PG-0040', tipo: 'C',
                 base: 400, agua: 21, m3Agua: 7, mora: 0, mesesMora: 0, total: 421, monto: 421,
             },
         ],
@@ -92,7 +139,7 @@ export const HISTORIAL_ANTICIPOS = [
         recibido: 700, aplicado: 315, credito: 385, estado: 'Parcial',
         aplicaciones: [
             {
-                periodo: 'Octubre 2026', pagoRef: 'EX-0001', tipo: 'A',
+                periodo: 'Octubre 2026', pagoRef: 'PG-0037', tipo: 'A',
                 base: 300, agua: 15, m3Agua: 3, mora: 0, mesesMora: 0, total: 315, monto: 315,
             },
         ],
@@ -104,7 +151,7 @@ export const HISTORIAL_ANTICIPOS = [
         recibido: 1500, aplicado: 365, credito: 1135, estado: 'Parcial',
         aplicaciones: [
             {
-                periodo: 'Octubre 2026', pagoRef: 'EX-0005', tipo: 'B',
+                periodo: 'Octubre 2026', pagoRef: 'PG-0036', tipo: 'B',
                 base: 350, agua: 15, m3Agua: 4, mora: 0, mesesMora: 0, total: 365, monto: 365,
             },
         ],

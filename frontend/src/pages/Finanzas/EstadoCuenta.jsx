@@ -19,7 +19,7 @@ import { formatBs } from '../../constants/finanzasMock';
 import {
     EXPENSAS_MOCK, periodosDisponibles, periodoEnCurso,
 } from '../../constants/expensasMock';
-import { PAGOS_MOCK, HISTORIAL_ANTICIPOS } from '../../constants/pagosMock';
+import { PAGOS_MOCK, HISTORIAL_ANTICIPOS, totalPago } from '../../constants/pagosMock';
 import { CONFIG_MORA } from '../../constants/moraMock';
 import { historialDepto, round2 } from '../../constants/deudasMock';
 import { responsableDe } from '../../constants/edificioMock';
@@ -101,7 +101,7 @@ function computeMovimientos(deptoId, periodoFiltro) {
             periodoAsociado: p.periodoAplicado,
             medio: p.medio,
             referencia: p.referencia,
-            monto: p.monto,
+            monto: totalPago(p),
             estado: p.estado,
         }));
     const anticipos = HISTORIAL_ANTICIPOS

@@ -234,6 +234,18 @@ export default function RegistrarPago() {
 
         const periodos = distribucion.filter((x) => x.aplicado > 0).map((x) => x.periodo).join(' / ');
 
+        // Desglose de lo que cubre este pago (con la mora del momento), para el detalle en Pagos.
+        // pagadoAntes = lo que ya se habia pagado de esa expensa en pagos anteriores.
+        const composicion = depto.deudas
+            .filter((d) => (Number((aplicaciones.find((a) => a.periodo === d.periodo) || {}).aplicar) || 0) > 0)
+            .map((d) => ({
+                periodo: d.periodo, tipo: d.tipo,
+                base: d.base, agua: d.agua,
+                m3Agua: EXPENSAS_MOCK.find((e) => e.id === d.expensaId)?.m3 ?? null,
+                mora: d.interes, mesesMora: d.meses,
+                total: d.deudaActual, pagadoAntes: d.pagado,
+            }));
+
         const medioFinal = soloCredito ? 'Crédito a favor' : medio;
         const referenciaFinal = soloCredito ? '' : referencia;
 
@@ -241,6 +253,7 @@ export default function RegistrarPago() {
             id: codigo,
             fecha: fechaBonita(fecha),
             depto: depto.id,
+            tipoDepto: depto.deudas[0]?.tipo,
             responsable: (depto.responsable || '').split(' · ')[0],
             pagadoPor: pagadoPor || (depto.responsable || '').split(' · ')[0],
             medio: medioFinal,
@@ -251,6 +264,7 @@ export default function RegistrarPago() {
             total: totalEfectivo,
             saldoPosterior: nuevoSaldo,
             estado,
+            composicion,
         });
 
         aplicaciones.forEach((a) => {
@@ -267,7 +281,8 @@ export default function RegistrarPago() {
             let restante = creditoReal;
             HISTORIAL_ANTICIPOS
                 .filter((a) => a.depto === depto.id && (a.credito || 0) > 0)
-                .sort((a, b) => (a.fecha || '').localeCompare(b.fecha || ''))
+                // Primero el anticipo mas antiguo (fecha 'DD/MM/YYYY' -> 'YYYYMMDD' para comparar)
+                .sort((a, b) => (a.fecha || '').split('/').reverse().join('').localeCompare((b.fecha || '').split('/').reverse().join('')))
                 .forEach((a) => {
                     if (restante <= 0) return;
                     const descontar = Math.min(a.credito, restante);
