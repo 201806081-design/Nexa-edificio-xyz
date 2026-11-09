@@ -19,28 +19,15 @@ import { formatBs } from '../../constants/finanzasMock';
 import {
     EXPENSAS_MOCK, periodosDisponibles, periodoEnCurso,
 } from '../../constants/expensasMock';
-import { PAGOS_MOCK, HISTORIAL_ANTICIPOS, DEPARTAMENTOS_DEUDA } from '../../constants/pagosMock';
-import { DEUDAS_VENCIDAS, CONFIG_MORA } from '../../constants/moraMock';
-import { REGLAS_PERIODO } from '../../constants/configuracionMock';
+import { PAGOS_MOCK, HISTORIAL_ANTICIPOS } from '../../constants/pagosMock';
+import { CONFIG_MORA } from '../../constants/moraMock';
+import { historialDepto, round2 } from '../../constants/deudasMock';
+import { responsableDe } from '../../constants/edificioMock';
 
 const MES_IDX = {
     enero: 1, febrero: 2, marzo: 3, abril: 4, mayo: 5, junio: 6,
     julio: 7, agosto: 8, septiembre: 9, octubre: 10, noviembre: 11, diciembre: 12,
 };
-const MESES_ES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
-    'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
-
-const parsePeriodo = (p) => {
-    const [mes, anio] = (p || '').toLowerCase().split(' ');
-    return { mes: MES_IDX[mes] || 0, anio: Number(anio) || 0 };
-};
-const periodoCoincide = (periodoAplicado, periodoSel) => {
-    const [mesSel, anioSel] = (periodoSel || '').toLowerCase().split(' ');
-    const corto = (mesSel || '').slice(0, 3);
-    const p = (periodoAplicado || '').toLowerCase();
-    return (p.includes(mesSel) || p.includes(corto)) && p.includes(anioSel || '');
-};
-
 // Fecha "DD/MM/YYYY" -> boolean si cae dentro del periodo "Mes Anio".
 const fechaEnPeriodo = (fecha, periodoSel) => {
     if (!fecha || !periodoSel || periodoSel === 'Todos los periodos') return true;
@@ -52,26 +39,6 @@ const fechaEnPeriodo = (fecha, periodoSel) => {
     if (m !== mesIdx) return false;
     if (y != null && anioSel) return y === Number(anioSel);
     return true;
-};
-
-const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
-
-const calcularMesesVencidos = (periodoTexto, fechaHoy, diaVenc) => {
-    if (!periodoTexto || !fechaHoy) return 0;
-    const [mesNombre, anio] = periodoTexto.split(' ');
-    const idxMes = MESES_ES.indexOf(mesNombre);
-    if (idxMes < 0 || !anio) return 0;
-    const anioV = idxMes === 11 ? Number(anio) + 1 : Number(anio);
-    const mesV = idxMes === 11 ? 0 : idxMes + 1;
-    const fechaVenc = new Date(anioV, mesV, Number(diaVenc) || 10);
-    if (fechaHoy < fechaVenc) return 0;
-    let count = 0;
-    const f = new Date(fechaVenc);
-    while (f <= fechaHoy) {
-        count++;
-        f.setMonth(f.getMonth() + 1);
-    }
-    return count;
 };
 
 // Lista de periodos para el selector: Todos + meses cerrados + mes en curso.
@@ -90,101 +57,36 @@ const estadoChipSx = (estado) => {
     return { bgcolor: '#FDF0D5', color: '#B6802A' };
 };
 
-// Lista unica de deptos del sistema (solo los que tienen expensa o deuda vencida)
+// Lista de deptos del sistema que ya tienen expensas.
+// El responsable se lee del edificio (edificioMock).
 function buildDeptosDelSistema() {
     const map = new Map();
-    const ensure = (id, patch = {}) => {
-        if (!map.has(id)) map.set(id, { id, etiqueta: `Depto. ${id}`, tipo: '', responsable: '' });
-        const d = map.get(id);
-        if (patch.tipo && !d.tipo) d.tipo = patch.tipo;
-        if (patch.responsable && !d.responsable) d.responsable = patch.responsable;
-    };
     EXPENSAS_MOCK.forEach((e) => {
-        const id = e.departamento.replace('Depto. ', '');
-        ensure(id, { tipo: e.tipo, responsable: e.responsable });
+        if (map.has(e.depto)) return;
+        map.set(e.depto, {
+            id: e.depto,
+            etiqueta: `Depto. ${e.depto}${e.tipo ? ` — Tipo ${e.tipo}` : ''}`,
+            tipo: e.tipo || '',
+            responsable: responsableDe(e.depto, { conTipo: true }),
+        });
     });
-    DEUDAS_VENCIDAS.forEach((d) => ensure(d.depto, { tipo: d.tipo }));
-    PAGOS_MOCK.forEach((p) => { if (map.has(p.depto)) ensure(p.depto, { responsable: p.responsable }); });
-    HISTORIAL_ANTICIPOS.forEach((a) => { if (map.has(a.depto)) ensure(a.depto, { responsable: a.responsable }); });
-    DEPARTAMENTOS_DEUDA.forEach((d) => { if (map.has(d.id)) ensure(d.id, { responsable: d.responsable }); });
-
-    map.forEach((d) => {
-        const tipoTxt = d.tipo ? ` — Tipo ${d.tipo}` : '';
-        d.etiqueta = `Depto. ${d.id}${tipoTxt}`;
-    });
-
     return [...map.values()].sort((a, b) => a.id.localeCompare(b.id));
 }
 
-const pagadoParaPeriodo = (deptoId, periodo) => PAGOS_MOCK
-    .filter((p) => p.depto === deptoId && periodoCoincide(p.periodoAplicado, periodo))
-    .reduce((s, p) => {
-        const totalPago = Number(p.total)
-            || (Number(p.monto) || 0) + (Number(p.creditoAplicado) || 0);
-        return s + totalPago;
-    }, 0);
-
+// Historial del depto: sale del calculo unico de deudas (deudasMock),
+// el mismo que usan Mora, Dashboard y Registrar pago.
 function computeHistorial(deptoId) {
-    const tasa = (Number(CONFIG_MORA.interesMensual) || 0) / 100;
-    const refHoy = new Date();
-    const diaVenc = REGLAS_PERIODO.diaVencimiento;
-    const calcMora = (original, meses) => {
-        const raw = CONFIG_MORA.tipoCalculo === 'Simple'
-            ? original * (1 + tasa * meses)
-            : original * (1 + tasa) ** meses;
-        return round2(raw);
-    };
-
-    const moraFila = (original, periodo, pagado) => {
-        if (pagado >= original && pagado > 0) {
-            return round2(Math.max(0, pagado - original));
-        }
-        const meses = calcularMesesVencidos(periodo, refHoy, diaVenc);
-        const totalConMora = calcMora(original, meses);
-        return round2(totalConMora - original);
-    };
-
-    const desdeExpensas = EXPENSAS_MOCK
-        .filter((e) => e.departamento === `Depto. ${deptoId}`)
-        .map((e) => {
-            const base = Number(e.base) || 0;
-            const agua = Number(e.agua) || 0;
-            const original = base + agua;
-            const pagado = round2(Number(e.pagado) || 0);
-            const mora = moraFila(original, e.periodo, pagado);
-            return { periodo: e.periodo, base, agua, mora, pagado };
-        });
-
-    const desdeMora = DEUDAS_VENCIDAS
-        .filter((d) => d.depto === deptoId)
-        .map((d) => {
-            const pagado = round2(pagadoParaPeriodo(deptoId, d.periodo));
-            const mora = moraFila(d.deudaOriginal, d.periodo, pagado);
-            return {
-                periodo: d.periodo, base: d.expensaBase, agua: d.agua, mora, pagado,
-            };
-        });
-
-    const porPeriodo = new Map();
-    [...desdeExpensas, ...desdeMora].forEach((h) => {
-        const prev = porPeriodo.get(h.periodo);
-        if (!prev || h.mora > prev.mora) porPeriodo.set(h.periodo, h);
-    });
-
-    return [...porPeriodo.values()]
-        .map((h) => {
-            const total = round2(h.base + h.agua + h.mora);
-            const saldo = Math.max(0, round2(total - h.pagado));
-            let estado;
-            if (saldo < 0.01 && total > 0) estado = 'Pagado';
-            else if (h.mora > 0) estado = 'Vencido';
-            else estado = 'Pendiente';
-            return { ...h, total, saldo, estado };
-        })
-        .sort((a, b) => {
-            const pa = parsePeriodo(a.periodo); const pb = parsePeriodo(b.periodo);
-            return (pb.anio - pa.anio) || (pb.mes - pa.mes);
-        });
+    return historialDepto(deptoId).map((h) => ({
+        periodo: h.periodo,
+        base: h.base,
+        agua: h.agua,
+        extras: h.extras,
+        mora: h.interes,
+        pagado: h.pagado,
+        total: round2(h.deudaOriginal + h.interes),
+        saldo: h.pendiente,
+        estado: h.estado,
+    }));
 }
 
 // Lista de movimientos financieros del depto (pagos + anticipos) ordenados por fecha desc.
@@ -238,7 +140,7 @@ function computeEstadoCuenta(deptoId, deptos, periodoFiltro) {
 
     const movimientos = computeMovimientos(deptoId, periodoFiltro);
 
-    const totalGenerado = historial.reduce((s, h) => s + h.base + h.agua, 0);
+    const totalGenerado = historial.reduce((s, h) => s + h.base + h.agua + (h.extras || 0), 0);
     const totalPagado = historial.reduce((s, h) => s + h.pagado, 0);
     const interesAcumulado = historial.reduce((s, h) => s + h.mora, 0);
     const saldoPendiente = historial.reduce((s, h) => s + h.saldo, 0);

@@ -25,6 +25,7 @@ import {
     agregarExtra, eliminarExtra, recalcularTotalExpensa,
 } from '../../constants/expensasMock';
 import { formatBs } from '../../constants/finanzasMock';
+import { estadoVisibleExpensa } from '../../constants/deudasMock';
 
 const PAGE_SIZE = 10;
 
@@ -221,7 +222,7 @@ export default function Expensas() {
     const filas = useMemo(() => EXPENSAS_MOCK.filter((e) =>
         e.periodo === periodo &&
         (departamento === 'Todos' || e.depto === departamento) &&
-        (estado === 'Todos' || e.estado === estado) &&
+        (estado === 'Todos' || estadoVisibleExpensa(e) === estado) &&
         (e.depto + e.responsable).toLowerCase().includes(busqueda.toLowerCase())
     ), [periodo, departamento, estado, busqueda, tick]);
 
@@ -358,7 +359,7 @@ export default function Expensas() {
                                         <TableCell align="right" sx={{ fontWeight: 700, color: pendiente ? '#64748B' : '#1a2733' }}>
                                             {pendiente ? '—' : formatBs(r.total)}
                                         </TableCell>
-                                        <TableCell><Chip label={r.estado} size="small" sx={estadoChipSx(r.estado)} /></TableCell>
+                                        <TableCell><Chip label={estadoVisibleExpensa(r)} size="small" sx={estadoChipSx(estadoVisibleExpensa(r))} /></TableCell>
                                         <TableCell align="center">
                                             {pendiente ? (
                                                 <Tooltip title="Registrar agua">
@@ -682,7 +683,7 @@ export default function Expensas() {
                                 </Box>
                                 <Box>
                                     <Typography variant="caption" color="text.secondary">Estado</Typography>
-                                    <Chip label={filaSel.estado} size="small" sx={{ mt: 0.5, ...estadoChipSx(filaSel.estado) }} />
+                                    <Chip label={estadoVisibleExpensa(filaSel)} size="small" sx={{ mt: 0.5, ...estadoChipSx(estadoVisibleExpensa(filaSel)) }} />
                                 </Box>
                             </Box>
 

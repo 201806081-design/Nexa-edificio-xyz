@@ -18,12 +18,12 @@ import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 import { useNavigate } from 'react-router-dom';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import {
-    ESTADOS_PAGO, DEPARTAMENTOS_PAGO, PAGOS_MOCK, DEPARTAMENTOS_DEUDA,
+    ESTADOS_PAGO, DEPARTAMENTOS_PAGO, PAGOS_MOCK,
     HISTORIAL_ANTICIPOS,
 } from '../../constants/pagosMock';
 import * as ExpMod from '../../constants/expensasMock';
 import { periodosDisponibles } from '../../constants/expensasMock';
-import { DEUDAS_VENCIDAS, CONFIG_MORA } from '../../constants/moraMock';
+import { CONFIG_MORA } from '../../constants/moraMock';
 import { formatBs } from '../../constants/finanzasMock';
 
 const EXPENSAS_MOCK = ExpMod.EXPENSAS_MOCK || [];
@@ -77,25 +77,6 @@ const calcularComposicion = (pago) => {
             base, agua, m3Agua: m3,
             mora: 0, mesesMora: 0,
             total,
-        });
-    }
-    const deudas = DEUDAS_VENCIDAS.filter((d) =>
-        d.depto === pago.depto &&
-        periodoCoincide(pago.periodoAplicado, d.periodo));
-    const tasa = (CONFIG_MORA?.interesMensual || 0) / 100;
-    for (const d of deudas) {
-        const base = d.expensaBase ?? 0;
-        const agua = d.agua ?? 0;
-        const deudaOrig = d.deudaOriginal ?? (base + agua);
-        const conMora = CONFIG_MORA?.tipoCalculo === 'Simple'
-            ? deudaOrig * (1 + tasa * d.meses)
-            : deudaOrig * (1 + tasa) ** d.meses;
-        const mora = Math.round(conMora - deudaOrig);
-        items.push({
-            periodo: d.periodo, tipo: d.tipo || null,
-            base, agua, m3Agua: null,
-            mora, mesesMora: d.meses,
-            total: deudaOrig + mora,
         });
     }
     return items;

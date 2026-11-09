@@ -11,9 +11,9 @@ import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import { useNavigate } from 'react-router-dom';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import { PERIODO_ACTUAL, PERIODOS, formatBs } from '../../constants/finanzasMock';
-import { PAGOS_MOCK, HISTORIAL_ANTICIPOS, DEPARTAMENTOS_DEUDA } from '../../constants/pagosMock';
+import { PAGOS_MOCK, HISTORIAL_ANTICIPOS } from '../../constants/pagosMock';
 import { MOVIMIENTOS_LISTA } from '../../constants/movimientosMock';
-import { DEUDAS_VENCIDAS } from '../../constants/moraMock';
+import { saldoPendienteTotal } from '../../constants/deudasMock';
 
 // 'DD/MM/YYYY' -> {dia, mes, anio}
 const parseFecha = (f) => {
@@ -66,10 +66,8 @@ export default function GestionFinanciera() {
             .reduce((s, m) => s + (m.monto || 0), 0);
 
         // SALDO PENDIENTE = total que los residentes deben al edificio hoy
-        //   = deudas activas del mes (DEPARTAMENTOS_DEUDA) + deudas vencidas (DEUDAS_VENCIDAS)
-        const saldoActivo = DEPARTAMENTOS_DEUDA.reduce((s, d) => s + (d.saldoPendiente || 0), 0);
-        const saldoVencido = DEUDAS_VENCIDAS.reduce((s, d) => s + (d.deudaOriginal || 0), 0);
-        const saldoPendiente = saldoActivo + saldoVencido;
+        //   (vencido con interes + no vencido). Calculo unico de deudasMock.
+        const saldoPendiente = saldoPendienteTotal();
 
         return { ingresos, gastos, saldoPendiente };
     }, [periodo]);

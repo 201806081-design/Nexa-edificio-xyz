@@ -18,11 +18,10 @@ import { useNavigate } from 'react-router-dom';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import {
     CONFIG_MORA, APLICAR_MORA_DESDE, TIPOS_CALCULO, PERIODO_ACTUAL_MORA,
-    REGLA_MORA, DEUDAS_VENCIDAS,
+    REGLA_MORA,
 } from '../../constants/moraMock';
 import { REGLAS_PERIODO, DIAS_VENCIMIENTO } from '../../constants/configuracionMock';
-import { PAGOS_MOCK } from '../../constants/pagosMock';
-import { EXPENSAS_MOCK } from '../../constants/expensasMock';
+import { deudasVencidas, diaVencimiento as diaVencimientoNum } from '../../constants/deudasMock';
 import { formatBs } from '../../constants/finanzasMock';
 
 // Helpers de conversion mes "YYYY-MM" <-> "Octubre 2026"
@@ -42,29 +41,6 @@ const yyyyMmToTexto = (yyyyMm) => {
     return `${MESES_ES[Number(m) - 1]} ${y}`;
 };
 
-
-// Cuenta cuantas fechas de vencimiento (dia X de cada mes) pasaron desde que
-// vencio por primera vez la deuda de ese periodo hasta la fecha de referencia.
-// Ejemplo: deuda de "Septiembre 2026" con dia venc 10 vence el 10/oct/2026.
-// Si fechaHoy = 30/oct/2026 -> 1 mes vencido. Si fechaHoy = 15/dic/2026 -> 3 meses.
-const calcularMesesVencidos = (periodoTexto, fechaHoy, diaVenc) => {
-    if (!periodoTexto || !fechaHoy) return 0;
-    const [mesNombre, anio] = periodoTexto.split(' ');
-    const idxMes = MESES_ES.indexOf(mesNombre);
-    if (idxMes < 0 || !anio) return 0;
-    // Primera fecha de vencimiento = dia diaVenc del mes siguiente al periodo
-    const anioV = idxMes === 11 ? Number(anio) + 1 : Number(anio);
-    const mesV = idxMes === 11 ? 0 : idxMes + 1;
-    const fechaVenc = new Date(anioV, mesV, Number(diaVenc) || 10);
-    if (fechaHoy < fechaVenc) return 0;
-    let count = 0;
-    const f = new Date(fechaVenc);
-    while (f <= fechaHoy) {
-        count++;
-        f.setMonth(f.getMonth() + 1);
-    }
-    return count;
-};
 
 // Dato de la regla vigente (solo lectura, en recuadro con icono y color semantico)
 function DatoRegla({ etiqueta, valor, icon, color, bg }) {
@@ -136,79 +112,16 @@ export default function Mora() {
         });
     };
 
-    // Calculo de la deuda segun la configuracion vigente Y la fecha simulada.
-    // Las moras se recalculan automaticamente con la fecha del reloj del sistema.
-    // Si el admin cambia la fecha de la computadora, el tick (cada 5s) recomputa
-    // esto. Ademas de DEUDAS_VENCIDAS, incluimos las expensas de EXPENSAS_MOCK
-    // que ya pasaron el dia de vencimiento y no estan pagadas al 100%. Asi,
-    // cuando se generan expensas nuevas y pasa el tiempo, aparecen aqui solas.
+    // Deudas vencidas: salen del calculo unico (deudasMock), el mismo que usan
+    // Dashboard, Gestion financiera, Estado de cuenta, Registrar pago y Comunicados.
+    // Se recalculan con la fecha del sistema; el tick (cada 5s) refresca la vista
+    // si cambia la fecha de la computadora.
     const tasa = (Number(config.interesMensual) || 0) / 100;
-    // Redondeo a 2 decimales para evitar errores de precision de punto flotante
-    // (ej. 360 * 1.10 = 395.9999999999996 en JS). Sin esto el pendiente nunca
-    // llega a 0 exacto y la fila nunca se filtra despues de pagar.
-    const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
-
-    // Helper para sumar lo pagado para un (depto + periodo) desde PAGOS_MOCK
-    const sumPagado = (deptoId, periodo) => {
-        const corto = (periodo || '').toLowerCase().split(' ')[0];
-        return PAGOS_MOCK
-            .filter((p) => p.depto === deptoId
-                && (p.periodoAplicado || '').toLowerCase().includes(corto))
-            .reduce((s, p) => {
-                const totalPago = Number(p.total)
-                    || (Number(p.monto) || 0) + (Number(p.creditoAplicado) || 0);
-                return s + totalPago;
-            }, 0);
-    };
-    const calcMora = (original, meses) => {
-        const raw = config.tipoCalculo === 'Simple'
-            ? original * (1 + tasa * meses)
-            : original * (1 + tasa) ** meses;
-        return round2(raw);
-    };
-
-    const filas = useMemo(() => {
-        const refHoy = new Date(); // reloj del sistema operativo
-        // 1) Deudas vencidas iniciales (hardcoded en moraMock)
-        const desdeMora = DEUDAS_VENCIDAS.map((d) => {
-            const meses = calcularMesesVencidos(d.periodo, refHoy, diaVencimiento);
-            const deudaActual = calcMora(d.deudaOriginal, meses);
-            const pagado = round2(sumPagado(d.depto, d.periodo));
-            return {
-                id: `DV-${d.id}`, origen: 'mora',
-                depto: d.depto, tipo: d.tipo, periodo: d.periodo,
-                expensaBase: d.expensaBase, agua: d.agua,
-                deudaOriginal: d.deudaOriginal, meses,
-                interes: round2(deudaActual - d.deudaOriginal), deudaActual,
-                pagado, pendiente: Math.max(0, round2(deudaActual - pagado)),
-            };
-        });
-        // 2) Expensas de EXPENSAS_MOCK que ya vencieron (dia de vencimiento pasado)
-        //    y aun no estan pagadas al 100%. Dedup por (depto + periodo) con DEUDAS_VENCIDAS.
-        const yaEnMora = new Set(desdeMora.map((f) => `${f.depto}|${f.periodo}`));
-        const desdeExpensas = EXPENSAS_MOCK
-            .filter((e) => e.estado !== 'Pagada')
-            .filter((e) => !yaEnMora.has(`${e.depto}|${e.periodo}`))
-            .map((e) => {
-                const meses = calcularMesesVencidos(e.periodo, refHoy, diaVencimiento);
-                if (meses === 0) return null; // aun no esta vencida -> no es mora
-                const original = Number(e.total || e.monto) || 0;
-                const deudaActual = calcMora(original, meses);
-                const pagado = round2(Number(e.pagado) || 0);
-                return {
-                    id: `EX-${e.id}`, origen: 'expensa',
-                    depto: e.depto, tipo: e.tipo, periodo: e.periodo,
-                    expensaBase: e.base, agua: e.agua,
-                    deudaOriginal: original, meses,
-                    interes: round2(deudaActual - original), deudaActual,
-                    pagado, pendiente: Math.max(0, round2(deudaActual - pagado)),
-                };
-            })
-            .filter(Boolean);
-        // Filtro: pendiente >= 0.01 (menor a 1 centavo es practicamente 0)
-        return [...desdeMora, ...desdeExpensas].filter((f) => f.pendiente >= 0.01);
+    const filas = useMemo(
+        () => deudasVencidas({ config, dia: diaVencimientoNum(diaVencimiento) }),
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [diaVencimiento, config.tipoCalculo, tasa, tick]);
+        [diaVencimiento, config.tipoCalculo, tasa, tick],
+    );
     // Total vencido = suma de los pendientes (no de la deuda actual total)
     const totalVencido = filas.reduce((acc, f) => acc + f.pendiente, 0);
 

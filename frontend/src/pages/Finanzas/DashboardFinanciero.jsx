@@ -11,9 +11,9 @@ import {
 } from 'recharts';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import { PERIODO_ACTUAL, PERIODOS, formatBs } from '../../constants/finanzasMock';
-import { PAGOS_MOCK, HISTORIAL_ANTICIPOS, DEPARTAMENTOS_DEUDA } from '../../constants/pagosMock';
+import { PAGOS_MOCK, HISTORIAL_ANTICIPOS } from '../../constants/pagosMock';
 import { MOVIMIENTOS_LISTA } from '../../constants/movimientosMock';
-import { DEUDAS_VENCIDAS, CONFIG_MORA } from '../../constants/moraMock';
+import { calcularDeudas, round2 } from '../../constants/deudasMock';
 
 // 'DD/MM/YYYY' -> {dia, mes, anio}
 const parseFecha = (f) => {
@@ -64,10 +64,12 @@ export default function DashboardFinanciero() {
             .reduce((s, m) => s + (m.monto || 0), 0);
         const balance = ingresos - gastos;
 
-        // Saldo pendiente (snapshot, no se filtra por periodo)
-        const saldoActivo = DEPARTAMENTOS_DEUDA.reduce((s, d) => s + (d.saldoPendiente || 0), 0);
-        const saldoVencido = DEUDAS_VENCIDAS.reduce((s, d) => s + (d.deudaOriginal || 0), 0);
-        const saldoPendiente = saldoActivo + saldoVencido;
+        // Saldo pendiente (snapshot al dia de hoy, no se filtra por periodo).
+        // Sale del calculo unico de deudas (deudasMock), igual que Mora y Gestion financiera.
+        const deudas = calcularDeudas();
+        const saldoActivo = round2(deudas.filter((d) => !d.vencida).reduce((s, d) => s + d.pendiente, 0));
+        const saldoVencido = round2(deudas.filter((d) => d.vencida).reduce((s, d) => s + d.pendiente, 0));
+        const saldoPendiente = round2(saldoActivo + saldoVencido);
 
         // --- Grafico "Ingresos vs Gastos" (4 meses hacia atras desde el periodo) ---
         const trend = mesesPrevios(mes, anio, 4).map(({ label, mes: mm, anio: aa }) => {
@@ -80,14 +82,8 @@ export default function DashboardFinanciero() {
             return { mes: label, ingresos: ing, gastos: gas };
         });
 
-        // --- Donut "Estado de expensas" (por monto, con interes sobre vencidas) ---
-        const tasa = (Number(CONFIG_MORA.interesMensual) || 0) / 100;
-        const vencidasConInteres = DEUDAS_VENCIDAS.reduce((s, d) => {
-            const deuda = CONFIG_MORA.tipoCalculo === 'Simple'
-                ? d.deudaOriginal * (1 + tasa * d.meses)
-                : d.deudaOriginal * (1 + tasa) ** d.meses;
-            return s + deuda;
-        }, 0);
+        // --- Donut "Estado de expensas" (por monto; las vencidas incluyen el interes) ---
+        const vencidasConInteres = saldoVencido;
         const estadoExpensas = [
             { estado: 'Pagadas', valor: sumPagos },                 // lo pagado este periodo
             { estado: 'Pendientes', valor: saldoActivo },               // deuda del mes
@@ -95,18 +91,17 @@ export default function DashboardFinanciero() {
         ];
         const totalEstado = estadoExpensas.reduce((s, e) => s + e.valor, 0);
 
-        // --- Departamentos con mora (desde DEUDAS_VENCIDAS, con interes aplicado) ---
-        const departamentosMora = DEUDAS_VENCIDAS.map((d) => {
-            const deudaActual = CONFIG_MORA.tipoCalculo === 'Simple'
-                ? d.deudaOriginal * (1 + tasa * d.meses)
-                : d.deudaOriginal * (1 + tasa) ** d.meses;
-            return {
-                id: d.id,
-                departamento: `Depto. ${d.depto}`,
-                monto: deudaActual,
-                estado: d.meses >= 2 ? 'Vencido' : 'En mora',
-            };
-        }).sort((a, b) => b.monto - a.monto);
+        // --- Departamentos con mora (morosos del calculo unico, con interes aplicado) ---
+        const porDepto = new Map();
+        deudas.filter((d) => d.vencida).forEach((d) => {
+            const prev = porDepto.get(d.depto) || { id: d.depto, departamento: `Depto. ${d.depto}`, monto: 0, meses: 0 };
+            prev.monto = round2(prev.monto + d.pendiente);
+            prev.meses = Math.max(prev.meses, d.meses);
+            porDepto.set(d.depto, prev);
+        });
+        const departamentosMora = [...porDepto.values()]
+            .map((d) => ({ ...d, estado: d.meses >= 2 ? 'Vencido' : 'En mora' }))
+            .sort((a, b) => b.monto - a.monto);
 
         // --- Ultimos movimientos (unificado, top 5) ---
         const unificado = [

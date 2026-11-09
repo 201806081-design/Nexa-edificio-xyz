@@ -1,7 +1,6 @@
-// Datos de prueba de mora y pagos anticipados. Montos en Bs.
-// El sistema nacio en Octubre 2026 — NO hay deudas vencidas de meses anteriores.
-// Si en Noviembre quedan expensas de Octubre sin pagar, se calculan como mora
-// desde las EXPENSAS_MOCK con fecha de vencimiento pasada (logica de Mora.jsx).
+// Configuracion de mora e intereses. Montos en Bs.
+// El sistema nacio en Octubre 2026. Las deudas vencidas se calculan en
+// deudasMock.js desde las expensas no pagadas con fecha de vencimiento pasada.
 
 // ============================================================
 //  MORA E INTERESES
@@ -38,8 +37,5 @@ export const REGLA_MORA = {
     ejemplo: 'Ejemplo: Bs 360 -> primer mes Bs 396 -> segundo mes Bs 435,60.',
 };
 
-// Deudas vencidas: vacio al inicio porque el sistema nacio en Octubre 2026.
-// Si Octubre vencio (10-Oct) y alguna expensa quedo sin pagar, la mora se
-// calcula directamente desde EXPENSAS_MOCK en la pantalla de Mora, cruzando
-// la fecha de vencimiento con la fecha del sistema.
-export const DEUDAS_VENCIDAS = [];
+// Las deudas vencidas y los morosos NO se escriben aqui: los calcula
+// deudasMock.js a partir de las expensas y la fecha del sistema.

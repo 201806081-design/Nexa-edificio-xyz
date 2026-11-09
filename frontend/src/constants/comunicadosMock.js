@@ -6,14 +6,13 @@
 
 import { DEPARTAMENTOS_ACTIVOS } from './expensasMock';
 import { EMPLEADOS_MOCK } from './personalMock';
-// Morosos = fuente autoritativa del modulo "Mora e intereses".
-// Si alguien paga su mora, desaparece de DEUDAS_VENCIDAS y por ende del selector;
-// si se simula una fecha futura y se generan nuevos vencidos, aparecen automaticamente.
-import { DEUDAS_VENCIDAS } from './moraMock';
+// Morosos = calculo unico de deudas (deudasMock), el mismo de "Mora e intereses".
+// Si alguien paga su deuda vencida, sale del grupo; si vence otra expensa, entra sola.
+import { morosos } from './deudasMock';
 import { pushNotificacion } from './notificacionesMock';
 
 // Helper: IDs unicos de deptos con mora vigente (reconsulta el array cada vez).
-const deptosConMora = () => [...new Set(DEUDAS_VENCIDAS.map((d) => d.depto))];
+const deptosConMora = () => morosos();
 
 export const PRIORIDADES = ['Normal', 'Importante', 'Urgente'];
 
