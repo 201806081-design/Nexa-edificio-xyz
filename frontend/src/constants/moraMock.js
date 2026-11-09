@@ -43,15 +43,3 @@ export const REGLA_MORA = {
 // calcula directamente desde EXPENSAS_MOCK en la pantalla de Mora, cruzando
 // la fecha de vencimiento con la fecha del sistema.
 export const DEUDAS_VENCIDAS = [];
-
-// ============================================================
-//  PAGOS ANTICIPADOS (compatibilidad con pantallas antiguas)
-// ============================================================
-
-export const DEPARTAMENTOS_ANTICIPO = [
-    { id: '101', etiqueta: '101 - Tipo A', responsable: 'Ana Lopez -- Propietario', expensaMensual: 300, saldoActual: 0 },
-    { id: '202', etiqueta: '202 - Tipo B', responsable: 'Luis Perez -- Propietario', expensaMensual: 350, saldoActual: 0 },
-    { id: '303', etiqueta: '303 - Tipo C', responsable: 'Rafael Cruz -- Propietario', expensaMensual: 400, saldoActual: 0 },
-];
-
-export const HISTORIAL_ANTICIPOS = [];

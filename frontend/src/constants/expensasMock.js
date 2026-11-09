@@ -36,6 +36,7 @@
 import { PERIODOS } from './finanzasMock';
 import { EXPENSA_BASE, CONFIG_AGUA as CONFIG_AGUA_SHARED, REGLAS_PERIODO } from './configuracionMock';
 import { CONFIG_MORA as CONFIG_MORA_SHARED } from './moraMock';
+import { departamentos, numeroDe, numerosDepto, vincularResponsable } from './edificioMock';
 export { PERIODOS, REGLAS_PERIODO };
 
 // --- Tarifas por tipo de departamento (misma referencia que EXPENSA_BASE) ---
@@ -63,21 +64,25 @@ export const HISTORIAL_TARIFAS = [
     },
 ];
 
-export const DEPARTAMENTOS_FILTRO = ['Todos', '101', '102', '103', '201', '202', '203', '301', '302', '303'];
+// Filtro de deptos: sale del edificio (edificioMock)
+export const DEPARTAMENTOS_FILTRO = ['Todos', ...numerosDepto()];
 export const ESTADOS_EXPENSA = ['Todos', 'Agua pendiente', 'Lista', 'Pagada', 'Vencida'];
 
-// Catalogo de departamentos activos.
-export const DEPARTAMENTOS_ACTIVOS = [
-    { id: '101', depto: '101', departamento: 'Depto. 101', tipo: 'A', responsable: 'Ana Lopez', base: EXPENSA_BASE.A, ultimaLectura: 103, lecturaAnterior: 103 },
-    { id: '102', depto: '102', departamento: 'Depto. 102', tipo: 'B', responsable: 'Luis Garcia', base: EXPENSA_BASE.B, ultimaLectura: 120, lecturaAnterior: 120 },
-    { id: '103', depto: '103', departamento: 'Depto. 103', tipo: 'A', responsable: 'Pedro Mamani', base: EXPENSA_BASE.A, ultimaLectura: 90, lecturaAnterior: 90 },
-    { id: '201', depto: '201', departamento: 'Depto. 201', tipo: 'A', responsable: 'Sofia Flores', base: EXPENSA_BASE.A, ultimaLectura: 180, lecturaAnterior: 180 },
-    { id: '202', depto: '202', departamento: 'Depto. 202', tipo: 'B', responsable: 'Luis Perez', base: EXPENSA_BASE.B, ultimaLectura: 204, lecturaAnterior: 204 },
-    { id: '203', depto: '203', departamento: 'Depto. 203', tipo: 'B', responsable: 'Carlos Mendoza', base: EXPENSA_BASE.B, ultimaLectura: 150, lecturaAnterior: 150 },
-    { id: '301', depto: '301', departamento: 'Depto. 301', tipo: 'C', responsable: 'Rocio Alba', base: EXPENSA_BASE.C, ultimaLectura: 60, lecturaAnterior: 60 },
-    { id: '302', depto: '302', departamento: 'Depto. 302', tipo: 'C', responsable: 'Maria Rojas', base: EXPENSA_BASE.C, ultimaLectura: 153, lecturaAnterior: 153 },
-    { id: '303', depto: '303', departamento: 'Depto. 303', tipo: 'C', responsable: 'Rafael Cruz', base: EXPENSA_BASE.C, ultimaLectura: 170, lecturaAnterior: 170 },
-];
+// Ultima lectura del medidor de agua de cada depto (dato propio de Finanzas)
+const ULTIMA_LECTURA = {
+    101: 103, 102: 120, 103: 90, 201: 180, 202: 204, 203: 150, 301: 60, 302: 153, 303: 170,
+};
+
+// Catalogo de departamentos activos: se arma desde el edificio (edificioMock).
+// tipo = categoria de expensa (A/B/C). responsable se lee siempre del edificio.
+export const DEPARTAMENTOS_ACTIVOS = departamentos().map((u) => {
+    const n = numeroDe(u);
+    const lectura = ULTIMA_LECTURA[n] ?? 0;
+    return vincularResponsable({
+        id: n, depto: n, departamento: u.identificador, tipo: u.categoria,
+        base: EXPENSA_BASE[u.categoria], ultimaLectura: lectura, lecturaAnterior: lectura,
+    });
+});
 
 // Calculo del agua por medidor (unico modo automatico).
 export const calcularAgua = (m3, tarifa = CONFIG_AGUA.tarifaPorM3) => {
@@ -176,60 +181,62 @@ export const periodoEnCurso = () => {
 export const EXPENSAS_MOCK = [
     // --- Octubre 2026 ---
     {
-        id: 'EX-0001', depto: '101', departamento: 'Depto. 101', tipo: 'A', responsable: 'Ana Lopez', periodo: 'Octubre 2026',
+        id: 'EX-0001', depto: '101', departamento: 'Depto. 101', tipo: 'A', periodo: 'Octubre 2026',
         base: 300, agua: 15, m3: 3, lecturaAnt: 100, lecturaAct: 103, lecturaAnterior: 100, lecturaActual: 103,
         extras: [],
         monto: 315, total: 315, estado: 'Pagada', pagado: 315, aguaNota: '', fechaGen: '01/10/2026', fechaAgua: '02/10/2026'
     },
     {
-        id: 'EX-0002', depto: '102', departamento: 'Depto. 102', tipo: 'B', responsable: 'Luis Garcia', periodo: 'Octubre 2026',
+        id: 'EX-0002', depto: '102', departamento: 'Depto. 102', tipo: 'B', periodo: 'Octubre 2026',
         base: 350, agua: 15, m3: 5, lecturaAnt: 115, lecturaAct: 120, lecturaAnterior: 115, lecturaActual: 120,
         extras: [],
         monto: 365, total: 365, estado: 'Lista', pagado: 200, aguaNota: '', fechaGen: '01/10/2026', fechaAgua: '03/10/2026'
     },
     {
-        id: 'EX-0003', depto: '103', departamento: 'Depto. 103', tipo: 'A', responsable: 'Pedro Mamani', periodo: 'Octubre 2026',
+        id: 'EX-0003', depto: '103', departamento: 'Depto. 103', tipo: 'A', periodo: 'Octubre 2026',
         base: 300, agua: 0, m3: null, lecturaAnt: null, lecturaAct: null, lecturaAnterior: null, lecturaActual: null,
         extras: [],
         monto: 300, total: 300, estado: 'Agua pendiente', pagado: 0, aguaNota: '', fechaGen: '01/10/2026', fechaAgua: null
     },
     {
-        id: 'EX-0004', depto: '201', departamento: 'Depto. 201', tipo: 'A', responsable: 'Sofia Flores', periodo: 'Octubre 2026',
+        id: 'EX-0004', depto: '201', departamento: 'Depto. 201', tipo: 'A', periodo: 'Octubre 2026',
         base: 300, agua: 0, m3: null, lecturaAnt: null, lecturaAct: null, lecturaAnterior: null, lecturaActual: null,
         extras: [],
         monto: 300, total: 300, estado: 'Agua pendiente', pagado: 0, aguaNota: '', fechaGen: '01/10/2026', fechaAgua: null
     },
     {
-        id: 'EX-0005', depto: '202', departamento: 'Depto. 202', tipo: 'B', responsable: 'Luis Perez', periodo: 'Octubre 2026',
+        id: 'EX-0005', depto: '202', departamento: 'Depto. 202', tipo: 'B', periodo: 'Octubre 2026',
         base: 350, agua: 15, m3: 4, lecturaAnt: 200, lecturaAct: 204, lecturaAnterior: 200, lecturaActual: 204,
         extras: [],
         monto: 365, total: 365, estado: 'Pagada', pagado: 365, aguaNota: '', fechaGen: '01/10/2026', fechaAgua: '02/10/2026'
     },
     {
-        id: 'EX-0006', depto: '203', departamento: 'Depto. 203', tipo: 'B', responsable: 'Carlos Mendoza', periodo: 'Octubre 2026',
+        id: 'EX-0006', depto: '203', departamento: 'Depto. 203', tipo: 'B', periodo: 'Octubre 2026',
         base: 350, agua: 0, m3: null, lecturaAnt: null, lecturaAct: null, lecturaAnterior: null, lecturaActual: null,
         extras: [],
         monto: 350, total: 350, estado: 'Agua pendiente', pagado: 0, aguaNota: '', fechaGen: '01/10/2026', fechaAgua: null
     },
     {
-        id: 'EX-0007', depto: '301', departamento: 'Depto. 301', tipo: 'C', responsable: 'Rocio Alba', periodo: 'Octubre 2026',
+        id: 'EX-0007', depto: '301', departamento: 'Depto. 301', tipo: 'C', periodo: 'Octubre 2026',
         base: 400, agua: 0, m3: null, lecturaAnt: null, lecturaAct: null, lecturaAnterior: null, lecturaActual: null,
         extras: [],
         monto: 400, total: 400, estado: 'Agua pendiente', pagado: 0, aguaNota: '', fechaGen: '01/10/2026', fechaAgua: null
     },
     {
-        id: 'EX-0008', depto: '302', departamento: 'Depto. 302', tipo: 'C', responsable: 'Maria Rojas', periodo: 'Octubre 2026',
+        id: 'EX-0008', depto: '302', departamento: 'Depto. 302', tipo: 'C', periodo: 'Octubre 2026',
         base: 400, agua: 15, m3: 3, lecturaAnt: 150, lecturaAct: 153, lecturaAnterior: 150, lecturaActual: 153,
         extras: [],
         monto: 415, total: 415, estado: 'Pagada', pagado: 415, aguaNota: '', fechaGen: '01/10/2026', fechaAgua: '02/10/2026'
     },
     {
-        id: 'EX-0009', depto: '303', departamento: 'Depto. 303', tipo: 'C', responsable: 'Rafael Cruz', periodo: 'Octubre 2026',
+        id: 'EX-0009', depto: '303', departamento: 'Depto. 303', tipo: 'C', periodo: 'Octubre 2026',
         base: 400, agua: 0, m3: null, lecturaAnt: null, lecturaAct: null, lecturaAnterior: null, lecturaActual: null,
         extras: [],
         monto: 400, total: 400, estado: 'Agua pendiente', pagado: 0, aguaNota: '', fechaGen: '01/10/2026', fechaAgua: null
     },
 ];
+// El responsable de cada expensa se lee del edificio segun su depto
+EXPENSAS_MOCK.forEach((e) => vincularResponsable(e));
 
 export const estadoChipSx = (estado) => {
     if (estado === 'Lista') return { bgcolor: '#E4F4EE', color: '#2E9D78' };

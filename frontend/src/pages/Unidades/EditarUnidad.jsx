@@ -2,6 +2,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import UnidadForm from './UnidadForm';
 import { UNIDADES_MOCK } from '../../constants/unidadesMock';
+import { sincronizarPersonas } from '../../constants/edificioMock';
 
 // Aplica los cambios del formulario sobre la unidad existente
 function aplicarCambios(unidad, form) {
@@ -27,6 +28,7 @@ export default function EditarUnidad() {
     const guardar = (form) => {
         // MOCK: se actualiza el registro. Con backend, aqui iria el PUT.
         aplicarCambios(unidad, form);
+        sincronizarPersonas(); // refleja el cambio en Copropietarios
         navigate(`/unidades/${id}`, { state: { mensaje: 'Datos actualizados correctamente' } });
     };
 
