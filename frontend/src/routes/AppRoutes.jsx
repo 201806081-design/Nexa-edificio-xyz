@@ -25,7 +25,7 @@ import Pagos from '../pages/Finanzas/Pagos';
 import RegistrarPago from '../pages/Finanzas/RegistrarPago';
 import PagoRegistrado from '../pages/Finanzas/PagoRegistrado';
 import ConciliacionBancaria from '../pages/Finanzas/ConciliacionBancaria';
-import AnticipoRegistrar from '../pages/Finanzas/AnticipoRegistrar';
+import RegistrarAnticipo from '../pages/Finanzas/RegistrarAnticipo';
 import AnticipoRegistrado from '../pages/Finanzas/AnticipoRegistrado';
 import GenerarExpensas from '../pages/Finanzas/GenerarExpensas';
 import EstadoCuenta from '../pages/Finanzas/EstadoCuenta';
@@ -76,7 +76,7 @@ export default function AppRoutes() {
       <Route path="/finanzas/pagos/registrar" element={<ProtectedRoute><RegistrarPago /></ProtectedRoute>} />
       <Route path="/finanzas/pagos/registrado" element={<ProtectedRoute><PagoRegistrado /></ProtectedRoute>} />
       <Route path="/finanzas/pagos/conciliacion" element={<ProtectedRoute><ConciliacionBancaria /></ProtectedRoute>} />
-      <Route path="/finanzas/pagos/anticipo" element={<ProtectedRoute><AnticipoRegistrar /></ProtectedRoute>} />
+      <Route path="/finanzas/pagos/anticipo" element={<ProtectedRoute><RegistrarAnticipo /></ProtectedRoute>} />
       <Route path="/finanzas/pagos/anticipo/registrado" element={<ProtectedRoute><AnticipoRegistrado /></ProtectedRoute>} />
       <Route path="/finanzas/configuracion" element={<ProtectedRoute><ConfiguracionFinanciera /></ProtectedRoute>} />
       <Route path="/finanzas/expensas/generar" element={<ProtectedRoute><GenerarExpensas /></ProtectedRoute>} />

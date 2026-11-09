@@ -55,23 +55,3 @@ export const DEPARTAMENTOS_ANTICIPO = [
 ];
 
 export const HISTORIAL_ANTICIPOS = [];
-
-// ============================================================
-//  COMPATIBILIDAD: pantallas antiguas (si aun existen)
-// ============================================================
-
-export const RESUMEN_MORA = { deudasVencidas: 0, interesAcumulado: 0, saldoAFavor: 0 };
-export const SALDOS_VENCIDOS = [];
-export const PAGOS_ANTICIPADOS = [];
-export const CONFIG_INTERES = { activo: true, tipoInteres: 'Porcentaje mensual', porcentaje: 10, diasGracia: 5, aplicarDesde: 'Fecha de vencimiento' };
-export const TIPOS_INTERES = ['Porcentaje mensual', 'Monto fijo'];
-export const APLICAR_DESDE = ['Fecha de vencimiento', 'Periodo vencido'];
-export const APLICAR_DESPUES = ['Fecha de vencimiento', 'Periodo vencido'];
-export const MESES_APLICA = ['Noviembre 2026', 'Diciembre 2026', 'Enero 2027', 'Febrero 2027'];
-export const DETALLE_ANTICIPO = {
-    codigo: 'ANT-2026-10-202-001', departamento: 'Depto. 202', responsable: 'Luis Perez -- Propietario',
-    fechaPago: '03/10/2026', montoAnticipado: 1500, deudaPendiente: 0, saldoAFavor: 1135,
-    aplicacion: [
-        { periodo: 'Octubre 2026', monto: 365, estado: 'Cubierta' },
-    ],
-};
