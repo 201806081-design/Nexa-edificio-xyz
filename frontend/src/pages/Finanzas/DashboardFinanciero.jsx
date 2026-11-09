@@ -12,7 +12,7 @@ import {
 import DashboardLayout from '../../layouts/DashboardLayout';
 import { PERIODO_ACTUAL, PERIODOS, formatBs } from '../../constants/finanzasMock';
 import { PAGOS_MOCK, HISTORIAL_ANTICIPOS } from '../../constants/pagosMock';
-import { MOVIMIENTOS_LISTA } from '../../constants/movimientosMock';
+import { todosLosMovimientos } from '../../constants/movimientosMock';
 import { calcularDeudas, round2 } from '../../constants/deudasMock';
 
 // 'DD/MM/YYYY' -> {dia, mes, anio}
@@ -57,9 +57,9 @@ export default function DashboardFinanciero() {
         // --- KPIs del periodo (sincronizados con Resumen) ---
         const sumPagos = PAGOS_MOCK.filter((p) => enMes(p.fecha, mes, anio)).reduce((s, p) => s + (p.monto || 0), 0);
         const sumAnticipos = HISTORIAL_ANTICIPOS.filter((a) => enMes(a.fecha, mes, anio)).reduce((s, a) => s + (a.recibido || 0), 0);
-        const sumOtros = MOVIMIENTOS_LISTA.filter((m) => m.tipo === 'Ingreso' && enMes(m.fecha, mes, anio)).reduce((s, m) => s + (m.monto || 0), 0);
+        const sumOtros = todosLosMovimientos().filter((m) => m.tipo === 'Ingreso' && enMes(m.fecha, mes, anio)).reduce((s, m) => s + (m.monto || 0), 0);
         const ingresos = sumPagos + sumAnticipos + sumOtros;
-        const gastos = MOVIMIENTOS_LISTA
+        const gastos = todosLosMovimientos()
             .filter((m) => (m.tipo === 'Gasto' || m.tipo === 'Egreso') && enMes(m.fecha, mes, anio))
             .reduce((s, m) => s + (m.monto || 0), 0);
         const balance = ingresos - gastos;
@@ -75,8 +75,8 @@ export default function DashboardFinanciero() {
         const trend = mesesPrevios(mes, anio, 4).map(({ label, mes: mm, anio: aa }) => {
             const ing = PAGOS_MOCK.filter((p) => enMes(p.fecha, mm, aa)).reduce((s, p) => s + (p.monto || 0), 0)
                 + HISTORIAL_ANTICIPOS.filter((a) => enMes(a.fecha, mm, aa)).reduce((s, a) => s + (a.recibido || 0), 0)
-                + MOVIMIENTOS_LISTA.filter((m) => m.tipo === 'Ingreso' && enMes(m.fecha, mm, aa)).reduce((s, m) => s + (m.monto || 0), 0);
-            const gas = MOVIMIENTOS_LISTA
+                + todosLosMovimientos().filter((m) => m.tipo === 'Ingreso' && enMes(m.fecha, mm, aa)).reduce((s, m) => s + (m.monto || 0), 0);
+            const gas = todosLosMovimientos()
                 .filter((m) => (m.tipo === 'Gasto' || m.tipo === 'Egreso') && enMes(m.fecha, mm, aa))
                 .reduce((s, m) => s + (m.monto || 0), 0);
             return { mes: label, ingresos: ing, gastos: gas };
@@ -108,7 +108,7 @@ export default function DashboardFinanciero() {
             // Solo pagos con dinero nuevo (los cubiertos con credito ya entraron como anticipo)
             ...PAGOS_MOCK.filter((p) => (p.monto || 0) > 0).map((p) => ({ fecha: p.fecha, descripcion: `Pago ${p.id} — Dpto. ${p.depto}`, tipo: 'ingreso', monto: p.monto })),
             ...HISTORIAL_ANTICIPOS.map((a) => ({ fecha: a.fecha, descripcion: `Anticipo ${a.id} — Dpto. ${a.depto}`, tipo: 'ingreso', monto: a.recibido })),
-            ...MOVIMIENTOS_LISTA.map((m) => ({ fecha: m.fecha, descripcion: m.descripcion, tipo: m.tipo === 'Ingreso' ? 'ingreso' : 'egreso', monto: m.monto })),
+            ...todosLosMovimientos().map((m) => ({ fecha: m.fecha, descripcion: m.descripcion, tipo: m.tipo === 'Ingreso' ? 'ingreso' : 'egreso', monto: m.monto })),
         ].sort((a, b) => {
             const fa = parseFecha(a.fecha); const fb = parseFecha(b.fecha);
             return (fb.anio - fa.anio) || (fb.mes - fa.mes) || (fb.dia - fa.dia);

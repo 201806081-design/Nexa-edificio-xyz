@@ -12,7 +12,7 @@ import { useNavigate } from 'react-router-dom';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import { PERIODO_ACTUAL, PERIODOS, formatBs } from '../../constants/finanzasMock';
 import { PAGOS_MOCK, HISTORIAL_ANTICIPOS } from '../../constants/pagosMock';
-import { MOVIMIENTOS_LISTA } from '../../constants/movimientosMock';
+import { todosLosMovimientos } from '../../constants/movimientosMock';
 import { saldoPendienteTotal } from '../../constants/deudasMock';
 
 // 'DD/MM/YYYY' -> {dia, mes, anio}
@@ -57,11 +57,11 @@ export default function GestionFinanciera() {
         // INGRESOS DEL PERIODO = pagos de expensas + anticipos + otros ingresos
         const sumPagos = PAGOS_MOCK.filter((p) => enPeriodo(p.fecha)).reduce((s, p) => s + (p.monto || 0), 0);
         const sumAnticipos = HISTORIAL_ANTICIPOS.filter((a) => enPeriodo(a.fecha)).reduce((s, a) => s + (a.recibido || 0), 0);
-        const sumOtros = MOVIMIENTOS_LISTA.filter((m) => m.tipo === 'Ingreso' && enPeriodo(m.fecha)).reduce((s, m) => s + (m.monto || 0), 0);
+        const sumOtros = todosLosMovimientos().filter((m) => m.tipo === 'Ingreso' && enPeriodo(m.fecha)).reduce((s, m) => s + (m.monto || 0), 0);
         const ingresos = sumPagos + sumAnticipos + sumOtros;
 
         // GASTOS DEL PERIODO = movimientos operativos tipo 'Gasto'
-        const gastos = MOVIMIENTOS_LISTA
+        const gastos = todosLosMovimientos()
             .filter((m) => (m.tipo === 'Gasto' || m.tipo === 'Egreso') && enPeriodo(m.fecha))
             .reduce((s, m) => s + (m.monto || 0), 0);
 

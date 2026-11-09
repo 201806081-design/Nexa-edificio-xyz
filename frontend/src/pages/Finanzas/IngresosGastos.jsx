@@ -14,7 +14,7 @@ import DescriptionOutlinedIcon from '@mui/icons-material/DescriptionOutlined';
 import { useNavigate } from 'react-router-dom';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import {
-    PERIODOS, TIPOS_MOVIMIENTO, CATEGORIAS, MOVIMIENTOS_LISTA,
+    PERIODOS, TIPOS_MOVIMIENTO, CATEGORIAS, todosLosMovimientos,
 } from '../../constants/movimientosMock';
 import { formatBs } from '../../constants/finanzasMock';
 
@@ -52,7 +52,7 @@ export default function IngresosGastos() {
     const [busqueda, setBusqueda] = useState('');
 
     // Movimientos filtrados por periodo + filtros adicionales
-    const movimientos = useMemo(() => MOVIMIENTOS_LISTA.filter((m) =>
+    const movimientos = useMemo(() => todosLosMovimientos().filter((m) =>
         fechaEnPeriodo(m.fecha, periodo) &&
         (tipo === 'Todos' || m.tipo === tipo) &&
         (categoria === 'Todas' || m.categoria === categoria) &&
@@ -61,7 +61,7 @@ export default function IngresosGastos() {
 
     // KPIs calculados en vivo sobre los movimientos del periodo seleccionado
     const resumen = useMemo(() => {
-        const mesMovs = MOVIMIENTOS_LISTA.filter((m) => fechaEnPeriodo(m.fecha, periodo));
+        const mesMovs = todosLosMovimientos().filter((m) => fechaEnPeriodo(m.fecha, periodo));
         const totalIngresos = mesMovs.filter((m) => m.tipo === 'Ingreso').reduce((s, m) => s + (m.monto || 0), 0);
         const totalGastos = mesMovs.filter((m) => m.tipo === 'Gasto' || m.tipo === 'Egreso').reduce((s, m) => s + (m.monto || 0), 0);
         return { totalIngresos, totalGastos, balance: totalIngresos - totalGastos };

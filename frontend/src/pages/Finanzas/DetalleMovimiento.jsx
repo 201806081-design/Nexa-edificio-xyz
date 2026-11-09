@@ -2,7 +2,7 @@ import { Box, Typography, Paper, Button, Chip, Alert, Divider } from '@mui/mater
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import DashboardLayout from '../../layouts/DashboardLayout';
-import { MOVIMIENTOS_LISTA } from '../../constants/movimientosMock';
+import { movimientoPorId } from '../../constants/movimientosMock';
 import { formatBs } from '../../constants/finanzasMock';
 
 const tipoChipSx = (tipo) => (tipo === 'Ingreso'
@@ -24,7 +24,7 @@ export default function DetalleMovimiento() {
     const { id } = useParams();
     const location = useLocation();
     const mensaje = location.state?.mensaje;
-    const mov = MOVIMIENTOS_LISTA.find((m) => m.id === Number(id));
+    const mov = movimientoPorId(id);
 
     if (!mov) {
         return (
@@ -47,6 +47,11 @@ export default function DetalleMovimiento() {
             </Typography>
 
             {mensaje && <Alert severity="success" sx={{ mb: 3 }}>{mensaje}</Alert>}
+            {mov.origen === 'personal' && (
+                <Alert severity="info" sx={{ mb: 3 }}>
+                    Este gasto se genero automaticamente desde el modulo Personal. Para modificarlo, revisa la planilla o el historial de pagos del personal.
+                </Alert>
+            )}
 
             <Paper sx={{ p: 4, borderRadius: 2 }}>
                 {/* Encabezado */}

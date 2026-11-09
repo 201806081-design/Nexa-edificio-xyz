@@ -10,7 +10,7 @@ import PhotoCameraIcon from '@mui/icons-material/PhotoCamera';
 import InsertDriveFileOutlinedIcon from '@mui/icons-material/InsertDriveFileOutlined';
 import { useNavigate } from 'react-router-dom';
 import DashboardLayout from '../../layouts/DashboardLayout';
-import { CATEGORIAS, MOVIMIENTOS_LISTA, RESUMEN_MOVIMIENTOS } from '../../constants/movimientosMock';
+import { CATEGORIAS_MANUALES, MOVIMIENTOS_LISTA } from '../../constants/movimientosMock';
 import { formatBs } from '../../constants/finanzasMock';
 
 // '2026-10-19' -> '19/10/2026'
@@ -64,11 +64,7 @@ export default function RegistrarMovimiento() {
             comprobante: form.comprobante || 'Sin comprobante',
             codigo: `MOV-2026-10-${String(MOVIMIENTOS_LISTA.length + 1).padStart(3, '0')}`,
         };
-        MOVIMIENTOS_LISTA.unshift(nuevo); // aparece primero en la lista
-        // Actualiza los totales del resumen
-        if (form.tipo === 'Ingreso') RESUMEN_MOVIMIENTOS.totalIngresos += monto;
-        else RESUMEN_MOVIMIENTOS.totalGastos += monto;
-        RESUMEN_MOVIMIENTOS.balance = RESUMEN_MOVIMIENTOS.totalIngresos - RESUMEN_MOVIMIENTOS.totalGastos;
+        MOVIMIENTOS_LISTA.unshift(nuevo); // los totales se calculan en vivo en cada pantalla
 
         navigate('/finanzas/ingresos-gastos', { state: { mensaje: 'Movimiento registrado correctamente' } });
     };
@@ -105,7 +101,7 @@ export default function RegistrarMovimiento() {
                         <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Categoria</Typography>
                         <Select fullWidth displayEmpty value={form.categoria} onChange={(e) => cambiar('categoria', e.target.value)} error={!!errores.categoria}>
                             <MenuItem value=""><em>Seleccione categoria</em></MenuItem>
-                            {CATEGORIAS.map((c) => <MenuItem key={c} value={c}>{c}</MenuItem>)}
+                            {CATEGORIAS_MANUALES.map((c) => <MenuItem key={c} value={c}>{c}</MenuItem>)}
                         </Select>
                         {errores.categoria && <Typography sx={{ color: '#D9534F', fontSize: '0.76rem', mt: 0.5 }}>Seleccione una categoria</Typography>}
                     </Box>

@@ -18,7 +18,7 @@ import { useNavigate } from 'react-router-dom';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import { PERIODOS, formatBs } from '../../constants/finanzasMock';
 import { PAGOS_MOCK, HISTORIAL_ANTICIPOS } from '../../constants/pagosMock';
-import { MOVIMIENTOS_LISTA } from '../../constants/movimientosMock';
+import { todosLosMovimientos } from '../../constants/movimientosMock';
 
 // Semana del mes a partir del dia (1-7 S1, 8-14 S2, 15-21 S3, 22-fin S4)
 const semanaMes = (dia) => {
@@ -77,7 +77,7 @@ export default function FlujoCaja() {
 
         const pagos = PAGOS_MOCK.filter((p) => enPeriodo(p.fecha));
         const anticipos = HISTORIAL_ANTICIPOS.filter((a) => enPeriodo(a.fecha));
-        const movimientos = MOVIMIENTOS_LISTA.filter((m) => enPeriodo(m.fecha));
+        const movimientos = todosLosMovimientos().filter((m) => enPeriodo(m.fecha));
 
         const sumExp = pagos.reduce((s, p) => s + (p.monto || 0), 0);
         const sumAnt = anticipos.reduce((s, a) => s + (a.recibido || 0), 0);
