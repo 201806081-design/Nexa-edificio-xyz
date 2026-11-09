@@ -36,7 +36,8 @@
 import { periodosCerrados, periodoEnCurso } from './periodos';
 import { EXPENSA_BASE, CONFIG_AGUA as CONFIG_AGUA_SHARED, REGLAS_PERIODO } from './configuracionMock';
 import { CONFIG_MORA as CONFIG_MORA_SHARED } from './moraMock';
-import { departamentos, numeroDe, numerosDepto, vincularResponsable } from './edificioMock';
+import { departamentos, numeroDe, numerosDepto, vincularResponsable, categoriaDe } from './edificioMock';
+import { DEPARTAMENTOS_PAGO } from './pagosMock';
 export { REGLAS_PERIODO };
 
 // --- Tarifas por tipo de departamento (misma referencia que EXPENSA_BASE) ---
@@ -66,6 +67,18 @@ export const HISTORIAL_TARIFAS = [
 
 // Filtro de deptos: sale del edificio (edificioMock)
 export const DEPARTAMENTOS_FILTRO = ['Todos', ...numerosDepto()];
+
+// Vuelve a armar la lista de deptos de Finanzas y los filtros desde el edificio.
+// Llamar despues de registrar o editar una unidad: asi un depto nuevo (ej. el 401)
+// aparece en Generar expensa, Expensas, Pagos, Registrar pago y Comunicados.
+// Conserva la ultima lectura del medidor de los deptos que ya existian.
+export const sincronizarDepartamentosActivos = () => {
+    const previos = new Map(DEPARTAMENTOS_ACTIVOS.map((d) => [d.id, d.ultimaLectura]));
+    const nuevos = departamentos().map((u) => filaDepto(u, previos.get(numeroDe(u)) ?? 0));
+    DEPARTAMENTOS_ACTIVOS.splice(0, DEPARTAMENTOS_ACTIVOS.length, ...nuevos);
+    DEPARTAMENTOS_FILTRO.splice(1, DEPARTAMENTOS_FILTRO.length - 1, ...numerosDepto());
+    DEPARTAMENTOS_PAGO.splice(1, DEPARTAMENTOS_PAGO.length - 1, ...numerosDepto());
+};
 export const ESTADOS_EXPENSA = ['Todos', 'Agua pendiente', 'Lista', 'Pagada', 'Vencida'];
 
 // Ultima lectura del medidor de agua de cada depto (dato propio de Finanzas)
@@ -75,14 +88,15 @@ const ULTIMA_LECTURA = {
 
 // Catalogo de departamentos activos: se arma desde el edificio (edificioMock).
 // tipo = categoria de expensa (A/B/C). responsable se lee siempre del edificio.
-export const DEPARTAMENTOS_ACTIVOS = departamentos().map((u) => {
+const filaDepto = (u, ultimaLectura = 0) => {
     const n = numeroDe(u);
-    const lectura = ULTIMA_LECTURA[n] ?? 0;
+    const categoria = categoriaDe(u);
     return vincularResponsable({
-        id: n, depto: n, departamento: u.identificador, tipo: u.categoria,
-        base: EXPENSA_BASE[u.categoria], ultimaLectura: lectura, lecturaAnterior: lectura,
+        id: n, depto: n, departamento: u.identificador, tipo: categoria,
+        base: EXPENSA_BASE[categoria], ultimaLectura, lecturaAnterior: ultimaLectura,
     });
-});
+};
+export const DEPARTAMENTOS_ACTIVOS = departamentos().map((u) => filaDepto(u, ULTIMA_LECTURA[numeroDe(u)] ?? 0));
 
 // Calculo del agua por medidor (unico modo automatico).
 export const calcularAgua = (m3, tarifa = CONFIG_AGUA.tarifaPorM3) => {

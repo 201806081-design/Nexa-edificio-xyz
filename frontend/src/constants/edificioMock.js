@@ -22,6 +22,11 @@ export const TIPO_DEPTO_POR_CATEGORIA = {
     C: '2 dormitorios',
 };
 
+// Al reves: categoria de expensa segun el tipo de departamento
+export const CATEGORIA_POR_TIPO = Object.fromEntries(
+    Object.entries(TIPO_DEPTO_POR_CATEGORIA).map(([cat, tipo]) => [tipo, cat]),
+);
+
 export const TIPOS_DEPARTAMENTO = ['Monoambiente', '1 dormitorio', '2 dormitorios'];
 export const TIPOS_UNIDAD = ['Departamento', 'Parqueo', 'Baulera'];
 export const NIVELES = ['Nivel 1', 'Nivel 2', 'Sótano 1', 'Sótano 2'];
@@ -110,6 +115,10 @@ export const deptoPorNumero = (numero) => {
     const n = String(numero ?? '').replace(/^Depto\.\s*/, '').trim();
     return departamentos().find((u) => numeroDe(u) === n) ?? null;
 };
+
+// Categoria de expensa (A/B/C) de un depto. Sale de su tipo de departamento,
+// asi un depto registrado o editado desde Unidades ya sabe cuanto pagar.
+export const categoriaDe = (u) => CATEGORIA_POR_TIPO[u?.tipoDepartamento] ?? u?.categoria ?? 'A';
 
 // Numeros de todos los deptos: ['101', '102', ...]
 export const numerosDepto = () => departamentos().map(numeroDe);

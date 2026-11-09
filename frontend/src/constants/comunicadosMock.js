@@ -9,10 +9,21 @@ import { EMPLEADOS_MOCK } from './personalMock';
 // Morosos = calculo unico de deudas (deudasMock), el mismo de "Mora e intereses".
 // Si alguien paga su deuda vencida, sale del grupo; si vence otra expensa, entra sola.
 import { morosos } from './deudasMock';
+import { deptoPorNumero } from './edificioMock';
 import { pushNotificacion } from './notificacionesMock';
 
 // Helper: IDs unicos de deptos con mora vigente (reconsulta el array cada vez).
 const deptosConMora = () => morosos();
+
+// Deptos agrupados por piso, segun el piso registrado en Unidades: { '1': [...], '2': [...] }
+const deptosPorPiso = () => {
+    const grupos = {};
+    DEPARTAMENTOS_ACTIVOS.forEach((d) => {
+        const piso = String(deptoPorNumero(d.id)?.piso ?? String(d.id).charAt(0));
+        (grupos[piso] = grupos[piso] || []).push(d);
+    });
+    return Object.fromEntries(Object.entries(grupos).sort(([a], [b]) => Number(a) - Number(b)));
+};
 
 export const PRIORIDADES = ['Normal', 'Importante', 'Urgente'];
 
@@ -43,19 +54,16 @@ export const USUARIOS_SISTEMA = [
 // reconsulta los arrays actuales, asi los conteos reflejan los cambios reales
 // (ej. si se pagan todas las moras, el grupo "Morosos" baja a 0).
 export const gruposDestinatarios = () => {
-    const porPiso = { '1': [], '2': [], '3': [] };
-    DEPARTAMENTOS_ACTIVOS.forEach((d) => {
-        const piso = String(d.id).charAt(0);
-        if (porPiso[piso]) porPiso[piso].push(d);
-    });
+    const porPiso = deptosPorPiso();
     const morososIds = deptosConMora();
     const morososDeptos = DEPARTAMENTOS_ACTIVOS.filter((d) => morososIds.includes(d.id));
 
     return [
         { id: 'todos', etiqueta: 'Todos los copropietarios', count: DEPARTAMENTOS_ACTIVOS.length, descripcion: `Envia a los ${DEPARTAMENTOS_ACTIVOS.length} departamentos del edificio` },
-        { id: 'piso-1', etiqueta: 'Piso 1', count: porPiso['1'].length, descripcion: `Deptos ${porPiso['1'].map((d) => d.id).join(', ')}` },
-        { id: 'piso-2', etiqueta: 'Piso 2', count: porPiso['2'].length, descripcion: `Deptos ${porPiso['2'].map((d) => d.id).join(', ')}` },
-        { id: 'piso-3', etiqueta: 'Piso 3', count: porPiso['3'].length, descripcion: `Deptos ${porPiso['3'].map((d) => d.id).join(', ')}` },
+        // Un grupo por cada piso que exista en el edificio (si se agrega el piso 4, aparece solo)
+        ...Object.entries(porPiso).map(([piso, deptos]) => ({
+            id: `piso-${piso}`, etiqueta: `Piso ${piso}`, count: deptos.length, descripcion: `Deptos ${deptos.map((d) => d.id).join(', ')}`,
+        })),
         { id: 'morosos', etiqueta: 'Morosos', count: morososDeptos.length, descripcion: morososDeptos.length ? `Deptos ${morososDeptos.map((d) => d.id).join(', ')}` : 'Sin morosos este periodo' },
         { id: 'personal', etiqueta: 'Personal del edificio', count: EMPLEADOS_MOCK.filter((e) => e.estado === 'Activo').length, descripcion: 'Empleados activos del edificio' },
         { id: 'directorio', etiqueta: 'Directorio', count: 1, descripcion: 'Miembros del directorio' },
@@ -70,9 +78,6 @@ export const personasDeGrupo = (grupoId) => {
     const copropietariosMap = (d) => ({ id: d.id, nombre: `Depto ${d.id} - ${d.responsable}`, detalle: `Tipo ${d.tipo}` });
     switch (grupoId) {
         case 'todos': return DEPARTAMENTOS_ACTIVOS.map(copropietariosMap);
-        case 'piso-1': return DEPARTAMENTOS_ACTIVOS.filter((d) => String(d.id).startsWith('1')).map(copropietariosMap);
-        case 'piso-2': return DEPARTAMENTOS_ACTIVOS.filter((d) => String(d.id).startsWith('2')).map(copropietariosMap);
-        case 'piso-3': return DEPARTAMENTOS_ACTIVOS.filter((d) => String(d.id).startsWith('3')).map(copropietariosMap);
         case 'morosos': {
             const morososIds = deptosConMora();
             return DEPARTAMENTOS_ACTIVOS.filter((d) => morososIds.includes(d.id)).map(copropietariosMap);
@@ -87,7 +92,11 @@ export const personasDeGrupo = (grupoId) => {
             return USUARIOS_SISTEMA.filter((u) => u.rol === 'Administrador').map((u) => ({
                 id: u.id, nombre: u.nombre, detalle: 'Administrador',
             }));
-        default: return [];
+        default:
+            if (String(grupoId).startsWith('piso-')) {
+                return (deptosPorPiso()[String(grupoId).slice(5)] || []).map(copropietariosMap);
+            }
+            return [];
     }
 };
 
@@ -98,7 +107,7 @@ export const criterioNotificacionDelGrupo = (grupoId, destinatariosEspecificos =
     switch (grupoId) {
         case 'todos':
             return { roles: ['Administrador', 'Directorio', 'Consulta'], deptos: esPersonalizado ? destinatariosEspecificos : null };
-        case 'piso-1': case 'piso-2': case 'piso-3': case 'morosos': {
+        case 'morosos': {
             const personas = personasDeGrupo(grupoId);
             const deptos = esPersonalizado ? destinatariosEspecificos : personas.map((p) => p.id);
             return { roles: ['Consulta'], deptos };
@@ -106,7 +115,12 @@ export const criterioNotificacionDelGrupo = (grupoId, destinatariosEspecificos =
         case 'personal': return { roles: [] }; // empleados no se loguean -> no reciben campanita
         case 'directorio': return { roles: ['Directorio'] };
         case 'admins': return { roles: ['Administrador'] };
-        default: return { roles: [] };
+        default:
+            if (String(grupoId).startsWith('piso-')) {
+                const deptos = esPersonalizado ? destinatariosEspecificos : personasDeGrupo(grupoId).map((p) => p.id);
+                return { roles: ['Consulta'], deptos };
+            }
+            return { roles: [] };
     }
 };
 

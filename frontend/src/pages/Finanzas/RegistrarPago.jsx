@@ -136,7 +136,8 @@ export default function RegistrarPago() {
     // Compartir el QR con el residente via Comunicados
     const compartirPorComunicados = () => {
         if (!depto) return;
-        const nombre = (depto.responsable || '').split(' · ')[0];
+        // Se saluda a quien esta pagando (si se escribio) o al responsable del depto
+        const nombre = pagadoPor.trim() || (depto.responsable || '').split(' · ')[0];
         const montoDisplay = efectivoNum > 0 ? efectivoNum : saldoPendiente;
         navigate('/comunicados/elaborar', {
             state: {

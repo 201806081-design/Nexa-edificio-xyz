@@ -3,6 +3,7 @@ import DashboardLayout from '../../layouts/DashboardLayout';
 import UnidadForm from './UnidadForm';
 import { UNIDADES_MOCK } from '../../constants/unidadesMock';
 import { sincronizarPersonas } from '../../constants/edificioMock';
+import { sincronizarDepartamentosActivos } from '../../constants/expensasMock';
 
 // Arma el objeto de unidad segun su tipo a partir de los datos del formulario
 function construirUnidad(form) {
@@ -28,6 +29,7 @@ export default function RegistrarUnidad() {
         // MOCK: se agrega a la lista. Con backend, aqui iria el POST.
         UNIDADES_MOCK.push(construirUnidad(form));
         sincronizarPersonas(); // la persona asociada ve su nueva unidad
+        sincronizarDepartamentosActivos(); // el depto nuevo aparece en Finanzas y Comunicados
         navigate('/unidades', { state: { mensaje: 'Unidad registrada correctamente' } });
     };
 
