@@ -6,16 +6,10 @@ import {
 } from '@mui/material';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import { ROLES } from '../../constants/permisos';
-
-// Datos de prueba (mock). Se reemplazaran con los del backend.
-const USUARIOS_INICIALES = [
-  { id: 1, nombre: 'Usuario 001', rol: ROLES.ADMINISTRADOR },
-  { id: 2, nombre: 'Usuario 002', rol: ROLES.DIRECTORIO },
-  { id: 3, nombre: 'Usuario 003', rol: ROLES.CONSULTA },
-];
+import { USUARIOS_MOCK, empleadoDeUsuario } from '../../constants/usuariosMock';
 
 export default function Usuarios() {
-  const [usuarios, setUsuarios] = useState(USUARIOS_INICIALES);
+  const [usuarios, setUsuarios] = useState(USUARIOS_MOCK);
   const [editando, setEditando] = useState(null); // usuario que se esta editando
   const [rolNuevo, setRolNuevo] = useState('');
 
@@ -30,6 +24,8 @@ export default function Usuarios() {
     setUsuarios((lista) =>
       lista.map((u) => (u.id === editando.id ? { ...u, rol: rolNuevo } : u))
     );
+    const original = USUARIOS_MOCK.find((u) => u.id === editando.id);
+    if (original) original.rol = rolNuevo; // se mantiene al volver a la pantalla
     cerrarModal();
   };
 
@@ -42,19 +38,37 @@ export default function Usuarios() {
         Asigna un rol a cada usuario del sistema.
       </Typography>
 
-      <Paper sx={{ p: 2, borderRadius: 3 }}>
-        <Table>
+      <Paper sx={{ p: 2, borderRadius: 3, overflowX: 'auto' }}>
+        <Table sx={{ minWidth: 640 }}>
           <TableHead>
             <TableRow>
               <TableCell><strong>Usuario</strong></TableCell>
+              <TableCell><strong>Nombre</strong></TableCell>
+              <TableCell><strong>Personal del edificio</strong></TableCell>
               <TableCell><strong>Rol asignado</strong></TableCell>
               <TableCell align="right"><strong>Acciones</strong></TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
-            {usuarios.map((u) => (
+            {usuarios.map((u) => {
+              const emp = empleadoDeUsuario(u);
+              return (
               <TableRow key={u.id}>
+                <TableCell>
+                  <Typography variant="body2" sx={{ fontWeight: 600 }}>{u.username}</Typography>
+                  <Typography variant="caption" color="text.secondary">{u.email}</Typography>
+                </TableCell>
                 <TableCell>{u.nombre}</TableCell>
+                <TableCell>
+                  {emp ? (
+                    <>
+                      <Typography variant="body2" sx={{ fontWeight: 600 }}>{emp.nombre}</Typography>
+                      <Typography variant="caption" color="text.secondary">{emp.id} · {emp.cargo}</Typography>
+                    </>
+                  ) : (
+                    <Typography variant="body2" color="text.secondary">No es personal</Typography>
+                  )}
+                </TableCell>
                 <TableCell>
                   <Chip label={u.rol} sx={{ bgcolor: '#C5E0F2', color: '#132B3E' }} />
                 </TableCell>
@@ -64,7 +78,8 @@ export default function Usuarios() {
                   </Button>
                 </TableCell>
               </TableRow>
-            ))}
+              );
+            })}
           </TableBody>
         </Table>
       </Paper>
@@ -74,7 +89,7 @@ export default function Usuarios() {
         <DialogTitle>
           Cambiar rol
           <Typography variant="body2" color="text.secondary">
-            {editando?.nombre}
+            {editando?.username} · {editando?.nombre}
           </Typography>
         </DialogTitle>
         <DialogContent>

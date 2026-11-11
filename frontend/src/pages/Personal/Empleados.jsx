@@ -19,6 +19,7 @@ import {
     PLANILLA_MOCK, PAGOS_PERSONAL_MOCK, RESUMEN_PLANILLA, RESUMEN_PAGOS_PERSONAL,
     HISTORIAL_SALARIOS_CARGO, salarioDesdeCargo, periodoEnCurso,
 } from '../../constants/personalMock';
+import { usuarioDeEmpleado } from '../../constants/usuariosMock';
 import { formatBs } from '../../constants/finanzasMock';
 
 const estadoChipSx = (estado) => estado === 'Activo'
@@ -356,7 +357,14 @@ export default function Empleados() {
                             ) : empleados.map((e) => (
                                 <TableRow key={e.id}>
                                     <TableCell sx={{ fontWeight: 600, color: 'primary.main' }}>{e.id}</TableCell>
-                                    <TableCell sx={{ fontWeight: 600 }}>{e.nombre}</TableCell>
+                                    <TableCell sx={{ fontWeight: 600 }}>
+                                        {e.nombre}
+                                        {usuarioDeEmpleado(e.id) && (
+                                            <Typography variant="caption" color="primary.main" sx={{ display: 'block', fontWeight: 600 }}>
+                                                Usuario del sistema: {usuarioDeEmpleado(e.id).username}
+                                            </Typography>
+                                        )}
+                                    </TableCell>
                                     <TableCell>{e.ci}</TableCell>
                                     <TableCell>{e.cargo}</TableCell>
                                     <TableCell sx={{ fontWeight: 600 }}>{formatBs(e.salarioBase)}</TableCell>
