@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import {
     Box, Typography, TextField, Button, ToggleButton, ToggleButtonGroup,
-    Select, MenuItem, Alert,
+    Select, MenuItem, Alert, InputAdornment,
 } from '@mui/material';
 import {
-    TIPOS_UNIDAD, TIPOS_DEPARTAMENTO, NIVELES,
+    TIPOS_UNIDAD, TIPOS_DEPARTAMENTO, NIVELES, UNIDADES_MOCK,
 } from '../../constants/unidadesMock';
 import { COPROPIETARIOS_MOCK, nombreCompleto } from '../../constants/copropietariosMock';
 
@@ -18,11 +18,28 @@ const VACIO = {
     personaId: '',
 };
 
+// El prefijo de cada tipo ya viene escrito: el usuario solo pone el numero o codigo.
+// Ej. Departamento -> "Depto. " + "401" = "Depto. 401"; Parqueo -> "Parqueo P-" + "15".
+const PREFIJOS = { Departamento: 'Depto. ', Parqueo: 'Parqueo P-', Baulera: 'Baulera B-' };
+
+// Deja solo el codigo: quita el prefijo si lo escribieron igual ("Depto. 401" -> "401",
+// "P-15" -> "15") y los caracteres no validos. Letras en mayuscula (ej. "B5").
+function limpiarCodigo(valor, tipo) {
+    let v = String(valor || '').toUpperCase();
+    const quitar = {
+        Departamento: [/^DEPTO\.?\s*/, /^DEPARTAMENTO\s*/, /^DPTO\.?\s*/],
+        Parqueo: [/^PARQUEO\s*/, /^P-/],
+        Baulera: [/^BAULERA\s*/, /^B-/],
+    }[tipo] || [];
+    quitar.forEach((re) => { v = v.replace(re, ''); });
+    return v.replace(/[^A-Z0-9-]/g, '').slice(0, 10);
+}
+
 // Convierte una unidad existente al formato del formulario (para editar)
 function desdeUnidad(u) {
     return {
         tipo: u.tipo,
-        identificador: u.identificador ?? '',
+        identificador: limpiarCodigo(u.identificador ?? '', u.tipo),
         piso: u.piso ?? '',
         tipoDepartamento: u.tipoDepartamento ?? '',
         nivel: u.nivel ?? '',
@@ -66,7 +83,7 @@ export default function UnidadForm({ titulo, subtitulo, valorInicial, textoBoton
     const cambiar = (campo, valor) => {
         // Al cambiar el tipo se limpian los campos propios del tipo anterior
         if (campo === 'tipo') {
-            setForm((f) => ({ ...f, tipo: valor, piso: '', tipoDepartamento: '', nivel: '', techado: '' }));
+            setForm((f) => ({ ...f, tipo: valor, identificador: '', piso: '', tipoDepartamento: '', nivel: '', techado: '' }));
         } else {
             setForm((f) => ({ ...f, [campo]: valor }));
         }
@@ -75,7 +92,16 @@ export default function UnidadForm({ titulo, subtitulo, valorInicial, textoBoton
 
     const validar = () => {
         const err = {};
-        if (!String(form.identificador).trim()) err.identificador = true;
+        const codigo = String(form.identificador).trim();
+        if (!codigo) {
+            err.identificador = 'Este campo es obligatorio';
+        } else {
+            // No puede repetirse con otra unidad (en editar se ignora la propia)
+            const completo = PREFIJOS[form.tipo] + codigo;
+            const repetida = UNIDADES_MOCK.some((u) => u.identificador.toUpperCase() === completo.toUpperCase()
+                && u.id !== valorInicial?.id);
+            if (repetida) err.identificador = `Ya existe "${completo}"`;
+        }
         if (form.tipo === 'Departamento') {
             if (!String(form.piso).trim()) err.piso = true;
             if (!form.tipoDepartamento) err.tipoDepartamento = true;
@@ -93,7 +119,8 @@ export default function UnidadForm({ titulo, subtitulo, valorInicial, textoBoton
             return;
         }
         setMostrarAviso(false);
-        onGuardar(form);
+        // Se guarda con el prefijo: "Depto. 401", "Parqueo P-15", "Baulera B-09"
+        onGuardar({ ...form, identificador: PREFIJOS[form.tipo] + String(form.identificador).trim() });
     };
 
     // Etiquetas del campo identificador segun el tipo
@@ -102,7 +129,7 @@ export default function UnidadForm({ titulo, subtitulo, valorInicial, textoBoton
         Parqueo: 'Numero de parqueo *',
         Baulera: 'Numero de baulera *',
     }[form.tipo];
-    const placeholderNumero = { Departamento: 'Ej. Depto. 401', Parqueo: 'Ej. P-15', Baulera: 'Ej. B-09' }[form.tipo];
+    const placeholderNumero = { Departamento: 'Ej. 401', Parqueo: 'Ej. 15', Baulera: 'Ej. 09' }[form.tipo];
 
     return (
         <Box>
@@ -147,8 +174,13 @@ export default function UnidadForm({ titulo, subtitulo, valorInicial, textoBoton
                     <>
                         <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', mb: 2 }}>
                             <Campo label={labelNumero} placeholder={placeholderNumero} value={form.identificador}
-                                onChange={(e) => cambiar('identificador', e.target.value)}
-                                error={!!errores.identificador} helperText={errores.identificador && 'Este campo es obligatorio'} />
+                                onChange={(e) => cambiar('identificador', limpiarCodigo(e.target.value, form.tipo))}
+                                slotProps={{
+                                    input: { startAdornment: <InputAdornment position="start">{PREFIJOS[form.tipo].trim()}</InputAdornment> },
+                                    htmlInput: { maxLength: 10 },
+                                }}
+                                error={!!errores.identificador}
+                                helperText={errores.identificador || `Escribe solo el numero o codigo: "${PREFIJOS[form.tipo].trim()}" ya esta incluido`} />
                             <Campo label="Piso *" placeholder="Ej. 4" value={form.piso}
                                 onChange={(e) => cambiar('piso', e.target.value)}
                                 error={!!errores.piso} helperText={errores.piso && 'Este campo es obligatorio'} />
@@ -168,8 +200,13 @@ export default function UnidadForm({ titulo, subtitulo, valorInicial, textoBoton
                     <>
                         <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', mb: 2 }}>
                             <Campo label={labelNumero} placeholder={placeholderNumero} value={form.identificador}
-                                onChange={(e) => cambiar('identificador', e.target.value)}
-                                error={!!errores.identificador} helperText={errores.identificador && 'Este campo es obligatorio'} />
+                                onChange={(e) => cambiar('identificador', limpiarCodigo(e.target.value, form.tipo))}
+                                slotProps={{
+                                    input: { startAdornment: <InputAdornment position="start">{PREFIJOS[form.tipo].trim()}</InputAdornment> },
+                                    htmlInput: { maxLength: 10 },
+                                }}
+                                error={!!errores.identificador}
+                                helperText={errores.identificador || `Escribe solo el numero o codigo: "${PREFIJOS[form.tipo].trim()}" ya esta incluido`} />
                             <CampoSelect label="Nivel *" value={form.nivel}
                                 onChange={(e) => cambiar('nivel', e.target.value)} error={!!errores.nivel}>
                                 <MenuItem value=""><em>Seleccione nivel</em></MenuItem>

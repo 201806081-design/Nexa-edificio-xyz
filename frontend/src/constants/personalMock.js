@@ -35,18 +35,65 @@ export const TARIFAS_CARGO = {
 };
 export const salarioDesdeCargo = (cargo) => TARIFAS_CARGO[cargo] || 0;
 
-// --- Catalogo de empleados ---
-export const EMPLEADOS_MOCK = [
-    { id: 'EM-001', nombre: 'Oscar Montenegro', ci: '4712345', cargo: 'Administrador', fechaIngreso: '01/03/2024', estado: 'Activo' },
-    { id: 'EM-002', nombre: 'Juan Alvarez', ci: '5823456', cargo: 'Portero', fechaIngreso: '15/06/2024', estado: 'Activo' },
-    { id: 'EM-003', nombre: 'Elena Quispe', ci: '6934567', cargo: 'Limpieza', fechaIngreso: '02/09/2024', estado: 'Activo' },
-    { id: 'EM-004', nombre: 'Ricardo Cabrera', ci: '7045678', cargo: 'Mantenimiento', fechaIngreso: '10/01/2025', estado: 'Activo' },
-    { id: 'EM-005', nombre: 'Fernando Coca', ci: '8156789', cargo: 'Seguridad', fechaIngreso: '20/04/2025', estado: 'Activo' },
-].map((e) => ({ ...e, salarioBase: salarioDesdeCargo(e.cargo) }));
+// Registra un cargo nuevo con su salario base. Devuelve un mensaje de error o null.
+export const registrarCargo = (nombre, salario) => {
+    const n = String(nombre || '').trim();
+    const m = Number(salario);
+    if (!n) return 'Escribe el nombre del cargo';
+    if (n.length > 40) return 'Maximo 40 caracteres';
+    if (CARGOS.some((c) => c.toLowerCase() === n.toLowerCase())) return 'Ese cargo ya existe';
+    if (!(m > 0)) return 'Ingresa un salario base mayor a 0';
+    CARGOS.push(n);
+    TARIFAS_CARGO[n] = Math.round(m * 100) / 100;
+    return null;
+};
 
-// ============================================================
-//  PERIODOS DINAMICOS
-// ============================================================
+// --- Catalogos de la ficha del empleado ---
+// Departamento donde se expidio el carnet (Bolivia)
+export const EXPEDIDOS = ['LP', 'CB', 'SC', 'OR', 'PT', 'CH', 'TJ', 'BE', 'PD'];
+export const TIPOS_CONTRATO = ['Indefinido', 'Plazo fijo', 'Eventual'];
+export const MOTIVOS_BAJA = ['Renuncia', 'Fin de contrato', 'Despido', 'Jubilacion', 'Otro'];
+
+// --- Catalogo de empleados ---
+// Ficha completa del empleado. 'nombre' (nombres + apellidos) se mantiene porque
+// lo usan Planilla, Historial de pagos y Finanzas.
+// celular: 8 digitos (Bolivia, codigo +591 fijo); telefono fijo es opcional.
+const emp = (id, nombres, apellidos, ci, expedido, cargo, fechaIngreso, extra) => ({
+    id, nombres, apellidos, nombre: `${nombres} ${apellidos}`, ci, complemento: '', expedido,
+    cargo, fechaIngreso, estado: 'Activo', tipoContrato: 'Indefinido', telefono: '', cv: null, ...extra,
+});
+export const EMPLEADOS_MOCK = [
+    emp('EM-001', 'Oscar', 'Montenegro', '4712345', 'CB', 'Administrador', '01/03/2024', {
+        fechaNacimiento: '1985-06-14', celular: '71456230', correo: 'oscar.montenegro@nexa.bo',
+        direccion: 'Av. Ayacucho 1450, Cochabamba',
+        contactoEmergencia: { nombre: 'Lucia Rivas (esposa)', celular: '72215566' },
+        experiencia: 'Lic. en Administracion de Empresas. 8 años administrando condominios y edificios residenciales.',
+    }),
+    emp('EM-002', 'Juan', 'Alvarez', '5823456', 'CB', 'Portero', '15/06/2024', {
+        fechaNacimiento: '1979-02-03', celular: '76543210', correo: 'juan.alvarez@gmail.com',
+        direccion: 'Calle Tumusla 230, Cochabamba',
+        contactoEmergencia: { nombre: 'Maria Alvarez (hija)', celular: '70011223' },
+        experiencia: '5 años como portero en edificios del centro.',
+    }),
+    emp('EM-003', 'Elena', 'Quispe', '6934567', 'LP', 'Limpieza', '02/09/2024', {
+        fechaNacimiento: '1990-11-21', celular: '67890123', correo: 'elena.quispe@gmail.com',
+        direccion: 'Barrio Sarco, calle 4 N.º 12, Cochabamba', tipoContrato: 'Plazo fijo',
+        contactoEmergencia: { nombre: 'Rosa Quispe (madre)', celular: '69988776' },
+        experiencia: 'Limpieza de oficinas y areas comunes.',
+    }),
+    emp('EM-004', 'Ricardo', 'Cabrera', '7045678', 'CB', 'Mantenimiento', '10/01/2025', {
+        fechaNacimiento: '1983-08-09', celular: '72233445', correo: 'ricardo.cabrera@gmail.com',
+        direccion: 'Av. Blanco Galindo km 3, Cochabamba',
+        contactoEmergencia: { nombre: 'Carla Cabrera (hermana)', celular: '71122334' },
+        experiencia: 'Tecnico electricista y plomeria, 10 años de experiencia.',
+    }),
+    emp('EM-005', 'Fernando', 'Coca', '8156789', 'SC', 'Seguridad', '20/04/2025', {
+        fechaNacimiento: '1992-04-30', celular: '78899001', correo: 'fernando.coca@gmail.com',
+        direccion: 'Zona Queru Queru, calle Los Pinos 55, Cochabamba',
+        contactoEmergencia: { nombre: 'Jorge Coca (padre)', celular: '77665544' },
+        experiencia: 'Ex guardia de seguridad privada, curso de primeros auxilios.',
+    }),
+].map((e) => ({ ...e, salarioBase: salarioDesdeCargo(e.cargo) }));
 
 // Los periodos salen de la fuente unica (periodos.js).
 // periodosDisponibles = meses cerrados (la planilla del mes en curso aun no se paga).
@@ -67,16 +114,16 @@ const planillaFilaVacia = (empleado, periodo) => ({
 // ============================================================
 
 // Planilla de Octubre 2026: algunas pagadas, algunas pendientes.
-// Las filas de meses posteriores se generan automaticamente cuando el mes se cierra
-// (ver asegurarPlanillaActualizada abajo).
+// La planilla de los meses siguientes la genera el administrador con
+// "Generar planilla" cuando el mes termina.
 const planillaOctubre = (empleadoId, bonos, anticipos, otrosDesc, estado) => {
-    const emp = EMPLEADOS_MOCK.find((e) => e.id === empleadoId);
-    const salarioBase = emp ? emp.salarioBase : 0;
+    const e = EMPLEADOS_MOCK.find((x) => x.id === empleadoId);
+    const salarioBase = e ? e.salarioBase : 0;
     const neto = salarioBase + bonos - anticipos - otrosDesc;
     return { empleadoId, periodo: 'Octubre 2026', salarioBase, bonos, anticipos, otrosDesc, neto, estado };
 };
 export const PLANILLA_MOCK = [
-    planillaOctubre('EM-001', 400, 300, 120, 'Calculado'), // Oscar -> 4180, pendiente
+    planillaOctubre('EM-001', 400, 300, 120, 'Calculado'), // Oscar    -> 4180, pendiente
     planillaOctubre('EM-002', 250, 400, 90, 'Pagada'),    // Juan     -> 2760, pagada
     planillaOctubre('EM-003', 300, 0, 84, 'Pagada'),    // Elena    -> 3016, pagada
     planillaOctubre('EM-004', 250, 350, 105, 'Revisar'),   // Ricardo  -> 3295, en revision
@@ -215,4 +262,17 @@ export const nombreEmpleado = (id) => {
 export const cargoEmpleado = (id) => {
     const e = EMPLEADOS_MOCK.find((x) => x.id === id);
     return e ? e.cargo : '—';
+};
+
+// Un empleado con planilla o pagos registrados NO se puede eliminar (se perderia
+// historial contable): se le da de baja (Inactivo). Solo se elimina uno registrado por error.
+export const empleadoTieneHistorial = (id) => PLANILLA_MOCK.some((p) => p.empleadoId === id)
+    || PAGOS_PERSONAL_MOCK.some((p) => p.empleadoId === id)
+    || ANTICIPOS_PERSONAL_MOCK.some((a) => a.empleadoId === id);
+
+export const eliminarEmpleado = (id) => {
+    if (empleadoTieneHistorial(id)) return false;
+    const i = EMPLEADOS_MOCK.findIndex((e) => e.id === id);
+    if (i >= 0) EMPLEADOS_MOCK.splice(i, 1);
+    return i >= 0;
 };
