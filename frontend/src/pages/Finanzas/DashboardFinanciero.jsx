@@ -11,9 +11,8 @@ import {
 } from 'recharts';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import { formatBs } from '../../constants/finanzasMock';
-import { periodosConMovimientos } from '../../constants/periodos';
-import { PAGOS_MOCK, HISTORIAL_ANTICIPOS } from '../../constants/pagosMock';
-import { todosLosMovimientos, resumenFinanciero } from '../../constants/movimientosMock';
+import { periodosConMovimientos, periodosConTodos, TODOS_LOS_PERIODOS } from '../../constants/periodos';
+import { resumenFinanciero, libroDiario, enPeriodo as enPeriodoLibro } from '../../constants/movimientosMock';
 
 const MESES_NOMBRE = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
     'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
@@ -51,7 +50,8 @@ const COLOR_ESTADO = { Pagadas: '#2E9D78', Pendientes: '#E5A33B', Vencidas: '#D9
 
 export default function DashboardFinanciero() {
     // Periodos: mes en curso + meses cerrados desde el inicio del sistema (periodos.js)
-    const periodos = useMemo(() => periodosConMovimientos(), []);
+    // "Todos los periodos" (por defecto) muestra el acumulado; luego cada mes
+    const periodos = useMemo(() => periodosConTodos(), []);
     const [periodo, setPeriodo] = useState(() => periodos[0] || '');
 
     const datos = useMemo(() => {
@@ -73,7 +73,19 @@ export default function DashboardFinanciero() {
         const saldoPendiente = round2(saldoActivo + saldoVencido);
 
         // --- Grafico "Ingresos vs Gastos" (4 meses hacia atras desde el periodo) ---
-        const trend = mesesPrevios(mes, anio, 4).map(({ label, mes: mm, anio: aa }) => {
+        // Con "Todos los periodos": todos los meses desde el inicio del sistema hasta hoy.
+        // Con un mes: ese mes y los 3 anteriores (sin meses previos al inicio del sistema).
+        const esTodos = periodo === TODOS_LOS_PERIODOS;
+        const mesesSistema = periodosConMovimientos().slice().reverse().map((p) => {
+            const [nombre, a] = p.split(' ');
+            const m = MESES_NOMBRE.indexOf(nombre) + 1;
+            return { label: `${MESES_CORTO[m - 1]} ${String(a).slice(2)}`, mes: m, anio: Number(a) };
+        });
+        const clave = (x) => x.anio * 100 + x.mes;
+        const mesesGrafico = esTodos
+            ? mesesSistema
+            : mesesPrevios(mes, anio, 4).filter((x) => !mesesSistema.length || clave(x) >= clave(mesesSistema[0]));
+        const trend = mesesGrafico.map(({ label, mes: mm, anio: aa }) => {
             const rm = resumenFinanciero(`${MESES_NOMBRE[mm - 1]} ${aa}`);
             return { mes: label, ingresos: rm.ingresos, gastos: rm.gastos };
         });
@@ -99,16 +111,11 @@ export default function DashboardFinanciero() {
             .map((d) => ({ ...d, estado: d.meses >= 2 ? 'Vencido' : 'En mora' }))
             .sort((a, b) => b.monto - a.monto);
 
-        // --- Ultimos movimientos (unificado, top 5) ---
-        const unificado = [
-            // Solo pagos con dinero nuevo (los cubiertos con credito ya entraron como anticipo)
-            ...PAGOS_MOCK.filter((p) => (p.monto || 0) > 0).map((p) => ({ fecha: p.fecha, descripcion: `Pago ${p.id} — Dpto. ${p.depto}`, tipo: 'ingreso', monto: p.monto })),
-            ...HISTORIAL_ANTICIPOS.map((a) => ({ fecha: a.fecha, descripcion: `Anticipo ${a.id} — Dpto. ${a.depto}`, tipo: 'ingreso', monto: a.recibido })),
-            ...todosLosMovimientos().map((m) => ({ fecha: m.fecha, descripcion: m.descripcion, tipo: m.tipo === 'Ingreso' ? 'ingreso' : 'egreso', monto: m.monto })),
-        ].sort((a, b) => {
-            const fa = parseFecha(a.fecha); const fb = parseFecha(b.fecha);
-            return (fb.anio - fa.anio) || (fb.mes - fa.mes) || (fb.dia - fa.dia);
-        }).slice(0, 5);
+        // --- Ultimos movimientos del periodo (del libro completo, top 5) ---
+        const unificado = libroDiario()
+            .filter((m) => enPeriodoLibro(m.fecha, periodo))
+            .map((m) => ({ fecha: m.fecha, descripcion: m.descripcion, tipo: m.tipo === 'Ingreso' ? 'ingreso' : 'egreso', monto: m.monto }))
+            .slice(0, 5);
 
         return { ingresos, gastos, balance, saldoPendiente, trend, estadoExpensas, totalEstado, departamentosMora, ultimos: unificado };
     }, [periodo]);
@@ -155,7 +162,9 @@ export default function DashboardFinanciero() {
                 <Paper sx={{ p: 3, borderRadius: 2 }}>
                     <Typography variant="h3" color="primary.main" sx={{ fontWeight: 600, mb: 0.5 }}>Ingresos vs. gastos</Typography>
                     <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 2 }}>
-                        Tendencia de los ultimos 4 meses (segun lo registrado en el sistema)
+                        {periodo === TODOS_LOS_PERIODOS
+                            ? 'Todos los meses desde el inicio del sistema'
+                            : `${periodo} y los meses anteriores`}
                     </Typography>
                     <Box sx={{ height: 280 }}>
                         <ResponsiveContainer width="100%" height="100%">

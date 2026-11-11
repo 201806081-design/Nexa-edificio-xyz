@@ -11,7 +11,7 @@ import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import { useNavigate } from 'react-router-dom';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import { formatBs } from '../../constants/finanzasMock';
-import { periodosConMovimientos } from '../../constants/periodos';
+import { periodosConTodos } from '../../constants/periodos';
 import { resumenFinanciero } from '../../constants/movimientosMock';
 import { saldoPendienteTotal } from '../../constants/deudasMock';
 
@@ -27,7 +27,8 @@ const ACCESOS = [
 export default function GestionFinanciera() {
     const navigate = useNavigate();
     // Periodos: mes en curso + meses cerrados desde el inicio del sistema (periodos.js)
-    const periodos = useMemo(() => periodosConMovimientos(), []);
+    // "Todos los periodos" (por defecto) muestra el acumulado; luego cada mes
+    const periodos = useMemo(() => periodosConTodos(), []);
     const [periodo, setPeriodo] = useState(() => periodos[0] || '');
 
     // Calcula los KPIs en vivo desde los mocks reales (sincronizado con todo el sistema).

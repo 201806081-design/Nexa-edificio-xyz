@@ -16,7 +16,7 @@ import DashboardLayout from '../../layouts/DashboardLayout';
 import {
     TIPOS_MOVIMIENTO, CATEGORIAS_FILTRO, libroDiario, resumenFinanciero,
 } from '../../constants/movimientosMock';
-import { periodosConMovimientos } from '../../constants/periodos';
+import { periodosConTodos, TODOS_LOS_PERIODOS } from '../../constants/periodos';
 import { formatBs } from '../../constants/finanzasMock';
 
 // 'Octubre 2026' -> {mes: 10, anio: 2026}
@@ -30,6 +30,7 @@ const parsePeriodo = (p) => {
 };
 // Si la fecha 'DD/MM/YYYY' cae dentro del periodo seleccionado
 const fechaEnPeriodo = (fecha, periodoSel) => {
+    if (periodoSel === TODOS_LOS_PERIODOS) return true;
     const [, m, y] = (fecha || '').split('/').map(Number);
     const { mes, anio } = parsePeriodo(periodoSel);
     return m === mes && y === anio;
@@ -52,7 +53,8 @@ const RESUMEN = [
 export default function IngresosGastos() {
     const navigate = useNavigate();
     // Periodos: mes en curso + meses cerrados desde el inicio del sistema (periodos.js)
-    const periodos = useMemo(() => periodosConMovimientos(), []);
+    // "Todos los periodos" (por defecto) muestra el acumulado; luego cada mes
+    const periodos = useMemo(() => periodosConTodos(), []);
     const [periodo, setPeriodo] = useState(() => periodos[0] || '');
     const [tipo, setTipo] = useState('Todos');
     const [categoria, setCategoria] = useState('Todas');

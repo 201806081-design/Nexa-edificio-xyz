@@ -41,6 +41,12 @@ export const periodosCerrados = (hoy = new Date()) => {
     return periodos.reverse();
 };
 
+// Opcion para ver el acumulado desde que inicio el sistema hasta hoy
+export const TODOS_LOS_PERIODOS = 'Todos los periodos';
+
+// Para los resumenes financieros: "Todos los periodos" (por defecto) + cada mes
+export const periodosConTodos = (hoy = new Date()) => [TODOS_LOS_PERIODOS, ...periodosConMovimientos(hoy)];
+
 // Mes en curso + meses cerrados (mas reciente primero).
 // Hoy 9/nov/2026 -> ['Noviembre 2026', 'Octubre 2026']
 export const periodosConMovimientos = (hoy = new Date()) => {
