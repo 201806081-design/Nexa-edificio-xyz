@@ -141,7 +141,8 @@ export default function HistorialPagos() {
     const filas = useMemo(() => {
         const periodoCort = periodoCorto(periodo);
         const pagosDelPeriodo = PAGOS_PERSONAL_MOCK.filter((p) => p.periodo === periodoCort);
-        const idsConPago = new Set(pagosDelPeriodo.map((p) => p.empleadoId));
+        // Solo el pago de SALARIO cubre la planilla (un anticipo o bono no la cubre)
+        const idsConPago = new Set(pagosDelPeriodo.filter((p) => p.concepto === 'Salario').map((p) => p.empleadoId));
         const pendientesPlanilla = PLANILLA_MOCK
             .filter((pl) => pl.periodo === periodo && pl.estado !== 'Pagada' && !idsConPago.has(pl.empleadoId))
             .map((pl) => ({
@@ -162,7 +163,8 @@ export default function HistorialPagos() {
     const resumenPeriodo = useMemo(() => {
         const periodoCort = periodoCorto(periodo);
         const pagosDelPeriodo = PAGOS_PERSONAL_MOCK.filter((p) => p.periodo === periodoCort);
-        const idsConPago = new Set(pagosDelPeriodo.map((p) => p.empleadoId));
+        // Solo el pago de SALARIO cubre la planilla (un anticipo o bono no la cubre)
+        const idsConPago = new Set(pagosDelPeriodo.filter((p) => p.concepto === 'Salario').map((p) => p.empleadoId));
         const pendientesPlanilla = PLANILLA_MOCK
             .filter((pl) => pl.periodo === periodo && pl.estado !== 'Pagada' && !idsConPago.has(pl.empleadoId));
         const pagados = pagosDelPeriodo.filter((p) => p.estado === 'Pagado');

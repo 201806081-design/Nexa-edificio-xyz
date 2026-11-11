@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect } from 'react';
 import {
     Box, Typography, Paper, Button, Chip, Select, MenuItem, TextField,
     Table, TableHead, TableBody, TableRow, TableCell, IconButton, InputAdornment, Alert, Snackbar,
-    Dialog, DialogTitle, DialogContent, DialogActions, Menu, Divider,
+    Dialog, DialogTitle, DialogContent, DialogActions, Menu, Divider, ToggleButton, ToggleButtonGroup,
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import DownloadIcon from '@mui/icons-material/Download';
@@ -14,6 +14,8 @@ import MoreVertIcon from '@mui/icons-material/MoreVert';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import SavingsIcon from '@mui/icons-material/Savings';
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
+import PlaylistAddIcon from '@mui/icons-material/PlaylistAdd';
+import DeleteIcon from '@mui/icons-material/Delete';
 import { useNavigate } from 'react-router-dom';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -21,8 +23,9 @@ import DashboardLayout from '../../layouts/DashboardLayout';
 import {
     PLANILLA_MOCK, PAGOS_PERSONAL_MOCK, RESUMEN_PLANILLA, RESUMEN_PAGOS_PERSONAL,
     ESTADOS_PLANILLA, TIPOS_DESCUENTO,
-    nombreEmpleado, cargoEmpleado, salarioDesdeCargo,
-    periodosDisponibles, periodoEnCurso, empleadosParaPlanilla,
+    nombreEmpleado, cargoEmpleado,
+    periodosDisponibles, periodoEnCurso, EMPLEADOS_MOCK, MEDIOS_PAGO_PERSONAL,
+    previaPlanilla, generarPlanillaPeriodo, registrarNovedad, eliminarNovedad, novedadesDe,
 } from '../../constants/personalMock';
 import { formatBs } from '../../constants/finanzasMock';
 
@@ -136,32 +139,40 @@ export default function Planilla() {
 
     const totalNeto = filas.reduce((s, f) => s + (f.neto || 0), 0);
 
-    // --- Generar planilla (idempotente: solo informa si ya existe) ---
-    const generarPlanilla = () => {
-        const yaTiene = PLANILLA_MOCK.some((p) => p.periodo === periodo);
-        if (yaTiene) {
-            setSnack({ open: true, msg: `La planilla de ${periodo} ya esta generada`, sev: 'warning' });
-            return;
-        }
-        // Entran los activos y los inactivos que terminaron de trabajar ese mes
-        const activos = empleadosParaPlanilla(periodo);
-        if (activos.length === 0) {
-            setSnack({ open: true, msg: `No hay empleados que hayan trabajado en ${periodo}`, sev: 'warning' });
-            return;
-        }
-        activos.forEach((e) => {
-            PLANILLA_MOCK.push({
-                empleadoId: e.id, periodo,
-                salarioBase: salarioDesdeCargo(e.cargo),
-                bonos: 0, anticipos: 0, otrosDesc: 0,
-                neto: salarioDesdeCargo(e.cargo),
-                estado: 'Calculado',
-            });
-        });
-        recalcularResumenes();
-        setTick((t) => t + 1);
-        setSnack({ open: true, msg: `Planilla de ${periodo} generada con ${activos.length} empleados`, sev: 'success' });
+    // --- Generar planilla: vista previa con salarios fijos y novedades del mes ---
+    const [generarAbierto, setGenerarAbierto] = useState(false);
+    const periodosGenerables = periodosDisponibles().filter((p) => !PLANILLA_MOCK.some((x) => x.periodo === p));
+    const [periodoGen, setPeriodoGen] = useState('');
+    const abrirGenerar = () => {
+        setPeriodoGen(periodosGenerables[0] || '');
+        setGenerarAbierto(true);
     };
+    const previa = periodoGen ? previaPlanilla(periodoGen) : [];
+    const confirmarGenerar = () => {
+        const n = generarPlanillaPeriodo(periodoGen);
+        recalcularResumenes();
+        setGenerarAbierto(false);
+        setPeriodo(periodoGen);
+        setTick((t) => t + 1);
+        setSnack({ open: true, msg: `Planilla de ${periodoGen} generada con ${n} empleados`, sev: 'success' });
+    };
+
+    // --- Anticipos y descuentos del mes en curso (se aplican al generar la planilla) ---
+    const periodoActual = periodoEnCurso();
+    const NOV_VACIA = { tipo: 'Anticipo', empleadoId: '', subtipo: 'Rotura/dano', monto: '', motivo: '', medio: 'Efectivo' };
+    const [novAbierto, setNovAbierto] = useState(false);
+    const [nov, setNov] = useState(NOV_VACIA);
+    const [novError, setNovError] = useState('');
+    const cambiarNov = (campo, valor) => { setNov((n) => ({ ...n, [campo]: valor })); setNovError(''); };
+    const guardarNov = () => {
+        const err = registrarNovedad({ ...nov, periodo: periodoActual });
+        if (err) { setNovError(err); return; }
+        setNov((n) => ({ ...NOV_VACIA, tipo: n.tipo }));
+        setTick((t) => t + 1);
+        setSnack({ open: true, msg: `${nov.tipo} registrado: se descontara en la planilla de ${periodoActual}`, sev: 'success' });
+    };
+    const quitarNov = (id) => { eliminarNovedad(id); setTick((t) => t + 1); };
+    const novedadesMes = novedadesDe(periodoActual);
 
     // --- Exportar a PDF (jsPDF + autoTable) ---
     const exportar = () => {
@@ -227,36 +238,38 @@ export default function Planilla() {
     // --- Registrar anticipo ---
     const abrirAnticipo = () => {
         cerrarMenu();
-        setAnticipoDraft({ monto: 0, motivo: '' });
+        const fp0 = PLANILLA_MOCK.find((p) => p.empleadoId === filaSel.empleadoId && p.periodo === filaSel.periodo);
+        setAnticipoDraft({ monto: fp0?.anticipos || 0, motivo: '' });
         setAnticipoAbierto(true);
     };
     const confirmarAnticipo = () => {
         const monto = Number(anticipoDraft.monto) || 0;
-        if (monto <= 0) {
-            setSnack({ open: true, msg: 'Ingresa un monto valido para el anticipo', sev: 'warning' });
+        if (monto < 0) {
+            setSnack({ open: true, msg: 'El anticipo no puede ser negativo', sev: 'warning' });
             return;
         }
         const fp = PLANILLA_MOCK.find((p) => p.empleadoId === filaSel.empleadoId && p.periodo === filaSel.periodo);
         if (!fp) return;
-        fp.anticipos = (fp.anticipos || 0) + monto;
+        fp.anticipos = monto; // se corrige el total de anticipos de este periodo
         fp.neto = (fp.salarioBase || 0) + (fp.bonos || 0) - (fp.anticipos || 0) - (fp.otrosDesc || 0);
         recalcularResumenes();
         setAnticipoAbierto(false);
         setTick((t) => t + 1);
         const motivoTxt = anticipoDraft.motivo.trim() ? ` (${anticipoDraft.motivo.trim()})` : '';
-        setSnack({ open: true, msg: `Anticipo de ${formatBs(monto)} aplicado a ${filaSel.empleado}${motivoTxt}`, sev: 'success' });
+        setSnack({ open: true, msg: `Anticipos de ${filaSel.empleado} actualizados a ${formatBs(monto)}${motivoTxt}`, sev: 'success' });
     };
 
     // --- Registrar descuento ---
     const abrirDescuento = () => {
         cerrarMenu();
-        setDescDraft({ monto: 0, tipo: 'Rotura/dano', motivo: '' });
+        const fp0 = PLANILLA_MOCK.find((p) => p.empleadoId === filaSel.empleadoId && p.periodo === filaSel.periodo);
+        setDescDraft({ monto: fp0?.otrosDesc || 0, tipo: 'Rotura/dano', motivo: '' });
         setDescAbierto(true);
     };
     const confirmarDescuento = () => {
         const monto = Number(descDraft.monto) || 0;
-        if (monto <= 0) {
-            setSnack({ open: true, msg: 'Ingresa un monto valido para el descuento', sev: 'warning' });
+        if (monto < 0) {
+            setSnack({ open: true, msg: 'El descuento no puede ser negativo', sev: 'warning' });
             return;
         }
         if (!descDraft.motivo.trim()) {
@@ -265,12 +278,12 @@ export default function Planilla() {
         }
         const fp = PLANILLA_MOCK.find((p) => p.empleadoId === filaSel.empleadoId && p.periodo === filaSel.periodo);
         if (!fp) return;
-        fp.otrosDesc = (fp.otrosDesc || 0) + monto;
+        fp.otrosDesc = monto; // se corrige el total de descuentos de este periodo
         fp.neto = (fp.salarioBase || 0) + (fp.bonos || 0) - (fp.anticipos || 0) - (fp.otrosDesc || 0);
         recalcularResumenes();
         setDescAbierto(false);
         setTick((t) => t + 1);
-        setSnack({ open: true, msg: `Descuento de ${formatBs(monto)} (${descDraft.tipo}) aplicado a ${filaSel.empleado}`, sev: 'success' });
+        setSnack({ open: true, msg: `Descuentos de ${filaSel.empleado} actualizados a ${formatBs(monto)} (${descDraft.tipo})`, sev: 'success' });
     };
 
     const verDetalle = () => {
@@ -298,7 +311,11 @@ export default function Planilla() {
 
             {/* Barra de acciones (al nivel de Expensas) */}
             <Box sx={{ display: 'flex', gap: 1.5, justifyContent: { xs: 'stretch', md: 'flex-end' }, flexWrap: 'wrap', mb: 2 }}>
-                <Button variant="contained" startIcon={<AddIcon />} onClick={generarPlanilla}
+                <Button variant="outlined" startIcon={<PlaylistAddIcon />} onClick={() => { setNov(NOV_VACIA); setNovError(''); setNovAbierto(true); }}
+                    sx={{ width: { xs: '100%', md: 'auto' } }}>
+                    Anticipos y descuentos del mes
+                </Button>
+                <Button variant="contained" startIcon={<AddIcon />} onClick={abrirGenerar}
                     sx={{ width: { xs: '100%', md: 'auto' } }}>
                     Generar planilla
                 </Button>
@@ -444,13 +461,13 @@ export default function Planilla() {
                 {filaSel?.estado !== 'Pagada' && (
                     <MenuItem onClick={abrirAnticipo}>
                         <SavingsIcon fontSize="small" sx={{ mr: 1, color: '#B6802A' }} />
-                        Registrar anticipo
+                        Editar anticipo
                     </MenuItem>
                 )}
                 {filaSel?.estado !== 'Pagada' && (
                     <MenuItem onClick={abrirDescuento}>
                         <ReceiptLongIcon fontSize="small" sx={{ mr: 1, color: '#D9534F' }} />
-                        Registrar descuento
+                        Editar descuento
                     </MenuItem>
                 )}
                 {filaSel?.estado !== 'Pagada' && (
@@ -474,7 +491,7 @@ export default function Planilla() {
                     <Box sx={{ width: 36, height: 36, borderRadius: '50%', bgcolor: '#FDF0D5', color: '#B6802A', display: 'grid', placeItems: 'center' }}>
                         <SavingsIcon fontSize="small" />
                     </Box>
-                    Registrar anticipo
+                    Editar anticipo
                 </DialogTitle>
                 <DialogContent dividers>
                     {filaSel && (
@@ -484,7 +501,7 @@ export default function Planilla() {
                                 en el periodo <strong>{filaSel.periodo}</strong>.
                             </Typography>
 
-                            <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Monto del anticipo</Typography>
+                            <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Total de anticipos del periodo</Typography>
                             <TextField fullWidth size="small" type="number" value={anticipoDraft.monto}
                                 onChange={(e) => setAnticipoDraft((p) => ({ ...p, monto: e.target.value }))}
                                 slotProps={{ input: { startAdornment: <InputAdornment position="start">Bs</InputAdornment> } }}
@@ -499,7 +516,7 @@ export default function Planilla() {
                             <Box sx={{ display: 'flex', justifyContent: 'space-between', p: 1.5, bgcolor: '#E4EEF5', borderRadius: 2 }}>
                                 <Typography variant="body2" sx={{ fontWeight: 700 }}>Nuevo neto a pagar</Typography>
                                 <Typography variant="h3" sx={{ fontWeight: 700, color: 'primary.main' }}>
-                                    {formatBs((Number(filaSel.neto) || 0) - (Number(anticipoDraft.monto) || 0))}
+                                    {formatBs((Number(filaSel.salarioBase) || 0) + (Number(filaSel.bonos) || 0) - (Number(anticipoDraft.monto) || 0) - (Number(filaSel.otrosDesc) || 0))}
                                 </Typography>
                             </Box>
                         </>
@@ -507,7 +524,7 @@ export default function Planilla() {
                 </DialogContent>
                 <DialogActions sx={{ p: 2 }}>
                     <Button variant="outlined" onClick={() => setAnticipoAbierto(false)}>Cancelar</Button>
-                    <Button variant="contained" onClick={confirmarAnticipo}>Aplicar anticipo</Button>
+                    <Button variant="contained" onClick={confirmarAnticipo}>Guardar anticipo</Button>
                 </DialogActions>
             </Dialog>
 
@@ -519,7 +536,7 @@ export default function Planilla() {
                     <Box sx={{ width: 36, height: 36, borderRadius: '50%', bgcolor: '#FBEAE9', color: '#D9534F', display: 'grid', placeItems: 'center' }}>
                         <ReceiptLongIcon fontSize="small" />
                     </Box>
-                    Registrar descuento
+                    Editar descuento
                 </DialogTitle>
                 <DialogContent dividers>
                     {filaSel && (
@@ -553,7 +570,7 @@ export default function Planilla() {
                             <Box sx={{ display: 'flex', justifyContent: 'space-between', p: 1.5, bgcolor: '#E4EEF5', borderRadius: 2 }}>
                                 <Typography variant="body2" sx={{ fontWeight: 700 }}>Nuevo neto a pagar</Typography>
                                 <Typography variant="h3" sx={{ fontWeight: 700, color: 'primary.main' }}>
-                                    {formatBs((Number(filaSel.neto) || 0) - (Number(descDraft.monto) || 0))}
+                                    {formatBs((Number(filaSel.salarioBase) || 0) + (Number(filaSel.bonos) || 0) - (Number(filaSel.anticipos) || 0) - (Number(descDraft.monto) || 0))}
                                 </Typography>
                             </Box>
                         </>
@@ -634,6 +651,176 @@ export default function Planilla() {
                     {snack.msg}
                 </Alert>
             </Snackbar>
+
+            {/* ============================================================ */}
+            {/* Dialog: Generar planilla (vista previa)                      */}
+            {/* ============================================================ */}
+            <Dialog open={generarAbierto} onClose={() => setGenerarAbierto(false)} maxWidth="md" fullWidth>
+                <DialogTitle sx={{ fontWeight: 700 }}>Generar planilla</DialogTitle>
+                <DialogContent dividers>
+                    {periodosGenerables.length === 0 ? (
+                        <Alert severity="info">
+                            Todas las planillas de los meses cerrados ya estan generadas. La de {periodoActual} se podra
+                            generar cuando el mes termine.
+                        </Alert>
+                    ) : (
+                        <>
+                            <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Periodo</Typography>
+                            <Select size="small" value={periodoGen} onChange={(e) => setPeriodoGen(e.target.value)} sx={{ minWidth: 220, mb: 2 }}>
+                                {periodosGenerables.map((p) => <MenuItem key={p} value={p}>{p}</MenuItem>)}
+                            </Select>
+                            <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+                                Salario fijo de cada cargo, menos los anticipos y descuentos registrados durante el mes.
+                                Los bonos se agregan despues desde Historial de pagos.
+                            </Typography>
+                            <Box sx={{ overflowX: 'auto' }}>
+                                <Table size="small" sx={{ minWidth: 620 }}>
+                                    <TableHead>
+                                        <TableRow sx={{ bgcolor: '#F3F6FA' }}>
+                                            <TableCell><strong>Empleado</strong></TableCell>
+                                            <TableCell><strong>Cargo</strong></TableCell>
+                                            <TableCell align="right"><strong>Salario base</strong></TableCell>
+                                            <TableCell align="right"><strong>Anticipos</strong></TableCell>
+                                            <TableCell align="right"><strong>Descuentos</strong></TableCell>
+                                            <TableCell align="right"><strong>Neto</strong></TableCell>
+                                        </TableRow>
+                                    </TableHead>
+                                    <TableBody>
+                                        {previa.map((f) => (
+                                            <TableRow key={f.empleadoId}>
+                                                <TableCell sx={{ fontWeight: 600 }}>{f.empleado}</TableCell>
+                                                <TableCell>{f.cargo}</TableCell>
+                                                <TableCell align="right">{formatBs(f.salarioBase)}</TableCell>
+                                                <TableCell align="right" sx={{ color: f.anticipos ? '#B6802A' : 'text.secondary' }}>
+                                                    {f.anticipos ? `- ${formatBs(f.anticipos)}` : '—'}
+                                                </TableCell>
+                                                <TableCell align="right" sx={{ color: f.otrosDesc ? '#D9534F' : 'text.secondary' }}>
+                                                    {f.otrosDesc ? `- ${formatBs(f.otrosDesc)}` : '—'}
+                                                </TableCell>
+                                                <TableCell align="right" sx={{ fontWeight: 700 }}>{formatBs(f.neto)}</TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                            </Box>
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 2, p: 1.5, bgcolor: '#E4EEF5', borderRadius: 2 }}>
+                                <Typography variant="body2" sx={{ fontWeight: 700 }}>Total neto ({previa.length} empleados)</Typography>
+                                <Typography variant="h3" sx={{ fontWeight: 700, color: 'primary.main' }}>
+                                    {formatBs(previa.reduce((t, f) => t + f.neto, 0))}
+                                </Typography>
+                            </Box>
+                        </>
+                    )}
+                </DialogContent>
+                <DialogActions sx={{ p: 2 }}>
+                    <Button variant="outlined" onClick={() => setGenerarAbierto(false)}>Cancelar</Button>
+                    <Button variant="contained" disabled={!periodoGen || previa.length === 0} onClick={confirmarGenerar}>
+                        Generar planilla
+                    </Button>
+                </DialogActions>
+            </Dialog>
+
+            {/* ============================================================ */}
+            {/* Dialog: Anticipos y descuentos del mes en curso              */}
+            {/* ============================================================ */}
+            <Dialog open={novAbierto} onClose={() => setNovAbierto(false)} maxWidth="md" fullWidth>
+                <DialogTitle sx={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <PlaylistAddIcon sx={{ color: '#1F5F8B' }} /> Anticipos y descuentos de {periodoActual}
+                </DialogTitle>
+                <DialogContent dividers>
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                        Registra lo que ocurre durante el mes. Cuando el mes termine y generes la planilla de
+                        <strong> {periodoActual}</strong>, se descontara del neto de cada empleado. Un <strong>anticipo</strong> es
+                        dinero que se entrega hoy (queda como pago y gasto); un <strong>descuento</strong> no mueve dinero (rotura, ajuste...).
+                    </Typography>
+                    <ToggleButtonGroup exclusive size="small" value={nov.tipo} sx={{ mb: 2 }}
+                        onChange={(_, v) => { if (v) cambiarNov('tipo', v); }}>
+                        <ToggleButton value="Anticipo">Anticipo</ToggleButton>
+                        <ToggleButton value="Descuento">Descuento</ToggleButton>
+                    </ToggleButtonGroup>
+                    <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', mb: 2 }}>
+                        <Box sx={{ flex: 2, minWidth: 220 }}>
+                            <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Empleado</Typography>
+                            <Select fullWidth size="small" displayEmpty value={nov.empleadoId} onChange={(e) => cambiarNov('empleadoId', e.target.value)}>
+                                <MenuItem value=""><em>Elige un empleado</em></MenuItem>
+                                {EMPLEADOS_MOCK.filter((e) => e.estado === 'Activo').map((e) => (
+                                    <MenuItem key={e.id} value={e.id}>{e.nombre} · {e.cargo}</MenuItem>
+                                ))}
+                            </Select>
+                        </Box>
+                        {nov.tipo === 'Descuento' ? (
+                            <Box sx={{ flex: 1, minWidth: 170 }}>
+                                <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Tipo de descuento</Typography>
+                                <Select fullWidth size="small" value={nov.subtipo} onChange={(e) => cambiarNov('subtipo', e.target.value)}>
+                                    {TIPOS_DESCUENTO.filter((t) => t !== 'Anticipo salarial').map((t) => <MenuItem key={t} value={t}>{t}</MenuItem>)}
+                                </Select>
+                            </Box>
+                        ) : (
+                            <Box sx={{ flex: 1, minWidth: 170 }}>
+                                <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Medio de entrega</Typography>
+                                <Select fullWidth size="small" value={nov.medio} onChange={(e) => cambiarNov('medio', e.target.value)}>
+                                    {MEDIOS_PAGO_PERSONAL.map((m) => <MenuItem key={m} value={m}>{m}</MenuItem>)}
+                                </Select>
+                            </Box>
+                        )}
+                        <Box sx={{ flex: 1, minWidth: 140 }}>
+                            <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Monto</Typography>
+                            <TextField fullWidth size="small" type="number" placeholder="0" value={nov.monto}
+                                slotProps={{ input: { startAdornment: <InputAdornment position="start">Bs</InputAdornment> }, htmlInput: { min: 0, step: 0.01 } }}
+                                onKeyDown={(e) => { if (['e', 'E', '+', '-'].includes(e.key)) e.preventDefault(); }}
+                                onChange={(e) => cambiarNov('monto', e.target.value)} />
+                        </Box>
+                    </Box>
+                    <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Motivo</Typography>
+                    <TextField fullWidth size="small" value={nov.motivo}
+                        placeholder={nov.tipo === 'Anticipo' ? 'Ej. Urgencia familiar' : 'Ej. Rotura de vidrio en porteria'}
+                        slotProps={{ htmlInput: { maxLength: 150 } }}
+                        onChange={(e) => cambiarNov('motivo', e.target.value)} sx={{ mb: 2 }} />
+                    {novError && <Alert severity="error" sx={{ mb: 2 }}>{novError}</Alert>}
+                    <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 2 }}>
+                        <Button variant="contained" startIcon={<AddIcon />} onClick={guardarNov}>Registrar {nov.tipo.toLowerCase()}</Button>
+                    </Box>
+
+                    <Typography variant="body2" sx={{ fontWeight: 700, mb: 1 }}>Pendientes de {periodoActual}</Typography>
+                    {novedadesMes.length === 0 ? (
+                        <Typography variant="body2" color="text.secondary">Todavia no hay anticipos ni descuentos este mes.</Typography>
+                    ) : (
+                        <Box sx={{ overflowX: 'auto' }}>
+                            <Table size="small" sx={{ minWidth: 600 }}>
+                                <TableHead>
+                                    <TableRow sx={{ bgcolor: '#F3F6FA' }}>
+                                        <TableCell><strong>Fecha</strong></TableCell>
+                                        <TableCell><strong>Empleado</strong></TableCell>
+                                        <TableCell><strong>Tipo</strong></TableCell>
+                                        <TableCell><strong>Motivo</strong></TableCell>
+                                        <TableCell align="right"><strong>Monto</strong></TableCell>
+                                        <TableCell align="center"><strong>Quitar</strong></TableCell>
+                                    </TableRow>
+                                </TableHead>
+                                <TableBody>
+                                    {novedadesMes.map((n) => (
+                                        <TableRow key={n.id}>
+                                            <TableCell>{n.fecha}</TableCell>
+                                            <TableCell sx={{ fontWeight: 600 }}>{nombreEmpleado(n.empleadoId)}</TableCell>
+                                            <TableCell>{n.tipo === 'Anticipo' ? 'Anticipo' : n.subtipo}</TableCell>
+                                            <TableCell>{n.motivo}</TableCell>
+                                            <TableCell align="right" sx={{ fontWeight: 700 }}>{formatBs(n.monto)}</TableCell>
+                                            <TableCell align="center">
+                                                <IconButton size="small" onClick={() => quitarNov(n.id)} sx={{ color: '#D9534F' }}>
+                                                    <DeleteIcon fontSize="small" />
+                                                </IconButton>
+                                            </TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        </Box>
+                    )}
+                </DialogContent>
+                <DialogActions sx={{ p: 2 }}>
+                    <Button variant="outlined" onClick={() => setNovAbierto(false)}>Cerrar</Button>
+                </DialogActions>
+            </Dialog>
         </DashboardLayout>
     );
 }

@@ -276,3 +276,103 @@ export const eliminarEmpleado = (id) => {
     if (i >= 0) EMPLEADOS_MOCK.splice(i, 1);
     return i >= 0;
 };
+
+// ============================================================
+//  ANTICIPOS Y DESCUENTOS DEL MES EN CURSO ("novedades")
+//  Igual que los cargos extra de Expensas: ocurren DURANTE el mes, pero la
+//  planilla se genera cuando el mes termina. Se registran aqui como pendientes
+//  y, al generar la planilla de ese periodo, se descuentan del neto de cada uno.
+//   - Anticipo: se entrega dinero ese dia -> tambien queda como pago 'Anticipo'
+//     (aparece en Historial de pagos y como gasto de Personal en Finanzas).
+//   - Descuento: no mueve dinero (rotura, ajuste...) -> solo baja el neto.
+// ============================================================
+const ABR_MES = { Enero: 'Ene.', Febrero: 'Feb.', Marzo: 'Mar.', Abril: 'Abr.', Mayo: 'May.', Junio: 'Jun.',
+    Julio: 'Jul.', Agosto: 'Ago.', Septiembre: 'Sep.', Octubre: 'Oct.', Noviembre: 'Nov.', Diciembre: 'Dic.' };
+export const periodoCortoDe = (periodo) => {
+    const [mes, anio] = String(periodo || '').split(' ');
+    return ABR_MES[mes] ? `${ABR_MES[mes]} ${anio}` : periodo;
+};
+const fechaHoyDMY = () => {
+    const h = new Date();
+    return `${String(h.getDate()).padStart(2, '0')}/${String(h.getMonth() + 1).padStart(2, '0')}/${h.getFullYear()}`;
+};
+const siguienteIdPagoPersonal = () => {
+    const nums = PAGOS_PERSONAL_MOCK.map((p) => Number(String(p.id || '').replace(/\D/g, '')) || 0);
+    return `PE-${String((nums.length ? Math.max(...nums) : 0) + 1).padStart(4, '0')}`;
+};
+
+export const NOVEDADES_PENDIENTES = [];
+
+// { periodo, empleadoId, tipo: 'Anticipo'|'Descuento', subtipo, monto, motivo, medio }
+// Devuelve un mensaje de error o null.
+export const registrarNovedad = ({ periodo, empleadoId, tipo, subtipo, monto, motivo, medio = 'Efectivo' }) => {
+    const emp = EMPLEADOS_MOCK.find((e) => e.id === empleadoId);
+    const m = Math.round((Number(monto) || 0) * 100) / 100;
+    if (!emp) return 'Elige un empleado';
+    if (!(m > 0)) return 'Ingresa un monto mayor a 0';
+    if (!String(motivo || '').trim()) return 'El motivo es obligatorio';
+    // No se puede descontar mas que su salario del mes
+    const yaPendiente = NOVEDADES_PENDIENTES
+        .filter((n) => n.periodo === periodo && n.empleadoId === empleadoId)
+        .reduce((s, n) => s + n.monto, 0);
+    if (yaPendiente + m > emp.salarioBase) return `Supera su salario del mes (${emp.salarioBase} Bs)`;
+
+    const id = NOVEDADES_PENDIENTES.reduce((mx, n) => Math.max(mx, n.id), 0) + 1;
+    const fecha = fechaHoyDMY();
+    let pagoId = null;
+    if (tipo === 'Anticipo') {
+        pagoId = siguienteIdPagoPersonal();
+        PAGOS_PERSONAL_MOCK.push({
+            id: pagoId, fecha, empleadoId, empleado: emp.nombre, periodo: periodoCortoDe(periodo),
+            concepto: 'Anticipo', medio, referencia: '', montoNeto: m, estado: 'Pagado', motivo: String(motivo).trim(),
+        });
+    }
+    NOVEDADES_PENDIENTES.push({
+        id, periodo, empleadoId, tipo, subtipo: tipo === 'Anticipo' ? 'Anticipo salarial' : subtipo,
+        monto: m, motivo: String(motivo).trim(), fecha, pagoId,
+    });
+    return null;
+};
+
+export const eliminarNovedad = (id) => {
+    const i = NOVEDADES_PENDIENTES.findIndex((n) => n.id === id);
+    if (i < 0) return;
+    const n = NOVEDADES_PENDIENTES[i];
+    if (n.pagoId) { // se registro por error: se quita tambien el pago del anticipo
+        const j = PAGOS_PERSONAL_MOCK.findIndex((p) => p.id === n.pagoId);
+        if (j >= 0) PAGOS_PERSONAL_MOCK.splice(j, 1);
+    }
+    NOVEDADES_PENDIENTES.splice(i, 1);
+};
+
+export const novedadesDe = (periodo) => NOVEDADES_PENDIENTES.filter((n) => n.periodo === periodo);
+
+// Totales pendientes de un empleado en un periodo: { anticipos, descuentos }
+export const totalesNovedades = (periodo, empleadoId) => novedadesDe(periodo)
+    .filter((n) => n.empleadoId === empleadoId)
+    .reduce((t, n) => (n.tipo === 'Anticipo'
+        ? { ...t, anticipos: t.anticipos + n.monto } : { ...t, descuentos: t.descuentos + n.monto }),
+    { anticipos: 0, descuentos: 0 });
+
+// Vista previa de la planilla de un periodo (antes de generarla)
+export const previaPlanilla = (periodo) => empleadosParaPlanilla(periodo).map((e) => {
+    const { anticipos, descuentos } = totalesNovedades(periodo, e.id);
+    return {
+        empleadoId: e.id, empleado: e.nombre, cargo: e.cargo, salarioBase: e.salarioBase,
+        anticipos, otrosDesc: descuentos, neto: e.salarioBase - anticipos - descuentos,
+    };
+});
+
+// Genera la planilla del periodo con las novedades aplicadas. Devuelve cuantas filas creo.
+export const generarPlanillaPeriodo = (periodo) => {
+    if (PLANILLA_MOCK.some((p) => p.periodo === periodo)) return 0;
+    const filas = previaPlanilla(periodo);
+    filas.forEach((f) => PLANILLA_MOCK.push({
+        empleadoId: f.empleadoId, periodo, salarioBase: f.salarioBase,
+        bonos: 0, anticipos: f.anticipos, otrosDesc: f.otrosDesc, neto: f.neto, estado: 'Calculado',
+    }));
+    for (let i = NOVEDADES_PENDIENTES.length - 1; i >= 0; i--) {
+        if (NOVEDADES_PENDIENTES[i].periodo === periodo) NOVEDADES_PENDIENTES.splice(i, 1);
+    }
+    return filas.length;
+};

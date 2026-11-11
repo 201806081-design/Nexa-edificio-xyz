@@ -473,7 +473,7 @@ export default function Expensas() {
                 {filaSel?.estado !== 'Pagada' && (
                     <MenuItem onClick={abrirExtras}>
                         <LocalOfferIcon fontSize="small" sx={{ mr: 1, color: '#B6802A' }} />
-                        {(filaSel?.extras || []).length > 0 ? 'Editar gastos extras' : 'Registrar gastos extras'}
+                        Editar gastos extras
                     </MenuItem>
                 )}
                 {filaSel?.estado === 'Lista' && (

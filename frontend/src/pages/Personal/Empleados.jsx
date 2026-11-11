@@ -108,7 +108,7 @@ export default function Empleados() {
     // Modales
     const [formAbierto, setFormAbierto] = useState(false);
     const [empEditar, setEmpEditar] = useState(null);      // null = nuevo empleado
-    const [credenciales, setCredenciales] = useState(null); // { usuario, password } recien creados
+    const [credenciales, setCredenciales] = useState(null); // { usuario } cuenta recien creada
     const [eliminarAbierto, setEliminarAbierto] = useState(false);
     const [motivoBaja, setMotivoBaja] = useState({ motivo: 'Renuncia', detalle: '' });
 
@@ -441,13 +441,12 @@ export default function Empleados() {
                     </Typography>
                     <Box sx={{ bgcolor: '#F3F6FA', borderRadius: 2, p: 2, mb: 2 }}>
                         <Typography variant="body2">Usuario: <strong>{credenciales?.usuario.username}</strong></Typography>
-                        <Typography variant="body2">Contraseña temporal: <strong>{credenciales?.password}</strong></Typography>
+                        <Typography variant="body2">Correo: <strong>{credenciales?.usuario.email}</strong></Typography>
                     </Box>
-                    <Alert severity="info" icon={false} sx={{ bgcolor: '#E4EEF5', color: 'text.primary' }}>
+                    <Alert severity="success" icon={false} sx={{ bgcolor: '#E4F4EE', color: 'text.primary' }}>
                         <Typography variant="body2">
-                            Se envio a <strong>{credenciales?.usuario.email}</strong>
-                            {credenciales?.usuario.celular ? <> y por SMS a <strong>+591 {credenciales.usuario.celular}</strong></> : null}.
-                            Al entrar por primera vez debera cambiar la contraseña.
+                            Se envio a su correo un enlace para activar la cuenta y crear su contraseña.
+                            Nadie mas la conoce, ni el administrador.
                         </Typography>
                         <Typography variant="caption" color="text.secondary">(Envio simulado: lo hara el backend.)</Typography>
                     </Alert>

@@ -12,9 +12,11 @@
 // empleadoId: vinculo con el personal. Es solo del frontend: en el backend las
 // tablas Usuario y Empleado todavia no estan relacionadas.
 //
-// CONTRASEÑAS: aqui se simula. Se genera una temporal, se "envia" al correo y al
-// celular, y el usuario debe cambiarla al entrar (debeCambiarPassword). En el
-// backend la contraseña se guarda cifrada (bcrypt) y el envio lo hace el servidor.
+// CONTRASEÑAS: nadie las ve, ni el administrador. Al crear una cuenta (o al
+// restablecerla) se "envia" al CORREO del usuario un enlace de un solo uso para
+// que el mismo cree su contraseña. Mientras no lo use, la cuenta queda
+// "pendiente de activacion" (debeCambiarPassword). Aqui el envio es simulado:
+// en el backend la contraseña se guarda cifrada (bcrypt) y el correo lo envia el servidor.
 import { ROLES } from './permisos';
 import { EMPLEADOS_MOCK } from './personalMock';
 
@@ -61,18 +63,7 @@ export const generarUsername = (nombres, apellidos) => {
     return u;
 };
 
-// Contraseña temporal de 10 caracteres (letras, numeros y un simbolo)
-export const generarPasswordTemporal = () => {
-    const letras = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz';
-    const nums = '23456789';
-    const pick = (s) => s[Math.floor(Math.random() * s.length)];
-    let p = '';
-    for (let i = 0; i < 6; i++) p += pick(letras);
-    for (let i = 0; i < 3; i++) p += pick(nums);
-    return `${p}#`;
-};
-
-// Crea una cuenta. Devuelve { usuario, password } (password solo para mostrarla una vez).
+// Crea una cuenta y "envia" el enlace de activacion a su correo. Devuelve { usuario }.
 export const crearUsuario = ({ nombre, nombres, apellidos, email, celular = '', rol, empleadoId = null }) => {
     const id = USUARIOS_MOCK.reduce((m, u) => Math.max(m, u.id), 0) + 1;
     const [n1, ...resto] = String(nombre || '').trim().split(/\s+/);
@@ -84,19 +75,19 @@ export const crearUsuario = ({ nombre, nombres, apellidos, email, celular = '', 
     };
     if (empleadoId) USUARIOS_MOCK.forEach((u) => { if (u.empleadoId === empleadoId) u.empleadoId = null; });
     USUARIOS_MOCK.push(usuario);
-    return { usuario, password: generarPasswordTemporal() };
+    return { usuario };
 };
 
-// Genera una contraseña temporal nueva (el usuario la cambia al entrar)
+// "Envia" al correo del usuario un enlace para crear una contraseña nueva
 export const restablecerPassword = (id) => {
     const u = USUARIOS_MOCK.find((x) => x.id === id);
     if (!u) return null;
     u.debeCambiarPassword = true;
-    return generarPasswordTemporal();
+    return { usuario: u };
 };
 
 // El Administrador es personal: al registrar (o pasar a) un empleado con cargo
-// Administrador se le crea su cuenta, si aun no tiene. Devuelve { usuario, password } o null.
+// Administrador se le crea su cuenta, si aun no tiene. Devuelve { usuario } o null.
 export const asegurarCuentaAdministrador = (empleado) => {
     if (!empleado || empleado.cargo !== 'Administrador' || empleado.estado !== 'Activo') return null;
     const existente = usuarioDeEmpleado(empleado.id);

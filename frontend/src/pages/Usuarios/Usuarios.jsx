@@ -71,11 +71,11 @@ export default function Usuarios() {
   };
 
   // ---------- Credenciales (alta o restablecer) ----------
-  const [credenciales, setCredenciales] = useState(null); // { usuario, password, titulo }
+  const [credenciales, setCredenciales] = useState(null); // { usuario, titulo, texto }
   const restablecer = (u) => {
-    const password = restablecerPassword(u.id);
+    restablecerPassword(u.id);
     refrescar();
-    setCredenciales({ usuario: u, password, titulo: 'Contraseña restablecida' });
+    setCredenciales({ usuario: u, titulo: 'Restablecer contraseña', texto: 'un enlace para crear una contraseña nueva' });
   };
 
   // ---------- Agregar usuario ----------
@@ -113,7 +113,7 @@ export default function Usuarios() {
     const cuenta = crearUsuario({ ...datos, rol: nuevo.rol });
     refrescar();
     setNuevoAbierto(false);
-    setCredenciales({ ...cuenta, titulo: 'Usuario creado' });
+    setCredenciales({ ...cuenta, titulo: 'Usuario creado', texto: 'un enlace para activar su cuenta y crear su contraseña' });
   };
 
   const errProps = (c) => ({ error: !!errores[c], helperText: errores[c] || ' ' });
@@ -167,14 +167,15 @@ export default function Usuarios() {
                   </TableCell>
                   <TableCell><Chip label={u.rol} size="small" sx={rolChipSx(u.rol)} /></TableCell>
                   <TableCell>
-                    <Chip size="small" label={u.activo ? (u.debeCambiarPassword ? 'Activo · clave temporal' : 'Activo') : 'Desactivado'}
-                      sx={u.activo ? { bgcolor: '#E4F4EE', color: '#2E9D78' } : { bgcolor: '#FBEAE9', color: '#D9534F' }} />
+                    <Chip size="small" label={!u.activo ? 'Desactivado' : (u.debeCambiarPassword ? 'Pendiente de activacion' : 'Activo')}
+                      sx={!u.activo ? { bgcolor: '#FBEAE9', color: '#D9534F' }
+                        : (u.debeCambiarPassword ? { bgcolor: '#FDF0D5', color: '#B6802A' } : { bgcolor: '#E4F4EE', color: '#2E9D78' })} />
                   </TableCell>
                   <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
                     <Tooltip title="Cambiar rol">
                       <IconButton color="primary" onClick={() => abrirModal(u)}><ManageAccountsIcon /></IconButton>
                     </Tooltip>
-                    <Tooltip title="Restablecer contraseña">
+                    <Tooltip title="Enviar enlace para restablecer contraseña">
                       <span>
                         <IconButton color="primary" onClick={() => restablecer(u)} disabled={!u.activo}><KeyIcon /></IconButton>
                       </span>
@@ -281,8 +282,8 @@ export default function Usuarios() {
           )}
           <Alert severity="info" icon={false} sx={{ bgcolor: '#E4EEF5', color: 'text.primary', mt: 1 }}>
             <Typography variant="body2">
-              Se generara el usuario y una contraseña temporal, que se enviara a su correo y celular.
-              Al entrar por primera vez debera cambiarla.
+              Se generara su nombre de usuario y se le enviara a su correo un enlace para que el mismo
+              cree su contraseña. Nadie mas la conoce, ni el administrador.
             </Typography>
           </Alert>
         </DialogContent>
@@ -300,13 +301,11 @@ export default function Usuarios() {
         <DialogContent dividers>
           <Box sx={{ bgcolor: '#F3F6FA', borderRadius: 2, p: 2, mb: 2 }}>
             <Typography variant="body2">Usuario: <strong>{credenciales?.usuario.username}</strong></Typography>
-            <Typography variant="body2">Contraseña temporal: <strong>{credenciales?.password}</strong></Typography>
+            <Typography variant="body2">Correo: <strong>{credenciales?.usuario.email}</strong></Typography>
           </Box>
-          <Alert severity="info" icon={false} sx={{ bgcolor: '#E4EEF5', color: 'text.primary' }}>
+          <Alert severity="success" icon={false} sx={{ bgcolor: '#E4F4EE', color: 'text.primary' }}>
             <Typography variant="body2">
-              Se envio a <strong>{credenciales?.usuario.email}</strong>
-              {credenciales?.usuario.celular ? <> y por SMS a <strong>+591 {credenciales.usuario.celular}</strong></> : null}.
-              Debera cambiarla al entrar.
+              Se envio a su correo {credenciales?.texto}. El enlace es de un solo uso; la contraseña solo la conoce el usuario.
             </Typography>
             <Typography variant="caption" color="text.secondary">(Envio simulado: lo hara el backend.)</Typography>
           </Alert>
