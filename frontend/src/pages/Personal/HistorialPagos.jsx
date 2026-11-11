@@ -2,8 +2,9 @@ import { useState, useMemo, useEffect } from 'react';
 import {
     Box, Typography, Paper, Button, Chip, Select, MenuItem, TextField,
     Table, TableHead, TableBody, TableRow, TableCell, IconButton, InputAdornment, Alert, Snackbar,
-    Dialog, DialogTitle, DialogContent, DialogActions, Divider,
+    Dialog, DialogTitle, DialogContent, DialogActions, Divider, Menu, ListItemIcon, ListItemText,
 } from '@mui/material';
+import MoreVertIcon from '@mui/icons-material/MoreVert';
 import SearchIcon from '@mui/icons-material/Search';
 import DownloadIcon from '@mui/icons-material/Download';
 import AddIcon from '@mui/icons-material/Add';
@@ -18,9 +19,9 @@ import autoTable from 'jspdf-autotable';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import {
     PAGOS_PERSONAL_MOCK, PLANILLA_MOCK, RESUMEN_PAGOS_PERSONAL, RESUMEN_PLANILLA,
-    ESTADOS_PAGO_PERSONAL, EMPLEADOS_MOCK, MEDIOS_PAGO_PERSONAL, CONCEPTOS_PAGO,
+    ESTADOS_PAGO_PERSONAL, MEDIOS_PAGO_PERSONAL, CONCEPTOS_PAGO,
     nombreEmpleado, cargoEmpleado,
-    periodosDisponibles, asegurarPlanillaActualizada, periodoEnCurso,
+    periodosDisponibles, periodoEnCurso, empleadosPagables,
 } from '../../constants/personalMock';
 import { formatBs } from '../../constants/finanzasMock';
 
@@ -89,14 +90,10 @@ export default function HistorialPagos() {
     const [busqueda, setBusqueda] = useState('');
     const [snack, setSnack] = useState({ open: false, msg: '', sev: 'success' });
 
-    // Al montar y cada 5s: asegurar planilla + tick para refrescar la UI.
+    // Cada 5s refresca la UI (por si cambia la fecha del sistema).
+    // La planilla se genera desde la pantalla Planilla, no aqui.
     useEffect(() => {
-        asegurarPlanillaActualizada();
-        setTick((t) => t + 1);
-        const h = setInterval(() => {
-            asegurarPlanillaActualizada();
-            setTick((t) => t + 1);
-        }, 5000);
+        const h = setInterval(() => setTick((t) => t + 1), 5000);
         return () => clearInterval(h);
     }, []);
 
@@ -180,6 +177,25 @@ export default function HistorialPagos() {
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [periodo, tick]);
+
+    // --- Menu de acciones por fila (Ver detalle / Pagar) ---
+    const [menuAnchor, setMenuAnchor] = useState(null);
+    const [filaMenu, setFilaMenu] = useState(null);
+    const abrirMenu = (ev, f) => { setMenuAnchor(ev.currentTarget); setFilaMenu(f); };
+    const cerrarMenu = () => setMenuAnchor(null);
+
+    // Pagar un pendiente: abre "Registrar pago" con el empleado, concepto,
+    // periodo y monto ya cargados desde su planilla.
+    const pagarPendiente = (f) => {
+        cerrarMenu();
+        setDetalleAbierto(false);
+        setPagoDraft({
+            empleadoId: f.empleadoId, concepto: f.concepto || 'Salario', periodo,
+            monto: f.montoNeto || 0, fecha: fechaHoyBonita(),
+            medio: 'Transferencia', referencia: '', motivo: '',
+        });
+        setRegistrarAbierto(true);
+    };
 
     // --- Registrar pago ---
     const abrirRegistrar = () => {
@@ -366,7 +382,8 @@ export default function HistorialPagos() {
         setSnack({ open: true, msg: `PDF descargado: ${nombreArchivo}`, sev: 'success' });
     };
 
-    const empleadosActivos = EMPLEADOS_MOCK.filter((e) => e.estado === 'Activo');
+    // Activos + inactivos a los que todavia se les debe una planilla
+    const empleadosActivos = empleadosPagables();
     const cargoDraft = pagoDraft.empleadoId ? cargoEmpleado(pagoDraft.empleadoId) : '';
 
     return (
@@ -475,7 +492,7 @@ export default function HistorialPagos() {
                                 <TableCell><strong>Medio</strong></TableCell>
                                 <TableCell><strong>Monto neto</strong></TableCell>
                                 <TableCell><strong>Estado</strong></TableCell>
-                                <TableCell align="center"><strong>Detalle</strong></TableCell>
+                                <TableCell align="center"><strong>Acciones</strong></TableCell>
                             </TableRow>
                         </TableHead>
                         <TableBody>
@@ -498,8 +515,8 @@ export default function HistorialPagos() {
                                     <TableCell sx={{ fontWeight: 700 }}>{formatBs(f.montoNeto)}</TableCell>
                                     <TableCell><Chip label={f.estado} size="small" sx={estadoChipSx(f.estado)} /></TableCell>
                                     <TableCell align="center">
-                                        <IconButton size="small" color="primary" onClick={() => abrirDetalle(f)}>
-                                            <VisibilityIcon fontSize="small" />
+                                        <IconButton size="small" onClick={(ev) => abrirMenu(ev, f)}>
+                                            <MoreVertIcon />
                                         </IconButton>
                                     </TableCell>
                                 </TableRow>
@@ -508,10 +525,23 @@ export default function HistorialPagos() {
                     </Table>
                 </Box>
 
+                <Menu anchorEl={menuAnchor} open={Boolean(menuAnchor)} onClose={cerrarMenu}>
+                    <MenuItem onClick={() => { cerrarMenu(); abrirDetalle(filaMenu); }}>
+                        <ListItemIcon><VisibilityIcon fontSize="small" /></ListItemIcon>
+                        <ListItemText>Ver detalle</ListItemText>
+                    </MenuItem>
+                    {filaMenu?.estado === 'Pendiente' && (
+                        <MenuItem onClick={() => pagarPendiente(filaMenu)}>
+                            <ListItemIcon><PaidIcon fontSize="small" sx={{ color: '#2E9D78' }} /></ListItemIcon>
+                            <ListItemText>Pagar</ListItemText>
+                        </MenuItem>
+                    )}
+                </Menu>
+
                 <Alert severity="info" icon={false} sx={{ bgcolor: '#E4EEF5', color: 'text.primary', mt: 2 }}>
                     <Typography variant="body2">
-                        Los pendientes se derivan de la planilla no pagada. Los periodos aparecen a medida que terminan los meses;
-                        el mes en curso (<strong>{periodoHoy}</strong>) aun no esta disponible.
+                        Los pendientes salen de la planilla no pagada; usa los tres puntos para pagarlos. La planilla de un mes
+                        se genera en <strong>Planilla</strong> cuando el mes termina; el mes en curso (<strong>{periodoHoy}</strong>) aun no esta disponible.
                     </Typography>
                 </Alert>
             </Paper>
@@ -539,7 +569,9 @@ export default function HistorialPagos() {
                                 onChange={(e) => cambiarEmpleadoDraft(e.target.value)}>
                                 <MenuItem value=""><em>Selecciona un empleado</em></MenuItem>
                                 {empleadosActivos.map((e) => (
-                                    <MenuItem key={e.id} value={e.id}>{e.id} — {e.nombre}</MenuItem>
+                                    <MenuItem key={e.id} value={e.id}>
+                                        {e.id} — {e.nombre}{e.estado !== 'Activo' ? ' (Inactivo)' : ''}
+                                    </MenuItem>
                                 ))}
                             </Select>
                         </Box>
@@ -583,11 +615,21 @@ export default function HistorialPagos() {
                     <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>
                         {pagoDraft.concepto === 'Salario' ? 'Monto neto a pagar' : `Monto del ${pagoDraft.concepto.toLowerCase()}`}
                     </Typography>
+                    {/* El salario sale de la planilla: se muestra de solo lectura, pero bien visible */}
                     <TextField fullWidth size="small" type="number" value={pagoDraft.monto}
                         onChange={(e) => setPagoDraft((p) => ({ ...p, monto: e.target.value }))}
-                        disabled={pagoDraft.concepto === 'Salario' && !!pagoDraft.empleadoId}
-                        slotProps={{ input: { startAdornment: <InputAdornment position="start">Bs</InputAdornment> } }}
-                        sx={{ mb: 2 }} />
+                        slotProps={{
+                            input: {
+                                readOnly: pagoDraft.concepto === 'Salario' && !!pagoDraft.empleadoId,
+                                startAdornment: <InputAdornment position="start">Bs</InputAdornment>,
+                            },
+                        }}
+                        sx={{
+                            mb: 2,
+                            '& .MuiInputBase-input': { fontWeight: 700, color: '#132B3E', fontSize: 16 },
+                            ...(pagoDraft.concepto === 'Salario' && pagoDraft.empleadoId
+                                ? { '& .MuiOutlinedInput-root': { bgcolor: '#F3F6FA' } } : {}),
+                        }} />
 
                     <Box sx={{ display: 'flex', gap: 2, mb: 2, flexWrap: 'wrap' }}>
                         <Box sx={{ flex: 1, minWidth: 140 }}>
@@ -708,7 +750,7 @@ export default function HistorialPagos() {
                                 <Alert severity="warning" icon={false} sx={{ bgcolor: '#FDF0D5', color: '#8A5A00', mt: 2 }}>
                                     <Typography variant="body2" sx={{ fontWeight: 700 }}>Pago pendiente</Typography>
                                     <Typography variant="body2">
-                                        Usa el boton "Registrar pago" para ejecutarlo o entra desde la Planilla al menu de acciones.
+                                        Puedes pagarlo ahora con el boton "Pagar".
                                     </Typography>
                                 </Alert>
                             )}
@@ -716,6 +758,9 @@ export default function HistorialPagos() {
                     )}
                 </DialogContent>
                 <DialogActions sx={{ p: 2 }}>
+                    {detalleSel?.estado === 'Pendiente' && (
+                        <Button variant="outlined" startIcon={<PaidIcon />} onClick={() => pagarPendiente(detalleSel)}>Pagar</Button>
+                    )}
                     <Button variant="contained" onClick={() => setDetalleAbierto(false)}>Cerrar</Button>
                 </DialogActions>
             </Dialog>

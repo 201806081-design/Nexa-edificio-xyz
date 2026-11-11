@@ -20,9 +20,9 @@ import autoTable from 'jspdf-autotable';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import {
     PLANILLA_MOCK, PAGOS_PERSONAL_MOCK, RESUMEN_PLANILLA, RESUMEN_PAGOS_PERSONAL,
-    ESTADOS_PLANILLA, EMPLEADOS_MOCK, TIPOS_DESCUENTO,
+    ESTADOS_PLANILLA, TIPOS_DESCUENTO,
     nombreEmpleado, cargoEmpleado, salarioDesdeCargo,
-    periodosDisponibles, asegurarPlanillaActualizada, periodoEnCurso,
+    periodosDisponibles, periodoEnCurso, empleadosParaPlanilla,
 } from '../../constants/personalMock';
 import { formatBs } from '../../constants/finanzasMock';
 
@@ -89,15 +89,11 @@ export default function Planilla() {
 
     const [detalleAbierto, setDetalleAbierto] = useState(false);
 
-    // Al montar y cada 5s: asegurar que la planilla este generada para todos los
-    // periodos cerrados + tick para refrescar la UI si cambia la fecha del sistema.
+    // Cada 5s refresca la UI (por si cambia la fecha del sistema y aparece un mes nuevo).
+    // La planilla NO se genera sola: la genera el administrador con "Generar planilla"
+    // cuando el mes termina (igual que las expensas).
     useEffect(() => {
-        asegurarPlanillaActualizada();
-        setTick((t) => t + 1);
-        const h = setInterval(() => {
-            asegurarPlanillaActualizada();
-            setTick((t) => t + 1);
-        }, 5000);
+        const h = setInterval(() => setTick((t) => t + 1), 5000);
         return () => clearInterval(h);
     }, []);
 
@@ -147,7 +143,12 @@ export default function Planilla() {
             setSnack({ open: true, msg: `La planilla de ${periodo} ya esta generada`, sev: 'warning' });
             return;
         }
-        const activos = EMPLEADOS_MOCK.filter((e) => e.estado === 'Activo');
+        // Entran los activos y los inactivos que terminaron de trabajar ese mes
+        const activos = empleadosParaPlanilla(periodo);
+        if (activos.length === 0) {
+            setSnack({ open: true, msg: `No hay empleados que hayan trabajado en ${periodo}`, sev: 'warning' });
+            return;
+        }
         activos.forEach((e) => {
             PLANILLA_MOCK.push({
                 empleadoId: e.id, periodo,

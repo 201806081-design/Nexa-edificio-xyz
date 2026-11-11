@@ -17,7 +17,7 @@ import DashboardLayout from '../../layouts/DashboardLayout';
 import {
     EMPLEADOS_MOCK, CARGOS, ESTADOS_EMPLEADO, TARIFAS_CARGO,
     PLANILLA_MOCK, PAGOS_PERSONAL_MOCK, RESUMEN_PLANILLA, RESUMEN_PAGOS_PERSONAL,
-    HISTORIAL_SALARIOS_CARGO, salarioDesdeCargo,
+    HISTORIAL_SALARIOS_CARGO, salarioDesdeCargo, periodoEnCurso,
 } from '../../constants/personalMock';
 import { formatBs } from '../../constants/finanzasMock';
 
@@ -255,7 +255,17 @@ export default function Empleados() {
     };
     const guardarEstado = () => {
         const emp = EMPLEADOS_MOCK.find((e) => e.id === filaSel.id);
-        if (emp) emp.estado = estadoDraft;
+        if (emp && emp.estado !== estadoDraft) {
+            emp.estado = estadoDraft;
+            // Fecha de baja: desde el mes en curso ya no entra en la planilla.
+            // Si se reactiva, se borra y vuelve a entrar.
+            if (estadoDraft === 'Inactivo') {
+                const h = new Date();
+                emp.fechaBaja = `${String(h.getDate()).padStart(2, '0')}/${String(h.getMonth() + 1).padStart(2, '0')}/${h.getFullYear()}`;
+            } else {
+                delete emp.fechaBaja;
+            }
+        }
         setEditarEstadoAbierto(false);
         setTick((t) => t + 1);
         setSnack({ open: true, msg: `Estado de ${filaSel.nombre} cambiado a ${estadoDraft}`, sev: 'success' });
@@ -619,7 +629,9 @@ export default function Empleados() {
                 <DialogContent dividers>
                     <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                         Cambia el estado de <strong>{filaSel?.nombre}</strong> ({filaSel?.cargo}).
-                        Un empleado inactivo no aparece en la planilla ni en el historial del nuevo mes.
+                        Si lo pasas a <strong>Inactivo</strong>, deja de aparecer en la planilla desde el mes en curso
+                        ({periodoEnCurso()}). Los meses que ya trabajo y no se le pagaron siguen pendientes y se le pueden pagar.
+                        Si lo reactivas, vuelve a entrar en la planilla.
                     </Typography>
                     <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Estado</Typography>
                     <Select fullWidth size="small" value={estadoDraft} onChange={(e) => setEstadoDraft(e.target.value)}>

@@ -135,13 +135,49 @@ export const ANTICIPOS_PERSONAL_MOCK = [
 //
 // Se llama al abrir Planilla o HistorialPagos y en cada tick de 5s, asi al
 // avanzar la fecha del sistema (o simularla), las nuevas planillas aparecen solas.
+// ------------------------------------------------------------
+//  QUIEN ENTRA EN LA PLANILLA DE UN MES
+//  - Debe haber ingresado antes de que termine el mes.
+//  - Si esta Inactivo, solo entra en los meses que termino de trabajar:
+//    la planilla del mes en que se le dio de baja (y siguientes) ya no lo incluye.
+//    Los dias trabajados ese ultimo mes se pagan con el finiquito.
+// ------------------------------------------------------------
+const MESES_PL = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+    'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+const fechaDMY = (txt) => {
+    const [d, m, a] = String(txt || '').split('/').map(Number);
+    return a ? new Date(a, m - 1, d) : null;
+};
+const finDePeriodo = (periodo) => {
+    const [mes, anio] = String(periodo || '').split(' ');
+    return new Date(Number(anio), MESES_PL.indexOf(mes) + 1, 0); // ultimo dia del mes
+};
+
+export const empleadoTrabajoEnPeriodo = (emp, periodo) => {
+    const fin = finDePeriodo(periodo);
+    const ingreso = fechaDMY(emp.fechaIngreso);
+    if (ingreso && ingreso > fin) return false;
+    if (emp.estado === 'Activo') return true;
+    const baja = fechaDMY(emp.fechaBaja);
+    return !!baja && baja > fin; // se fue despues de terminar ese mes
+};
+
+export const empleadosParaPlanilla = (periodo) => EMPLEADOS_MOCK.filter((e) => empleadoTrabajoEnPeriodo(e, periodo));
+
+// Empleados a los que se les puede registrar un pago: los activos y tambien
+// los inactivos que todavia tienen una planilla sin pagar (se les debe).
+export const empleadosPagables = () => EMPLEADOS_MOCK.filter((e) => e.estado === 'Activo'
+    || PLANILLA_MOCK.some((p) => p.empleadoId === e.id && p.estado !== 'Pagada'));
+
+// Genera las filas de planilla que falten para los meses cerrados.
+// Ya no se llama sola: la planilla de un mes la genera el administrador con el
+// boton "Generar planilla" cuando el mes termina (igual que las expensas).
 export const asegurarPlanillaActualizada = () => {
     const periodos = periodosDisponibles();
     const existentes = new Set(PLANILLA_MOCK.map((f) => `${f.empleadoId}|${f.periodo}`));
-    const activos = EMPLEADOS_MOCK.filter((e) => e.estado === 'Activo');
     let agregadas = 0;
     periodos.forEach((periodo) => {
-        activos.forEach((emp) => {
+        empleadosParaPlanilla(periodo).forEach((emp) => {
             const key = `${emp.id}|${periodo}`;
             if (!existentes.has(key)) {
                 PLANILLA_MOCK.push(planillaFilaVacia(emp, periodo));
