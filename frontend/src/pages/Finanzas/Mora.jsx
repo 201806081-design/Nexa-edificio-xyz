@@ -20,7 +20,7 @@ import {
     CONFIG_MORA, APLICAR_MORA_DESDE, TIPOS_CALCULO,
     REGLA_MORA,
 } from '../../constants/moraMock';
-import { REGLAS_PERIODO, DIAS_VENCIMIENTO } from '../../constants/configuracionMock';
+import { REGLAS_PERIODO, DIAS_VENCIMIENTO, textoDiaVencimiento } from '../../constants/configuracionMock';
 import { deudasVencidas, diaVencimiento as diaVencimientoNum } from '../../constants/deudasMock';
 import { periodoEnCurso } from '../../constants/periodos';
 import { formatBs } from '../../constants/finanzasMock';
@@ -182,7 +182,7 @@ export default function Mora() {
                             icon={<EventIcon />} color="#1F5F8B" bg="#E4EEF5" />
                         <DatoRegla etiqueta="Tipo de calculo" valor={config.tipoCalculo}
                             icon={<CalculateIcon />} color="#8E6DD1" bg="#EFEAF8" />
-                        <DatoRegla etiqueta="Dia de vencimiento" valor={`Dia ${diaVencimiento}`}
+                        <DatoRegla etiqueta="Dia de vencimiento" valor={textoDiaVencimiento(diaVencimiento)}
                             icon={<CalendarMonthIcon />} color="#2E9D78" bg="#E4F4EE" />
                     </Box>
                     <Button variant="outlined" startIcon={<SettingsIcon />} onClick={abrirConfig}
@@ -290,7 +290,7 @@ export default function Mora() {
 
                     <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Dia de vencimiento</Typography>
                     <Select fullWidth value={cfgDraft.diaVencimiento} onChange={(e) => cambiarDraft('diaVencimiento', e.target.value)} sx={{ mb: 0.5 }}>
-                        {DIAS_VENCIMIENTO.map((d) => <MenuItem key={d} value={d}>{`Dia ${d}`}</MenuItem>)}
+                        {DIAS_VENCIMIENTO.map((d) => <MenuItem key={d} value={d}>{textoDiaVencimiento(d)}</MenuItem>)}
                     </Select>
                     <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 2 }}>
                         Compartido con Configuracion financiera. Al cambiarlo aqui, tambien cambia alla.

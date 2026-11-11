@@ -2,8 +2,10 @@ import { useState, useMemo, useEffect } from 'react';
 import {
     Box, Typography, Paper, Button, Chip, IconButton, Select, MenuItem, TextField, InputAdornment,
     Table, TableHead, TableBody, TableRow, TableCell, Menu, Dialog, DialogTitle, DialogContent,
-    DialogActions, Snackbar, Alert, Divider, Tooltip,
+    DialogActions, Snackbar, Alert, Divider, Tooltip, Checkbox, ListItemText,
+    ToggleButton, ToggleButtonGroup,
 } from '@mui/material';
+import PlaylistAddIcon from '@mui/icons-material/PlaylistAdd';
 import AddIcon from '@mui/icons-material/Add';
 import SearchIcon from '@mui/icons-material/Search';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
@@ -23,6 +25,7 @@ import {
     CONFIG_AGUA, calcularAgua, estadoChipSx,
     periodosDisponibles, periodoEnCurso, totalExtras,
     agregarExtra, eliminarExtra, recalcularTotalExpensa,
+    registrarCargoExtra, cargosPendientesAgrupados, eliminarCargoExtra,
 } from '../../constants/expensasMock';
 import { formatBs } from '../../constants/finanzasMock';
 import { estadoVisibleExpensa } from '../../constants/deudasMock';
@@ -184,10 +187,38 @@ export default function Expensas() {
     const quitarExtra = (extraId) => {
         const row = EXPENSAS_MOCK.find((e) => e.id === filaSel.id);
         if (!row) return;
+        if ((row.pagado || 0) > 0) {
+            setSnack({ open: true, msg: 'Esta expensa ya tiene pagos: no se pueden quitar cargos', sev: 'warning' });
+            return;
+        }
         eliminarExtra(row, extraId);
         setTick((t) => t + 1);
         setSnack({ open: true, msg: `Gasto extra eliminado`, sev: 'success' });
     };
+
+    // --- Cargos extra del mes en curso (se suman al generar la expensa) ---
+    const [cargosAbierto, setCargosAbierto] = useState(false);
+    const [cargoForm, setCargoForm] = useState({ descripcion: '', monto: '', alcance: 'todos', deptos: [] });
+    const [cargoError, setCargoError] = useState('');
+    const abrirCargos = () => {
+        setCargoForm({ descripcion: '', monto: '', alcance: 'todos', deptos: [] });
+        setCargoError('');
+        setCargosAbierto(true);
+    };
+    const guardarCargo = () => {
+        const deptos = cargoForm.alcance === 'todos' ? DEPARTAMENTOS_ACTIVOS.map((d) => d.id) : cargoForm.deptos;
+        const err = registrarCargoExtra({ periodo: periodoActualEnCurso, deptos, descripcion: cargoForm.descripcion, monto: cargoForm.monto });
+        if (err) { setCargoError(err); return; }
+        setCargoForm({ descripcion: '', monto: '', alcance: 'todos', deptos: [] });
+        setCargoError('');
+        setTick((t) => t + 1);
+        setSnack({ open: true, msg: `Cargo registrado para ${deptos.length} depto${deptos.length !== 1 ? 's' : ''}`, sev: 'success' });
+    };
+    const quitarCargo = (grupo) => {
+        eliminarCargoExtra(grupo);
+        setTick((t) => t + 1);
+    };
+    const cargosDelMes = cargosPendientesAgrupados(periodoActualEnCurso);
 
     // Redirige a "Registrar pago"
     const irARegistrarPago = () => {
@@ -256,6 +287,10 @@ export default function Expensas() {
                     onClick={() => navigate('/finanzas/configuracion')}
                     sx={{ color: '#1a2733', borderColor: '#cdd8e3', width: { xs: '100%', md: 'auto' } }}>
                     Configuracion intereses
+                </Button>
+                <Button variant="outlined" startIcon={<PlaylistAddIcon />} onClick={abrirCargos}
+                    sx={{ width: { xs: '100%', md: 'auto' } }}>
+                    Cargos extra del mes
                 </Button>
                 <Button variant="contained" startIcon={<AddIcon />}
                     onClick={() => navigate('/finanzas/expensas/generar')}
@@ -620,6 +655,7 @@ export default function Expensas() {
                                                 <TableCell align="right" sx={{ fontWeight: 700 }}>{formatBs(ex.monto)}</TableCell>
                                                 <TableCell align="center">
                                                     <IconButton size="small" onClick={() => quitarExtra(ex.id)}
+                                                        disabled={(filaSel.pagado || 0) > 0}
                                                         sx={{ color: '#D9534F' }}>
                                                         <DeleteIcon fontSize="small" />
                                                     </IconButton>
@@ -768,6 +804,106 @@ export default function Expensas() {
                     {snack.msg}
                 </Alert>
             </Snackbar>
+
+            {/* ============================================================ */}
+            {/* Dialog: Cargos extra del mes en curso                        */}
+            {/* ============================================================ */}
+            <Dialog open={cargosAbierto} onClose={() => setCargosAbierto(false)} maxWidth="md" fullWidth>
+                <DialogTitle sx={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <PlaylistAddIcon sx={{ color: '#1F5F8B' }} />
+                    Cargos extra de {periodoActualEnCurso}
+                </DialogTitle>
+                <DialogContent dividers>
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                        Registra aqui los gastos extra que ocurren durante el mes (pintura, reparaciones, multas...).
+                        Cuando el mes termine y generes la expensa de <strong>{periodoActualEnCurso}</strong>, se sumaran
+                        solos a la columna Extras de cada departamento. Despues aun podras editarlos mientras la expensa no tenga pagos.
+                    </Typography>
+
+                    {/* Formulario */}
+                    <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'flex-end', mb: 2 }}>
+                        <Box sx={{ flex: 2, minWidth: 220 }}>
+                            <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Descripcion</Typography>
+                            <TextField fullWidth size="small" placeholder="Ej. Pintura del edificio" value={cargoForm.descripcion}
+                                slotProps={{ htmlInput: { maxLength: 100 } }}
+                                onChange={(e) => { setCargoForm((f) => ({ ...f, descripcion: e.target.value })); setCargoError(''); }} />
+                        </Box>
+                        <Box sx={{ flex: 1, minWidth: 150 }}>
+                            <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Monto por depto</Typography>
+                            <TextField fullWidth size="small" type="number" placeholder="0" value={cargoForm.monto}
+                                slotProps={{ input: { startAdornment: <InputAdornment position="start">Bs</InputAdornment> }, htmlInput: { min: 0, step: 0.01 } }}
+                                onKeyDown={(e) => { if (['e', 'E', '+', '-'].includes(e.key)) e.preventDefault(); }}
+                                onChange={(e) => { setCargoForm((f) => ({ ...f, monto: e.target.value })); setCargoError(''); }} />
+                        </Box>
+                    </Box>
+                    <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Aplicar a</Typography>
+                    <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center', mb: 2 }}>
+                        <ToggleButtonGroup exclusive size="small" value={cargoForm.alcance}
+                            onChange={(_, v) => { if (v) setCargoForm((f) => ({ ...f, alcance: v })); }}>
+                            <ToggleButton value="todos">Todos los deptos</ToggleButton>
+                            <ToggleButton value="algunos">Elegir deptos</ToggleButton>
+                        </ToggleButtonGroup>
+                        {cargoForm.alcance === 'algunos' && (
+                            <Select multiple size="small" displayEmpty value={cargoForm.deptos} sx={{ minWidth: 260, flex: 1 }}
+                                onChange={(e) => { setCargoForm((f) => ({ ...f, deptos: e.target.value })); setCargoError(''); }}
+                                renderValue={(sel) => (sel.length === 0 ? <em>Elige departamentos</em> : sel.map((d) => `Depto. ${d}`).join(', '))}>
+                                {DEPARTAMENTOS_ACTIVOS.map((d) => (
+                                    <MenuItem key={d.id} value={d.id}>
+                                        <Checkbox size="small" checked={cargoForm.deptos.includes(d.id)} />
+                                        <ListItemText primary={`Depto. ${d.id} — ${d.responsable}`} />
+                                    </MenuItem>
+                                ))}
+                            </Select>
+                        )}
+                        <Button variant="contained" startIcon={<AddIcon />} onClick={guardarCargo}>Agregar cargo</Button>
+                    </Box>
+                    {cargoError && <Alert severity="error" sx={{ mb: 2 }}>{cargoError}</Alert>}
+
+                    {/* Pendientes del mes */}
+                    <Typography variant="body2" sx={{ fontWeight: 700, mb: 1 }}>
+                        Pendientes de {periodoActualEnCurso}
+                    </Typography>
+                    {cargosDelMes.length === 0 ? (
+                        <Typography variant="body2" color="text.secondary">Todavia no hay cargos extra registrados este mes.</Typography>
+                    ) : (
+                        <Box sx={{ overflowX: 'auto' }}>
+                            <Table size="small" sx={{ minWidth: 560 }}>
+                                <TableHead>
+                                    <TableRow sx={{ bgcolor: '#F3F6FA' }}>
+                                        <TableCell><strong>Descripcion</strong></TableCell>
+                                        <TableCell><strong>Registrado</strong></TableCell>
+                                        <TableCell><strong>Deptos</strong></TableCell>
+                                        <TableCell align="right"><strong>Monto c/u</strong></TableCell>
+                                        <TableCell align="right"><strong>Total</strong></TableCell>
+                                        <TableCell align="center"><strong>Quitar</strong></TableCell>
+                                    </TableRow>
+                                </TableHead>
+                                <TableBody>
+                                    {cargosDelMes.map((c) => (
+                                        <TableRow key={c.grupo}>
+                                            <TableCell sx={{ fontWeight: 600 }}>{c.descripcion}</TableCell>
+                                            <TableCell>{c.fecha}</TableCell>
+                                            <TableCell>
+                                                {c.deptos.length === DEPARTAMENTOS_ACTIVOS.length ? 'Todos' : c.deptos.join(', ')}
+                                            </TableCell>
+                                            <TableCell align="right">{formatBs(c.monto)}</TableCell>
+                                            <TableCell align="right" sx={{ fontWeight: 700 }}>{formatBs(c.monto * c.deptos.length)}</TableCell>
+                                            <TableCell align="center">
+                                                <IconButton size="small" onClick={() => quitarCargo(c.grupo)} sx={{ color: '#D9534F' }}>
+                                                    <DeleteIcon fontSize="small" />
+                                                </IconButton>
+                                            </TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        </Box>
+                    )}
+                </DialogContent>
+                <DialogActions sx={{ p: 2 }}>
+                    <Button variant="outlined" onClick={() => setCargosAbierto(false)}>Cerrar</Button>
+                </DialogActions>
+            </Dialog>
         </DashboardLayout>
     );
 }

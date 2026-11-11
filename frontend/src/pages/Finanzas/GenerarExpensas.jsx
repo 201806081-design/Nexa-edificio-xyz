@@ -11,6 +11,7 @@ import { vincularResponsable } from '../../constants/edificioMock';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import {
     ALICUOTAS, DEPARTAMENTOS_ACTIVOS, EXPENSAS_MOCK,
+    totalCargosPendientes, aplicarCargosPendientes, recalcularTotalExpensa,
     periodosDisponibles, periodoEnCurso,
 } from '../../constants/expensasMock';
 import { formatBs } from '../../constants/finanzasMock';
@@ -59,7 +60,10 @@ export default function GenerarExpensas() {
         ];
     }, []);
 
-    const totalGeneracion = bloques.reduce((s, b) => s + b.alicuota * b.deptos.length, 0);
+    // Cargos extra registrados durante el mes (se suman a cada depto al generar)
+    const extrasDe = (d) => (periodo ? totalCargosPendientes(periodo, d.id) : 0);
+    const totalExtrasGen = bloques.reduce((s, b) => s + b.deptos.reduce((t, d) => t + extrasDe(d), 0), 0);
+    const totalGeneracion = bloques.reduce((s, b) => s + b.alicuota * b.deptos.length, 0) + totalExtrasGen;
 
     const yaGenerado = EXPENSAS_MOCK.some((e) => e.periodo === periodo);
 
@@ -74,6 +78,7 @@ export default function GenerarExpensas() {
         }
         const fecha = new Date().toLocaleDateString('es-BO');
         let serie = EXPENSAS_MOCK.length;
+        let conExtras = 0;
         bloques.forEach((b) => {
             b.deptos.forEach((d) => {
                 serie += 1;
@@ -90,11 +95,14 @@ export default function GenerarExpensas() {
                     estado: 'Agua pendiente', pagado: 0,
                     fechaGen: fecha, fechaAgua: null,
                 }));
+                // Los cargos extra registrados durante el mes pasan a esta expensa
+                const nueva = EXPENSAS_MOCK[EXPENSAS_MOCK.length - 1];
+                if (aplicarCargosPendientes(nueva) > 0) { recalcularTotalExpensa(nueva); conExtras += 1; }
             });
         });
         navigate('/finanzas/expensas', {
             state: {
-                snack: { open: true, msg: `Expensas de ${periodo} generadas (${DEPARTAMENTOS_ACTIVOS.length} deptos). Falta registrar el agua.`, sev: 'success' },
+                snack: { open: true, msg: `Expensas de ${periodo} generadas (${DEPARTAMENTOS_ACTIVOS.length} deptos${conExtras ? `, ${conExtras} con cargos extra` : ''}). Falta registrar el agua.`, sev: 'success' },
             },
         });
     };
@@ -176,6 +184,7 @@ export default function GenerarExpensas() {
                                         <TableCell><strong>Depto.</strong></TableCell>
                                         <TableCell><strong>Responsable</strong></TableCell>
                                         <TableCell align="right"><strong>Monto base</strong></TableCell>
+                                        <TableCell align="right"><strong>Extras del mes</strong></TableCell>
                                     </TableRow>
                                 </TableHead>
                                 <TableBody>
@@ -184,6 +193,9 @@ export default function GenerarExpensas() {
                                             <TableCell>{d.id}</TableCell>
                                             <TableCell>{d.responsable}</TableCell>
                                             <TableCell align="right" sx={{ fontWeight: 600 }}>{formatBs(b.alicuota)}</TableCell>
+                                            <TableCell align="right" sx={{ color: extrasDe(d) > 0 ? '#1F5F8B' : 'text.secondary' }}>
+                                                {extrasDe(d) > 0 ? formatBs(extrasDe(d)) : '—'}
+                                            </TableCell>
                                         </TableRow>
                                     ))}
                                 </TableBody>

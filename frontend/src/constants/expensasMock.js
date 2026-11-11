@@ -154,6 +154,72 @@ export const eliminarExtra = (row, id) => {
 };
 
 // ============================================================
+//  CARGOS EXTRA DEL MES EN CURSO
+//  La expensa de un mes se genera cuando el mes termina, pero los gastos
+//  extra (pintura, reparaciones, multas...) ocurren DURANTE el mes. Se
+//  registran aqui como pendientes y, al generar la expensa de ese periodo,
+//  pasan solos a la columna Extras de cada depto. Despues se pueden editar
+//  desde la accion "Editar gastos extras" mientras la expensa no este pagada.
+// ============================================================
+export const CARGOS_EXTRA_PENDIENTES = [
+    // Ejemplo del requisito 2.3: "Extra Pintura Edificio: 250" para todos los deptos
+    ...numerosDepto().map((depto, i) => ({
+        id: i + 1, grupo: 1, periodo: 'Noviembre 2026', depto,
+        descripcion: 'Pintura del edificio', monto: 250, fecha: '05/11/2026',
+    })),
+];
+
+// Registra un cargo para uno o varios deptos. Devuelve un mensaje de error o null.
+export const registrarCargoExtra = ({ periodo, deptos, descripcion, monto }) => {
+    const d = String(descripcion || '').trim();
+    const m = Number(monto);
+    if (!d) return 'La descripcion es obligatoria';
+    if (!(m > 0)) return 'Ingresa un monto mayor a 0';
+    if (!deptos || deptos.length === 0) return 'Elige al menos un departamento';
+    const sigId = CARGOS_EXTRA_PENDIENTES.reduce((mx, c) => Math.max(mx, c.id), 0) + 1;
+    const grupo = CARGOS_EXTRA_PENDIENTES.reduce((mx, c) => Math.max(mx, c.grupo), 0) + 1;
+    const h = new Date();
+    const fecha = `${String(h.getDate()).padStart(2, '0')}/${String(h.getMonth() + 1).padStart(2, '0')}/${h.getFullYear()}`;
+    deptos.forEach((depto, i) => CARGOS_EXTRA_PENDIENTES.push({
+        id: sigId + i, grupo, periodo, depto: String(depto), descripcion: d, monto: Math.round(m * 100) / 100, fecha,
+    }));
+    return null;
+};
+
+// Cargos pendientes de un periodo agrupados por registro:
+// [{ grupo, descripcion, monto, fecha, deptos: ['101', ...] }]
+export const cargosPendientesAgrupados = (periodo) => {
+    const mapa = new Map();
+    CARGOS_EXTRA_PENDIENTES.filter((c) => c.periodo === periodo).forEach((c) => {
+        if (!mapa.has(c.grupo)) mapa.set(c.grupo, { grupo: c.grupo, descripcion: c.descripcion, monto: c.monto, fecha: c.fecha, deptos: [] });
+        mapa.get(c.grupo).deptos.push(c.depto);
+    });
+    return [...mapa.values()];
+};
+
+// Total pendiente de un depto en un periodo (para la vista previa de Generar expensa)
+export const totalCargosPendientes = (periodo, depto) => CARGOS_EXTRA_PENDIENTES
+    .filter((c) => c.periodo === periodo && c.depto === String(depto))
+    .reduce((s, c) => s + c.monto, 0);
+
+export const eliminarCargoExtra = (grupo) => {
+    for (let i = CARGOS_EXTRA_PENDIENTES.length - 1; i >= 0; i--) {
+        if (CARGOS_EXTRA_PENDIENTES[i].grupo === grupo) CARGOS_EXTRA_PENDIENTES.splice(i, 1);
+    }
+};
+
+// Al generar una expensa: pasa sus cargos pendientes a extras y los quita de pendientes
+export const aplicarCargosPendientes = (expensa) => {
+    const propios = CARGOS_EXTRA_PENDIENTES.filter((c) => c.periodo === expensa.periodo && c.depto === String(expensa.depto));
+    propios.forEach((c) => agregarExtra(expensa, { descripcion: c.descripcion, monto: c.monto }));
+    for (let i = CARGOS_EXTRA_PENDIENTES.length - 1; i >= 0; i--) {
+        const c = CARGOS_EXTRA_PENDIENTES[i];
+        if (c.periodo === expensa.periodo && c.depto === String(expensa.depto)) CARGOS_EXTRA_PENDIENTES.splice(i, 1);
+    }
+    return propios.length;
+};
+
+// ============================================================
 //  PERIODOS DINAMICOS
 // ============================================================
 

@@ -33,7 +33,8 @@ export const periodoKey = (periodo) => {
     return (Number(anio) || 0) * 100 + (MESES_ES.indexOf(mes) + 1);
 };
 
-// Dia de vencimiento configurado. Acepta '10 de cada mes', 15, 'Ultimo dia del mes'.
+// Dia de vencimiento configurado (REGLAS_PERIODO.diaVencimiento, ej. 10).
+// Tambien acepta texto antiguo ('10 de cada mes') o 'Ultimo dia del mes'.
 // Devuelve un numero (10, 15, 20) o 'ultimo'.
 export const diaVencimiento = (valor = REGLAS_PERIODO.diaVencimiento) => {
     const texto = String(valor ?? '').toLowerCase();
