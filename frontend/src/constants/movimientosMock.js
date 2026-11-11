@@ -20,6 +20,18 @@ export const CATEGORIAS = ['Mantenimiento', 'Servicios basicos', 'Limpieza', 'Se
 // Categorias que se pueden elegir al registrar un movimiento a mano
 export const CATEGORIAS_MANUALES = CATEGORIAS.filter((c) => c !== 'Personal');
 
+// Registra una categoria nueva (ej. 'Jardineria'). Aparece en Registrar movimiento
+// y en los filtros de Ingresos y gastos. Devuelve un mensaje de error o null.
+export const registrarCategoria = (nombre) => {
+    const n = String(nombre || '').trim();
+    if (!n) return 'Escribe el nombre de la categoria';
+    if (n.length > 40) return 'Maximo 40 caracteres';
+    if (CATEGORIAS.some((c) => c.toLowerCase() === n.toLowerCase())) return 'Esa categoria ya existe';
+    CATEGORIAS.splice(CATEGORIAS.indexOf('Otros'), 0, n);              // antes de 'Otros'
+    CATEGORIAS_MANUALES.splice(CATEGORIAS_MANUALES.indexOf('Otros'), 0, n);
+    return null;
+};
+
 // Movimientos registrados a mano. tipo: 'Ingreso' | 'Gasto'
 export const MOVIMIENTOS_LISTA = [
     // --- OTROS INGRESOS (no son pagos de expensas) ---

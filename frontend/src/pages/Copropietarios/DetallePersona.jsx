@@ -2,7 +2,7 @@ import { Box, Typography, Button, Chip, Alert, Divider } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import DashboardLayout from '../../layouts/DashboardLayout';
-import { COPROPIETARIOS_MOCK } from '../../constants/copropietariosMock';
+import { COPROPIETARIOS_MOCK, inmueblesDePersona } from '../../constants/copropietariosMock';
 
 function Dato({ etiqueta, valor }) {
   return (
@@ -73,7 +73,20 @@ export default function DetallePersona() {
           </Box>
         </Box>
         <Divider sx={{ my: 2 }} />
+        <Typography variant="body2" sx={{ fontWeight: 600, mb: 1 }}>Datos del hogar</Typography>
+        <Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' } }}>
+          <Box sx={{ width: { xs: '100%', md: '33%' } }}>
+            <Dato etiqueta="Estado civil" valor={persona.estadoCivil} />
+          </Box>
+          <Box sx={{ width: { xs: '100%', md: '33%' } }}>
+            <Dato etiqueta="Numero de hijos" valor={String(persona.hijos ?? '-')} />
+          </Box>
+          <Box sx={{ width: { xs: '100%', md: '33%' } }}>
+            <Dato etiqueta="Personas que viven en el depto" valor={String(persona.habitantes ?? '-')} />
+          </Box>
+        </Box>
 
+        <Divider sx={{ my: 2 }} />
         <Typography variant="body2" sx={{ fontWeight: 600, mb: 1 }}>Unidad relacionada</Typography>
         <Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' } }}>
           <Box sx={{ width: { xs: '100%', md: '33%' } }}>
@@ -86,6 +99,20 @@ export default function DetallePersona() {
             <Dato etiqueta="Piso" valor={persona.piso} />
           </Box>
         </Box>
+
+        {/* Otros inmuebles de la persona: parqueos y bauleras (se asignan en Unidades) */}
+        <Typography variant="body2" color="text.secondary" sx={{ mt: 1, mb: 0.5 }}>Parqueos y bauleras</Typography>
+        {inmueblesDePersona(persona.id).length === 0 ? (
+          <Typography variant="body1">Sin parqueo ni baulera asignados</Typography>
+        ) : (
+          <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+            {inmueblesDePersona(persona.id).map((u) => (
+              <Chip key={u.id} size="small"
+                label={`${u.identificador} · ${u.nivel}${u.tipo === 'Parqueo' ? (u.techado ? ' · Techado' : ' · Sin techo') : ''}`}
+                sx={u.tipo === 'Parqueo' ? { bgcolor: '#C5E0F2', color: '#1F5F8B' } : { bgcolor: '#FCE7CB', color: '#C06E00' }} />
+            ))}
+          </Box>
+        )}
 
         <Box sx={{
           display: 'flex', gap: 2, mt: 3,

@@ -1,8 +1,10 @@
 import { useState } from 'react';
 import {
     Box, Typography, Select, MenuItem, Paper, Button, TextField, Alert, Chip,
-    ToggleButton, ToggleButtonGroup,
+    ToggleButton, ToggleButtonGroup, IconButton, Tooltip,
+    Dialog, DialogTitle, DialogContent, DialogActions,
 } from '@mui/material';
+import AddIcon from '@mui/icons-material/Add';
 import NorthIcon from '@mui/icons-material/North';
 import SouthIcon from '@mui/icons-material/South';
 import UploadFileIcon from '@mui/icons-material/UploadFile';
@@ -10,7 +12,7 @@ import PhotoCameraIcon from '@mui/icons-material/PhotoCamera';
 import InsertDriveFileOutlinedIcon from '@mui/icons-material/InsertDriveFileOutlined';
 import { useNavigate } from 'react-router-dom';
 import DashboardLayout from '../../layouts/DashboardLayout';
-import { CATEGORIAS_MANUALES, MOVIMIENTOS_LISTA } from '../../constants/movimientosMock';
+import { CATEGORIAS_MANUALES, MOVIMIENTOS_LISTA, registrarCategoria } from '../../constants/movimientosMock';
 import { formatBs } from '../../constants/finanzasMock';
 
 // '2026-10-19' -> '19/10/2026'
@@ -25,6 +27,18 @@ const VACIO = { tipo: 'Ingreso', categoria: '', fecha: '', monto: '', descripcio
 export default function RegistrarMovimiento() {
     const navigate = useNavigate();
     const [form, setForm] = useState(VACIO);
+
+    // --- Nueva categoria (el administrador puede crear las que necesite) ---
+    const [catAbierta, setCatAbierta] = useState(false);
+    const [catNombre, setCatNombre] = useState('');
+    const [catError, setCatError] = useState('');
+    const guardarCategoria = () => {
+        const err = registrarCategoria(catNombre);
+        if (err) { setCatError(err); return; }
+        setForm((f) => ({ ...f, categoria: catNombre.trim() })); // queda seleccionada
+        setErrores((e) => ({ ...e, categoria: false }));
+        setCatNombre(''); setCatError(''); setCatAbierta(false);
+    };
     const [errores, setErrores] = useState({});
     const [mostrarAviso, setMostrarAviso] = useState(false);
 
@@ -99,10 +113,18 @@ export default function RegistrarMovimiento() {
                 <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', mb: 2 }}>
                     <Box sx={{ flex: 1, minWidth: 220 }}>
                         <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Categoria</Typography>
-                        <Select fullWidth displayEmpty value={form.categoria} onChange={(e) => cambiar('categoria', e.target.value)} error={!!errores.categoria}>
-                            <MenuItem value=""><em>Seleccione categoria</em></MenuItem>
-                            {CATEGORIAS_MANUALES.map((c) => <MenuItem key={c} value={c}>{c}</MenuItem>)}
-                        </Select>
+                        <Box sx={{ display: 'flex', gap: 1 }}>
+                            <Select fullWidth displayEmpty value={form.categoria} onChange={(e) => cambiar('categoria', e.target.value)} error={!!errores.categoria}>
+                                <MenuItem value=""><em>Seleccione categoria</em></MenuItem>
+                                {CATEGORIAS_MANUALES.map((c) => <MenuItem key={c} value={c}>{c}</MenuItem>)}
+                            </Select>
+                            <Tooltip title="Nueva categoria">
+                                <IconButton color="primary" onClick={() => setCatAbierta(true)}
+                                    sx={{ border: '1px solid', borderColor: 'primary.main', borderRadius: 2 }}>
+                                    <AddIcon />
+                                </IconButton>
+                            </Tooltip>
+                        </Box>
                         {errores.categoria && <Typography sx={{ color: '#D9534F', fontSize: '0.76rem', mt: 0.5 }}>Seleccione una categoria</Typography>}
                     </Box>
                     <Box sx={{ flex: 1, minWidth: 220 }}>
@@ -174,6 +196,25 @@ export default function RegistrarMovimiento() {
                     </Button>
                 </Box>
             </Paper>
+
+            {/* Dialogo: nueva categoria */}
+            <Dialog open={catAbierta} onClose={() => setCatAbierta(false)} maxWidth="xs" fullWidth>
+                <DialogTitle sx={{ fontWeight: 700 }}>Nueva categoria</DialogTitle>
+                <DialogContent dividers>
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                        Quedara disponible para los proximos movimientos y en los filtros de Ingresos y gastos.
+                    </Typography>
+                    <TextField fullWidth size="small" autoFocus placeholder="Ej. Jardineria" value={catNombre}
+                        slotProps={{ htmlInput: { maxLength: 40 } }}
+                        onChange={(e) => { setCatNombre(e.target.value); setCatError(''); }}
+                        onKeyDown={(e) => { if (e.key === 'Enter') guardarCategoria(); }}
+                        error={!!catError} helperText={catError || `${catNombre.length}/40`} />
+                </DialogContent>
+                <DialogActions sx={{ p: 2 }}>
+                    <Button variant="outlined" onClick={() => setCatAbierta(false)}>Cancelar</Button>
+                    <Button variant="contained" onClick={guardarCategoria}>Guardar</Button>
+                </DialogActions>
+            </Dialog>
         </DashboardLayout>
     );
 }
