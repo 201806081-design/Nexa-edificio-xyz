@@ -7,6 +7,7 @@ import DragHandleIcon from '@mui/icons-material/DragHandle';
 import DescriptionOutlinedIcon from '@mui/icons-material/DescriptionOutlined';
 import CreditCardOutlinedIcon from '@mui/icons-material/CreditCardOutlined';
 import BarChartIcon from '@mui/icons-material/BarChart';
+import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import { useNavigate } from 'react-router-dom';
 import DashboardLayout from '../../layouts/DashboardLayout';
@@ -37,18 +38,23 @@ export default function GestionFinanciera() {
     const resumen = useMemo(() => {
         // INGRESOS y GASTOS DEL PERIODO: formula unica (resumenFinanciero),
         // la misma del Dashboard financiero y de Ingresos y gastos.
-        const { ingresos, gastos } = resumenFinanciero(periodo);
+        const { ingresos, gastos, balance } = resumenFinanciero(periodo);
 
         // SALDO PENDIENTE = total que los residentes deben al edificio hoy
         //   (vencido con interes + no vencido). Calculo unico de deudasMock.
         const saldoPendiente = saldoPendienteTotal();
 
-        return { ingresos, gastos, saldoPendiente };
+        return { ingresos, gastos, balance, saldoPendiente };
     }, [periodo]);
 
     const KPIS = [
         { clave: 'ingresos', label: 'Ingresos del periodo', valor: resumen.ingresos, icon: <NorthIcon />, color: '#2E9D78', bg: '#E4F4EE' },
         { clave: 'gastos', label: 'Gastos del periodo', valor: resumen.gastos, icon: <SouthIcon />, color: '#D9534F', bg: '#FBEAE9' },
+        // Balance = ingresos - gastos (verde si es positivo, rojo si es negativo); igual que el Dashboard
+        {
+            clave: 'balance', label: 'Balance del periodo', valor: resumen.balance, icon: <AccountBalanceWalletIcon />,
+            color: resumen.balance < 0 ? '#D9534F' : '#2E9D78', bg: resumen.balance < 0 ? '#FBEAE9' : '#E4F4EE',
+        },
         { clave: 'saldoPendiente', label: 'Saldo pendiente', valor: resumen.saldoPendiente, icon: <DragHandleIcon />, color: '#1F5F8B', bg: '#E4EEF5' },
     ];
 
@@ -68,7 +74,7 @@ export default function GestionFinanciera() {
             </Box>
 
             {/* KPIs */}
-            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, 1fr)' }, gap: 2, mb: 2 }}>
+            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', lg: 'repeat(4, 1fr)' }, gap: 2, mb: 2 }}>
                 {KPIS.map((k) => (
                     <Paper key={k.clave} sx={{ p: 3, borderRadius: 2, display: 'flex', alignItems: 'center', gap: 2 }}>
                         <Box sx={{ width: 52, height: 52, borderRadius: '50%', bgcolor: k.bg, color: k.color, display: 'grid', placeItems: 'center' }}>
