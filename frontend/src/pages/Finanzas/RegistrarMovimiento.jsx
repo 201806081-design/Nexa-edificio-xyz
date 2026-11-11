@@ -12,7 +12,10 @@ import PhotoCameraIcon from '@mui/icons-material/PhotoCamera';
 import InsertDriveFileOutlinedIcon from '@mui/icons-material/InsertDriveFileOutlined';
 import { useNavigate } from 'react-router-dom';
 import DashboardLayout from '../../layouts/DashboardLayout';
-import { CATEGORIAS_MANUALES, MOVIMIENTOS_LISTA, registrarCategoria } from '../../constants/movimientosMock';
+import {
+    CATEGORIAS_MANUALES, MOVIMIENTOS_LISTA, registrarCategoria,
+    MEDIOS_MOVIMIENTO, CUENTAS, cuentaPorMedio, etiquetaReferencia,
+} from '../../constants/movimientosMock';
 import { formatBs } from '../../constants/finanzasMock';
 
 // '2026-10-19' -> '19/10/2026'
@@ -22,7 +25,10 @@ const fechaBonita = (iso) => {
     return `${d}/${m}/${y}`;
 };
 
-const VACIO = { tipo: 'Ingreso', categoria: '', fecha: '', monto: '', descripcion: '', comprobante: '' };
+const VACIO = {
+    tipo: 'Ingreso', categoria: '', fecha: '', monto: '', descripcion: '', comprobante: '',
+    medio: 'Efectivo', cuenta: 'Caja', referencia: '',
+};
 
 export default function RegistrarMovimiento() {
     const navigate = useNavigate();
@@ -71,6 +77,8 @@ export default function RegistrarMovimiento() {
         if (!form.fecha) err.fecha = true;
         if (!(Number(form.monto) > 0)) err.monto = true;
         if (!form.descripcion.trim()) err.descripcion = true;
+        // Si no es efectivo, debe quedar la referencia (N.º de cheque, transferencia...)
+        if (form.medio !== 'Efectivo' && !form.referencia.trim()) err.referencia = true;
         setErrores(err);
         return Object.keys(err).length === 0;
     };
@@ -86,6 +94,7 @@ export default function RegistrarMovimiento() {
             categoria: form.categoria,
             descripcion: form.descripcion.trim(),
             monto,
+            medio: form.medio, cuenta: form.cuenta, referencia: form.referencia.trim(),
             comprobante: form.comprobante || 'Sin comprobante',
             archivo, // { name, type, url } para verlo en el detalle
             codigo: `MOV-2026-10-${String(MOVIMIENTOS_LISTA.length + 1).padStart(3, '0')}`,
@@ -109,6 +118,17 @@ export default function RegistrarMovimiento() {
                 {mostrarAviso && (
                     <Alert severity="error" sx={{ mb: 3 }}>Revisa los campos señalados antes de registrar el movimiento</Alert>
                 )}
+
+                {/* Los pagos al personal no se registran aqui (se evitan registros dobles) */}
+                <Alert severity="info" icon={false} sx={{ bgcolor: '#E4EEF5', color: 'text.primary', mb: 2 }}>
+                    <Typography variant="body2">
+                        Los <strong>salarios, bonos y anticipos del personal</strong> se registran en Personal y aparecen aqui solos
+                        (categorias "Pago al personal" y "Anticipo al personal").
+                    </Typography>
+                    <Button size="small" sx={{ mt: 0.5, px: 0 }} onClick={() => navigate('/personal/historial-pagos')}>
+                        Ir a pagos del personal
+                    </Button>
+                </Alert>
 
                 {/* Tipo de movimiento */}
                 <Typography variant="body2" sx={{ fontWeight: 600, mb: 1 }}>Tipo de movimiento</Typography>
@@ -144,6 +164,32 @@ export default function RegistrarMovimiento() {
                         <TextField fullWidth type="date" value={form.fecha} onChange={(e) => cambiar('fecha', e.target.value)}
                             error={!!errores.fecha} helperText={errores.fecha && 'Seleccione una fecha'}
                             slotProps={{ inputLabel: { shrink: true } }} />
+                    </Box>
+                </Box>
+
+                {/* Medio de pago + Cuenta + Referencia */}
+                <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', mb: 2 }}>
+                    <Box sx={{ flex: 1, minWidth: 180 }}>
+                        <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>
+                            {esIngreso ? 'Medio por el que ingresa' : 'Medio de pago'}
+                        </Typography>
+                        <Select fullWidth value={form.medio}
+                            onChange={(e) => { cambiar('medio', e.target.value); cambiar('cuenta', cuentaPorMedio(e.target.value)); }}>
+                            {MEDIOS_MOVIMIENTO.map((m) => <MenuItem key={m} value={m}>{m}</MenuItem>)}
+                        </Select>
+                    </Box>
+                    <Box sx={{ flex: 1, minWidth: 160 }}>
+                        <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Cuenta</Typography>
+                        <Select fullWidth value={form.cuenta} onChange={(e) => cambiar('cuenta', e.target.value)}>
+                            {CUENTAS.map((c) => <MenuItem key={c} value={c}>{c === 'Caja' ? 'Caja (efectivo)' : 'Banco (cuenta del edificio)'}</MenuItem>)}
+                        </Select>
+                    </Box>
+                    <Box sx={{ flex: 1.3, minWidth: 200 }}>
+                        <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>{etiquetaReferencia(form.medio)}</Typography>
+                        <TextField fullWidth value={form.referencia} placeholder={form.medio === 'Cheque' ? 'Ej. 000451' : 'Ej. 1234567890'}
+                            slotProps={{ htmlInput: { maxLength: 40 } }}
+                            onChange={(e) => cambiar('referencia', e.target.value)}
+                            error={!!errores.referencia} helperText={errores.referencia ? 'Obligatorio si no es efectivo' : ' '} />
                     </Box>
                 </Box>
 

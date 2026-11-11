@@ -2,8 +2,9 @@ import { useState, useMemo, useEffect } from 'react';
 import {
     Box, Typography, Paper, Button, Chip, Select, MenuItem, TextField,
     Table, TableHead, TableBody, TableRow, TableCell, IconButton, InputAdornment, Alert, Snackbar,
-    Dialog, DialogTitle, DialogContent, DialogActions, Menu, Divider, ToggleButton, ToggleButtonGroup,
+    Dialog, DialogTitle, DialogContent, DialogActions, Menu, Divider, ToggleButton, ToggleButtonGroup, Tooltip,
 } from '@mui/material';
+import UploadFileIcon from '@mui/icons-material/UploadFile';
 import SearchIcon from '@mui/icons-material/Search';
 import DownloadIcon from '@mui/icons-material/Download';
 import AddIcon from '@mui/icons-material/Add';
@@ -26,6 +27,7 @@ import {
     nombreEmpleado, cargoEmpleado,
     periodosDisponibles, periodoEnCurso, EMPLEADOS_MOCK, MEDIOS_PAGO_PERSONAL,
     previaPlanilla, generarPlanillaPeriodo, registrarNovedad, eliminarNovedad, novedadesDe,
+    registrarTipoDescuento, cuentaDeMedio,
 } from '../../constants/personalMock';
 import { formatBs } from '../../constants/finanzasMock';
 
@@ -159,7 +161,23 @@ export default function Planilla() {
 
     // --- Anticipos y descuentos del mes en curso (se aplican al generar la planilla) ---
     const periodoActual = periodoEnCurso();
-    const NOV_VACIA = { tipo: 'Anticipo', empleadoId: '', subtipo: 'Rotura/dano', monto: '', motivo: '', medio: 'Efectivo' };
+    const NOV_VACIA = { tipo: 'Anticipo', empleadoId: '', subtipo: 'Rotura/dano', monto: '', motivo: '', medio: 'Efectivo', referencia: '', comprobante: null };
+    // Nuevo tipo de descuento (boton "+")
+    const [tipoDescNuevo, setTipoDescNuevo] = useState(null); // null = cerrado; string = abierto
+    const [tipoDescError, setTipoDescError] = useState('');
+    const guardarTipoDesc = () => {
+        const err = registrarTipoDescuento(tipoDescNuevo);
+        if (err) { setTipoDescError(err); return; }
+        cambiarNov('subtipo', tipoDescNuevo.trim());
+        setTipoDescNuevo(null); setTipoDescError('');
+    };
+    const elegirComprobanteNov = (e) => {
+        const f = e.target.files && e.target.files[0];
+        e.target.value = '';
+        if (!f) return;
+        if (f.size > 5 * 1024 * 1024) { setNovError('El archivo supera 5 MB'); return; }
+        cambiarNov('comprobante', { name: f.name, type: f.type, url: URL.createObjectURL(f) });
+    };
     const [novAbierto, setNovAbierto] = useState(false);
     const [nov, setNov] = useState(NOV_VACIA);
     const [novError, setNovError] = useState('');
@@ -169,7 +187,12 @@ export default function Planilla() {
         if (err) { setNovError(err); return; }
         setNov((n) => ({ ...NOV_VACIA, tipo: n.tipo }));
         setTick((t) => t + 1);
-        setSnack({ open: true, msg: `${nov.tipo} registrado: se descontara en la planilla de ${periodoActual}`, sev: 'success' });
+        setSnack({
+            open: true, sev: 'success',
+            msg: nov.tipo === 'Anticipo'
+                ? `Anticipo registrado: salio de ${cuentaDeMedio(nov.medio)} y quedo como gasto en Ingresos y gastos. Se descontara en la planilla de ${periodoActual}.`
+                : `Descuento registrado: se aplicara en la planilla de ${periodoActual}.`,
+        });
     };
     const quitarNov = (id) => { eliminarNovedad(id); setTick((t) => t + 1); };
     const novedadesMes = novedadesDe(periodoActual);
@@ -751,9 +774,17 @@ export default function Planilla() {
                         {nov.tipo === 'Descuento' ? (
                             <Box sx={{ flex: 1, minWidth: 170 }}>
                                 <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Tipo de descuento</Typography>
-                                <Select fullWidth size="small" value={nov.subtipo} onChange={(e) => cambiarNov('subtipo', e.target.value)}>
-                                    {TIPOS_DESCUENTO.filter((t) => t !== 'Anticipo salarial').map((t) => <MenuItem key={t} value={t}>{t}</MenuItem>)}
-                                </Select>
+                                <Box sx={{ display: 'flex', gap: 1 }}>
+                                    <Select fullWidth size="small" value={nov.subtipo} onChange={(e) => cambiarNov('subtipo', e.target.value)}>
+                                        {TIPOS_DESCUENTO.filter((t) => t !== 'Anticipo salarial').map((t) => <MenuItem key={t} value={t}>{t}</MenuItem>)}
+                                    </Select>
+                                    <Tooltip title="Nuevo tipo de descuento">
+                                        <IconButton size="small" color="primary" onClick={() => { setTipoDescNuevo(''); setTipoDescError(''); }}
+                                            sx={{ border: '1px solid', borderColor: 'primary.main', borderRadius: 2 }}>
+                                            <AddIcon fontSize="small" />
+                                        </IconButton>
+                                    </Tooltip>
+                                </Box>
                             </Box>
                         ) : (
                             <Box sx={{ flex: 1, minWidth: 170 }}>
@@ -771,11 +802,38 @@ export default function Planilla() {
                                 onChange={(e) => cambiarNov('monto', e.target.value)} />
                         </Box>
                     </Box>
+                    {nov.tipo === 'Anticipo' && (
+                        <Box sx={{ mb: 2 }}>
+                            <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>
+                                {nov.medio === 'Efectivo' ? 'N.º de recibo (opcional)' : `N.º de ${nov.medio.toLowerCase()}`}
+                            </Typography>
+                            <TextField fullWidth size="small" value={nov.referencia} placeholder={nov.medio === 'Efectivo' ? 'REC-00000' : '1234567890'}
+                                slotProps={{ htmlInput: { maxLength: 40 } }}
+                                onChange={(e) => cambiarNov('referencia', e.target.value)}
+                                helperText={`Sale de: ${cuentaDeMedio(nov.medio) === 'Caja' ? 'Caja (efectivo)' : 'Banco (cuenta del edificio)'}. Se registra solo como gasto "Anticipo al personal" en Ingresos y gastos.`} />
+                        </Box>
+                    )}
                     <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Motivo</Typography>
                     <TextField fullWidth size="small" value={nov.motivo}
                         placeholder={nov.tipo === 'Anticipo' ? 'Ej. Urgencia familiar' : 'Ej. Rotura de vidrio en porteria'}
                         slotProps={{ htmlInput: { maxLength: 150 } }}
                         onChange={(e) => cambiarNov('motivo', e.target.value)} sx={{ mb: 2 }} />
+                    {/* Comprobante: recibo firmado del anticipo, o factura/foto de lo que se rompio */}
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap', mb: 2 }}>
+                        <Button component="label" size="small" variant="outlined" startIcon={<UploadFileIcon />}
+                            sx={{ color: '#1a2733', borderColor: '#cdd8e3' }}>
+                            {nov.comprobante ? 'Cambiar comprobante' : 'Adjuntar comprobante'}
+                            <input hidden type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={elegirComprobanteNov} />
+                        </Button>
+                        {nov.comprobante && (
+                            <Chip size="small" label={nov.comprobante.name}
+                                onClick={() => window.open(nov.comprobante.url, '_blank')}
+                                onDelete={() => cambiarNov('comprobante', null)} />
+                        )}
+                        <Typography variant="caption" color="text.secondary">
+                            Opcional · {nov.tipo === 'Anticipo' ? 'recibo firmado o voucher' : 'factura o foto de lo que se repuso'}
+                        </Typography>
+                    </Box>
                     {novError && <Alert severity="error" sx={{ mb: 2 }}>{novError}</Alert>}
                     <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 2 }}>
                         <Button variant="contained" startIcon={<AddIcon />} onClick={guardarNov}>Registrar {nov.tipo.toLowerCase()}</Button>
@@ -803,7 +861,15 @@ export default function Planilla() {
                                             <TableCell>{n.fecha}</TableCell>
                                             <TableCell sx={{ fontWeight: 600 }}>{nombreEmpleado(n.empleadoId)}</TableCell>
                                             <TableCell>{n.tipo === 'Anticipo' ? 'Anticipo' : n.subtipo}</TableCell>
-                                            <TableCell>{n.motivo}</TableCell>
+                                            <TableCell>
+                                                {n.motivo}
+                                                {n.comprobante && (
+                                                    <Typography variant="caption" component="div" sx={{ color: 'primary.main', cursor: 'pointer' }}
+                                                        onClick={() => window.open(n.comprobante.url, '_blank')}>
+                                                        Ver comprobante
+                                                    </Typography>
+                                                )}
+                                            </TableCell>
                                             <TableCell align="right" sx={{ fontWeight: 700 }}>{formatBs(n.monto)}</TableCell>
                                             <TableCell align="center">
                                                 <IconButton size="small" onClick={() => quitarNov(n.id)} sx={{ color: '#D9534F' }}>
@@ -819,6 +885,22 @@ export default function Planilla() {
                 </DialogContent>
                 <DialogActions sx={{ p: 2 }}>
                     <Button variant="outlined" onClick={() => setNovAbierto(false)}>Cerrar</Button>
+                </DialogActions>
+            </Dialog>
+
+            {/* Nuevo tipo de descuento */}
+            <Dialog open={tipoDescNuevo !== null} onClose={() => setTipoDescNuevo(null)} maxWidth="xs" fullWidth>
+                <DialogTitle sx={{ fontWeight: 700 }}>Nuevo tipo de descuento</DialogTitle>
+                <DialogContent dividers>
+                    <TextField fullWidth size="small" autoFocus placeholder="Ej. Uniforme" value={tipoDescNuevo || ''}
+                        slotProps={{ htmlInput: { maxLength: 40 } }}
+                        onChange={(e) => { setTipoDescNuevo(e.target.value); setTipoDescError(''); }}
+                        onKeyDown={(e) => { if (e.key === 'Enter') guardarTipoDesc(); }}
+                        error={!!tipoDescError} helperText={tipoDescError || ' '} />
+                </DialogContent>
+                <DialogActions sx={{ p: 2 }}>
+                    <Button variant="outlined" onClick={() => setTipoDescNuevo(null)}>Cancelar</Button>
+                    <Button variant="contained" onClick={guardarTipoDesc}>Guardar</Button>
                 </DialogActions>
             </Dialog>
         </DashboardLayout>

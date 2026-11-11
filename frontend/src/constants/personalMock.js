@@ -164,6 +164,19 @@ export const HISTORIAL_SALARIOS_CARGO = [
 // Tipos de descuentos que se pueden aplicar al "Otros desc." de la planilla.
 export const TIPOS_DESCUENTO = ['Anticipo salarial', 'Rotura/dano', 'Aporte social', 'Ajuste', 'Otro'];
 
+// Registra un tipo de descuento nuevo (ej. 'Uniforme'). Devuelve un mensaje de error o null.
+export const registrarTipoDescuento = (nombre) => {
+    const n = String(nombre || '').trim();
+    if (!n) return 'Escribe el nombre';
+    if (n.length > 40) return 'Maximo 40 caracteres';
+    if (TIPOS_DESCUENTO.some((t) => t.toLowerCase() === n.toLowerCase())) return 'Ese tipo ya existe';
+    TIPOS_DESCUENTO.splice(TIPOS_DESCUENTO.indexOf('Otro'), 0, n);
+    return null;
+};
+
+// Cuenta de la que sale el dinero segun el medio (igual que en Ingresos y gastos)
+export const cuentaDeMedio = (medio) => (medio === 'Efectivo' ? 'Caja' : 'Banco');
+
 // Anticipos ya otorgados a empleados (saldo pendiente a descontar).
 export const ANTICIPOS_PERSONAL_MOCK = [
     { id: 'AP-001', fecha: '20/10/2026', empleadoId: 'EM-002', empleado: buscarEmp('EM-002'), monto: 400, descontado: 400, saldo: 0, estado: 'Descontado' },
@@ -303,14 +316,17 @@ const siguienteIdPagoPersonal = () => {
 
 export const NOVEDADES_PENDIENTES = [];
 
-// { periodo, empleadoId, tipo: 'Anticipo'|'Descuento', subtipo, monto, motivo, medio }
+// { periodo, empleadoId, tipo: 'Anticipo'|'Descuento', subtipo, monto, motivo, medio, referencia, comprobante }
 // Devuelve un mensaje de error o null.
-export const registrarNovedad = ({ periodo, empleadoId, tipo, subtipo, monto, motivo, medio = 'Efectivo' }) => {
+export const registrarNovedad = ({ periodo, empleadoId, tipo, subtipo, monto, motivo, medio = 'Efectivo', referencia = '', comprobante = null }) => {
     const emp = EMPLEADOS_MOCK.find((e) => e.id === empleadoId);
     const m = Math.round((Number(monto) || 0) * 100) / 100;
     if (!emp) return 'Elige un empleado';
     if (!(m > 0)) return 'Ingresa un monto mayor a 0';
     if (!String(motivo || '').trim()) return 'El motivo es obligatorio';
+    if (tipo === 'Anticipo' && medio !== 'Efectivo' && !String(referencia || '').trim()) {
+        return `Falta el N.º de ${medio.toLowerCase()}`;
+    }
     // No se puede descontar mas que su salario del mes
     const yaPendiente = NOVEDADES_PENDIENTES
         .filter((n) => n.periodo === periodo && n.empleadoId === empleadoId)
@@ -324,12 +340,13 @@ export const registrarNovedad = ({ periodo, empleadoId, tipo, subtipo, monto, mo
         pagoId = siguienteIdPagoPersonal();
         PAGOS_PERSONAL_MOCK.push({
             id: pagoId, fecha, empleadoId, empleado: emp.nombre, periodo: periodoCortoDe(periodo),
-            concepto: 'Anticipo', medio, referencia: '', montoNeto: m, estado: 'Pagado', motivo: String(motivo).trim(),
+            concepto: 'Anticipo', medio, cuenta: cuentaDeMedio(medio), referencia: String(referencia || '').trim(),
+            comprobante, montoNeto: m, estado: 'Pagado', motivo: String(motivo).trim(),
         });
     }
     NOVEDADES_PENDIENTES.push({
         id, periodo, empleadoId, tipo, subtipo: tipo === 'Anticipo' ? 'Anticipo salarial' : subtipo,
-        monto: m, motivo: String(motivo).trim(), fecha, pagoId,
+        monto: m, motivo: String(motivo).trim(), fecha, pagoId, comprobante,
     });
     return null;
 };

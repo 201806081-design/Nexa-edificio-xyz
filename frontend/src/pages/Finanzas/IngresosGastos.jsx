@@ -149,6 +149,7 @@ export default function IngresosGastos() {
                             <TableCell><strong>Categoria</strong></TableCell>
                             <TableCell><strong>Descripcion</strong></TableCell>
                             <TableCell><strong>Monto</strong></TableCell>
+                            <TableCell><strong>Medio / cuenta</strong></TableCell>
                             <TableCell><strong>Comprobante</strong></TableCell>
                             <TableCell align="center"><strong>Acciones</strong></TableCell>
                         </TableRow>
@@ -156,7 +157,7 @@ export default function IngresosGastos() {
                     <TableBody>
                         {movimientos.length === 0 && (
                             <TableRow>
-                                <TableCell colSpan={7} align="center" sx={{ color: 'text.secondary', py: 3 }}>
+                                <TableCell colSpan={8} align="center" sx={{ color: 'text.secondary', py: 3 }}>
                                     No hay movimientos registrados para {periodo}.
                                 </TableCell>
                             </TableRow>
@@ -171,6 +172,10 @@ export default function IngresosGastos() {
                                     <TableCell>{m.descripcion}</TableCell>
                                     <TableCell sx={{ fontWeight: 600, color: esIngreso ? '#2E9D78' : '#D9534F' }}>
                                         {esIngreso ? '+' : '-'}{formatBs(m.monto)}
+                                    </TableCell>
+                                    <TableCell>
+                                        <Typography variant="body2">{m.medio || '—'}</Typography>
+                                        <Typography variant="caption" color="text.secondary">{m.cuenta || ''}</Typography>
                                     </TableCell>
                                     <TableCell>
                                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, color: 'text.secondary' }}>

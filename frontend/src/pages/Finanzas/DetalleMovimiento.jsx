@@ -54,8 +54,9 @@ export default function DetalleMovimiento() {
 
             {mensaje && <Alert severity="success" sx={{ mb: 3 }}>{mensaje}</Alert>}
             {mov.origen === 'personal' && (
-                <Alert severity="info" sx={{ mb: 3 }}>
-                    Este gasto se genero automaticamente desde el modulo Personal. Para modificarlo, revisa la planilla o el historial de pagos del personal.
+                <Alert severity="info" sx={{ mb: 3 }}
+                    action={<Button color="inherit" size="small" onClick={() => navigate('/personal/historial-pagos')}>Ver en Personal</Button>}>
+                    Este gasto viene de un pago registrado en Personal ({mov.codigo}). Para corregirlo, hazlo desde Personal.
                 </Alert>
             )}
 
@@ -71,6 +72,9 @@ export default function DetalleMovimiento() {
                 <Dato etiqueta="Fecha" valor={mov.fecha} />
                 <Dato etiqueta="Monto" valor={<Box component="span" sx={{ color: esIngreso ? '#2E9D78' : '#D9534F', fontWeight: 700 }}>{esIngreso ? '+' : '-'}{formatBs(mov.monto)}</Box>} />
                 <Dato etiqueta="Descripcion" valor={mov.descripcion} />
+                <Dato etiqueta="Medio" valor={mov.medio || '—'} />
+                <Dato etiqueta="Cuenta" valor={mov.cuenta ? (mov.cuenta === 'Caja' ? 'Caja (efectivo)' : 'Banco (cuenta del edificio)') : '—'} />
+                {mov.referencia && <Dato etiqueta="Referencia" valor={mov.referencia} />}
 
                 <Divider sx={{ my: 2 }} />
 

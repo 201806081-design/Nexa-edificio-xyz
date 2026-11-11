@@ -5,6 +5,7 @@ import {
     Dialog, DialogTitle, DialogContent, DialogActions, Divider, Menu, ListItemIcon, ListItemText,
 } from '@mui/material';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
+import UploadFileIcon from '@mui/icons-material/UploadFile';
 import SearchIcon from '@mui/icons-material/Search';
 import DownloadIcon from '@mui/icons-material/Download';
 import AddIcon from '@mui/icons-material/Add';
@@ -21,7 +22,7 @@ import {
     PAGOS_PERSONAL_MOCK, PLANILLA_MOCK, RESUMEN_PAGOS_PERSONAL, RESUMEN_PLANILLA,
     ESTADOS_PAGO_PERSONAL, MEDIOS_PAGO_PERSONAL, CONCEPTOS_PAGO,
     nombreEmpleado, cargoEmpleado,
-    periodosDisponibles, periodoEnCurso, empleadosPagables,
+    periodosDisponibles, periodoEnCurso, empleadosPagables, cuentaDeMedio,
 } from '../../constants/personalMock';
 import { formatBs } from '../../constants/finanzasMock';
 
@@ -254,7 +255,8 @@ export default function HistorialPagos() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [pagoDraft, tick]);
     const confirmarRegistrar = () => {
-        const { empleadoId, concepto, periodo: periodoDraft, monto, fecha, medio, referencia, motivo } = pagoDraft;
+        const { empleadoId, concepto, periodo: periodoDraft, monto, fecha, medio, referencia, motivo, comprobante = null } = pagoDraft;
+        const cuenta = cuentaDeMedio(medio); // Efectivo sale de Caja; transferencia o cheque, del Banco
         const montoNum = Number(monto) || 0;
         if (!empleadoId) {
             setSnack({ open: true, msg: 'Selecciona un empleado', sev: 'warning' });
@@ -303,13 +305,15 @@ export default function HistorialPagos() {
             pagoExistente.fecha = fecha;
             pagoExistente.medio = medio;
             pagoExistente.referencia = referencia || null;
+            pagoExistente.cuenta = cuenta;
+            pagoExistente.comprobante = comprobante;
             pagoExistente.montoNeto = montoNum;
             pagoExistente.estado = 'Pagado';
         } else {
             PAGOS_PERSONAL_MOCK.push({
                 id: codigo, fecha, empleadoId, empleado: empleadoNombre,
                 periodo: periodoCortoStr, concepto,
-                medio, referencia: referencia || null,
+                medio, cuenta, referencia: referencia || null, comprobante,
                 montoNeto: montoNum, estado: 'Pagado',
                 motivo: motivo || null,
             });
@@ -337,7 +341,7 @@ export default function HistorialPagos() {
         recalcularResumenes();
         setRegistrarAbierto(false);
         setTick((t) => t + 1);
-        setSnack({ open: true, msg: `Pago ${codigo} registrado (${concepto}) para ${empleadoNombre}`, sev: 'success' });
+        setSnack({ open: true, msg: `Pago ${codigo} registrado (${concepto}) para ${empleadoNombre}. Tambien quedo como gasto en Ingresos y gastos (${cuenta}).`, sev: 'success' });
     };
 
     const abrirDetalle = (p) => {
@@ -654,7 +658,29 @@ export default function HistorialPagos() {
                     <TextField fullWidth size="small" value={pagoDraft.referencia}
                         onChange={(e) => setPagoDraft((p) => ({ ...p, referencia: e.target.value }))}
                         placeholder={pagoDraft.medio === 'Efectivo' ? 'REC-00000' : '1234567890'}
+                        helperText={`Sale de: ${cuentaDeMedio(pagoDraft.medio) === 'Caja' ? 'Caja (efectivo)' : 'Banco (cuenta del edificio)'}. Se registra solo como gasto en Ingresos y gastos.`}
                         sx={{ mb: 2 }} />
+
+                    {/* Comprobante del pago (recibo firmado, voucher, foto del cheque) */}
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap', mb: 2 }}>
+                        <Button component="label" size="small" variant="outlined" startIcon={<UploadFileIcon />}
+                            sx={{ color: '#1a2733', borderColor: '#cdd8e3' }}>
+                            {pagoDraft.comprobante ? 'Cambiar comprobante' : 'Adjuntar comprobante'}
+                            <input hidden type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={(e) => {
+                                const f = e.target.files && e.target.files[0];
+                                e.target.value = '';
+                                if (!f) return;
+                                if (f.size > 5 * 1024 * 1024) { setSnack({ open: true, msg: 'El archivo supera 5 MB', sev: 'warning' }); return; }
+                                setPagoDraft((p) => ({ ...p, comprobante: { name: f.name, type: f.type, url: URL.createObjectURL(f) } }));
+                            }} />
+                        </Button>
+                        {pagoDraft.comprobante && (
+                            <Chip size="small" label={pagoDraft.comprobante.name}
+                                onClick={() => window.open(pagoDraft.comprobante.url, '_blank')}
+                                onDelete={() => setPagoDraft((p) => ({ ...p, comprobante: null }))} />
+                        )}
+                        <Typography variant="caption" color="text.secondary">Opcional · PDF, JPG o PNG</Typography>
+                    </Box>
 
                     {(pagoDraft.concepto === 'Anticipo' || pagoDraft.concepto === 'Bono') && (
                         <>
