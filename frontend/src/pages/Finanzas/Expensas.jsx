@@ -29,6 +29,7 @@ import {
 } from '../../constants/expensasMock';
 import { formatBs } from '../../constants/finanzasMock';
 import { estadoVisibleExpensa } from '../../constants/deudasMock';
+import { aplicarCreditoAutomatico } from '../../constants/creditosMock';
 
 const PAGE_SIZE = 10;
 
@@ -144,13 +145,19 @@ export default function Expensas() {
         row.m3 = m3;
         row.lecturaAnterior = row.lecturaAnt; // alias que usan otras pantallas
         row.lecturaActual = row.lecturaAct;
-        row.estado = row.estado === 'Agua pendiente' ? 'Lista' : row.estado;
+        const quedaLista = row.estado === 'Agua pendiente';
+        row.estado = quedaLista ? 'Lista' : row.estado;
         row.fechaAgua = new Date().toLocaleDateString('es-BO');
         recalcularTotalExpensa(row); // actualiza total incluyendo extras
         const d = DEPARTAMENTOS_ACTIVOS.find((x) => x.id === row.depto);
         if (d) d.ultimaLectura = row.lecturaAct;
         const sufijo = aguaDirty ? ' (monto manual)' : '';
-        setSnack({ open: true, msg: `Agua registrada en depto ${row.depto}: ${formatBs(aguaFinal)}${sufijo}. Expensa lista para cobrar.`, sev: 'success' });
+        // Si el depto tiene saldo a favor de anticipos, se descuenta solo (requisito 5.1)
+        const credito = quedaLista ? aplicarCreditoAutomatico(row.id) : 0;
+        const textoCredito = credito > 0
+            ? ` Se aplicaron ${formatBs(credito)} de su saldo a favor${row.estado === 'Pagada' ? ': expensa pagada.' : '.'}`
+            : ' Expensa lista para cobrar.';
+        setSnack({ open: true, msg: `Agua registrada en depto ${row.depto}: ${formatBs(aguaFinal)}${sufijo}.${textoCredito}`, sev: 'success' });
         setTick((t) => t + 1);
         cerrarAgua();
     };

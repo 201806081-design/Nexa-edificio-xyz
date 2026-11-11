@@ -1,5 +1,9 @@
-import { Box, Typography, Paper, Button, Chip, Alert, Divider } from '@mui/material';
+import { useState } from 'react';
+import {
+    Box, Typography, Paper, Button, Chip, Alert, Divider, Dialog, DialogTitle, DialogContent, DialogActions,
+} from '@mui/material';
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
+import ImageIcon from '@mui/icons-material/Image';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import { movimientoPorId } from '../../constants/movimientosMock';
@@ -25,6 +29,8 @@ export default function DetalleMovimiento() {
     const location = useLocation();
     const mensaje = location.state?.mensaje;
     const mov = movimientoPorId(id);
+    const [verAbierto, setVerAbierto] = useState(false);
+    const esImagen = !!mov?.archivo?.type?.startsWith('image/');
 
     if (!mov) {
         return (
@@ -71,12 +77,44 @@ export default function DetalleMovimiento() {
                 {/* Comprobante */}
                 <Typography variant="body2" sx={{ fontWeight: 600, mb: 1 }}>Comprobante</Typography>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 1 }}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <PictureAsPdfIcon sx={{ color: '#D9534F' }} />
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                        {esImagen ? (
+                            <Box component="img" src={mov.archivo.url} alt="Comprobante" onClick={() => setVerAbierto(true)}
+                                sx={{ width: 72, height: 72, objectFit: 'cover', borderRadius: 2, border: '1px solid #CFDCEA', cursor: 'pointer' }} />
+                        ) : (
+                            mov.archivo?.type?.startsWith('image/') ? <ImageIcon color="primary" /> : <PictureAsPdfIcon sx={{ color: '#D9534F' }} />
+                        )}
                         <Typography>{mov.comprobante}</Typography>
                     </Box>
-                    <Button variant="outlined" sx={{ color: '#1a2733', borderColor: '#cdd8e3' }}>Ver comprobante</Button>
+                    <Button variant="outlined" disabled={!mov.archivo} onClick={() => setVerAbierto(true)}
+                        sx={{ color: '#1a2733', borderColor: '#cdd8e3' }}>
+                        Ver comprobante
+                    </Button>
                 </Box>
+                {!mov.archivo && mov.origen !== 'personal' && (
+                    <Typography variant="caption" color="text.secondary">
+                        Comprobante de ejemplo: el archivo no esta disponible en los datos de prueba.
+                    </Typography>
+                )}
+
+                {/* Visor del comprobante: imagen o PDF */}
+                <Dialog open={verAbierto} onClose={() => setVerAbierto(false)} maxWidth="md" fullWidth>
+                    <DialogTitle sx={{ fontWeight: 700 }}>{mov.comprobante}</DialogTitle>
+                    <DialogContent dividers sx={{ textAlign: 'center', bgcolor: '#F3F6FA' }}>
+                        {esImagen ? (
+                            <Box component="img" src={mov.archivo.url} alt="Comprobante" sx={{ maxWidth: '100%', maxHeight: '70vh' }} />
+                        ) : mov.archivo ? (
+                            <Box component="iframe" src={mov.archivo.url} title="Comprobante"
+                                sx={{ width: '100%', height: '70vh', border: 0, bgcolor: '#fff' }} />
+                        ) : null}
+                    </DialogContent>
+                    <DialogActions sx={{ p: 2 }}>
+                        {mov.archivo && (
+                            <Button variant="outlined" onClick={() => window.open(mov.archivo.url, '_blank')}>Abrir en otra pestaña</Button>
+                        )}
+                        <Button variant="contained" onClick={() => setVerAbierto(false)}>Cerrar</Button>
+                    </DialogActions>
+                </Dialog>
 
                 <Divider sx={{ my: 2 }} />
 

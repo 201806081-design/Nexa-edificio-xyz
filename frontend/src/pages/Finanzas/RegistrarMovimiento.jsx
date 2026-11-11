@@ -47,12 +47,23 @@ export default function RegistrarMovimiento() {
         setErrores((e) => ({ ...e, [campo]: false }));
     };
 
-    // Selecciona el comprobante (mock: solo guardamos el nombre del archivo)
+    // Comprobante: se guarda el nombre y una URL local para poder verlo
+    // (mock: vive en memoria mientras la pagina este abierta; con backend se sube el archivo)
+    const [archivo, setArchivo] = useState(null); // { name, type, url }
     const elegirArchivo = (e) => {
         const file = e.target.files && e.target.files[0];
-        if (file) cambiar('comprobante', file.name);
+        if (file) {
+            if (file.size > 5 * 1024 * 1024) {
+                setErrores((er) => ({ ...er, comprobante: 'El archivo supera 5 MB' }));
+            } else {
+                setArchivo({ name: file.name, type: file.type, url: URL.createObjectURL(file) });
+                cambiar('comprobante', file.name);
+                setErrores((er) => ({ ...er, comprobante: '' }));
+            }
+        }
         e.target.value = ''; // permite volver a elegir el mismo archivo
     };
+    const quitarArchivo = () => { setArchivo(null); cambiar('comprobante', ''); };
 
     const validar = () => {
         const err = {};
@@ -76,6 +87,7 @@ export default function RegistrarMovimiento() {
             descripcion: form.descripcion.trim(),
             monto,
             comprobante: form.comprobante || 'Sin comprobante',
+            archivo, // { name, type, url } para verlo en el detalle
             codigo: `MOV-2026-10-${String(MOVIMIENTOS_LISTA.length + 1).padStart(3, '0')}`,
         };
         MOVIMIENTOS_LISTA.unshift(nuevo); // los totales se calculan en vivo en cada pantalla
@@ -166,13 +178,22 @@ export default function RegistrarMovimiento() {
                     </Box>
 
                     {form.comprobante ? (
-                        <Box sx={{ mt: 1 }}>
+                        <Box sx={{ mt: 1, display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
+                            {/* Vista previa: miniatura si es imagen */}
+                            {archivo?.type?.startsWith('image/') && (
+                                <Box component="img" src={archivo.url} alt="Vista previa del comprobante"
+                                    sx={{ width: 96, height: 96, objectFit: 'cover', borderRadius: 2, border: '1px solid #CFDCEA' }} />
+                            )}
                             <Chip icon={<InsertDriveFileOutlinedIcon />} label={form.comprobante}
-                                onDelete={() => cambiar('comprobante', '')}
+                                onDelete={quitarArchivo}
+                                onClick={archivo ? () => window.open(archivo.url, '_blank') : undefined}
                                 sx={{ bgcolor: '#E4EEF5', color: '#1F5F8B', fontWeight: 600 }} />
                         </Box>
                     ) : (
-                        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>Adjunte un archivo PDF, JPG o PNG</Typography>
+                        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>Adjunte un archivo PDF, JPG o PNG (max. 5 MB)</Typography>
+                    )}
+                    {errores.comprobante && (
+                        <Typography sx={{ color: '#D9534F', fontSize: '0.76rem', mt: 0.5 }}>{errores.comprobante}</Typography>
                     )}
                 </Box>
 

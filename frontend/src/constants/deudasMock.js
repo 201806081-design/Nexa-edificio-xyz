@@ -100,6 +100,8 @@ export const situacionExpensa = (e, { hoy = new Date(), config = CONFIG_MORA, di
         deudaOriginal: original, meses, interes, deudaActual, pagado, pendiente,
         vencida: meses > 0 && pendiente >= 0.01,
         estado,
+        // Sin el agua registrada la expensa no esta completa: todavia no se puede cobrar
+        cobrable: e.estado !== 'Agua pendiente',
     };
 };
 
@@ -126,9 +128,10 @@ export const saldoPendienteTotal = (opts) => round2(calcularDeudas(opts).reduce(
 
 // Deudas agrupadas por depto (para Registrar pago y resumenes):
 // [{ id, etiqueta, responsable, saldoPendiente, deudas: [...] }]
+// Con { soloCobrables: true } deja fuera las expensas con el agua pendiente.
 export const deudasPorDepto = (opts) => {
     const mapa = new Map();
-    calcularDeudas(opts).forEach((d) => {
+    calcularDeudas(opts).filter((d) => !opts?.soloCobrables || d.cobrable).forEach((d) => {
         if (!mapa.has(d.depto)) {
             mapa.set(d.depto, {
                 id: d.depto,

@@ -16,7 +16,7 @@ import PaidIcon from '@mui/icons-material/Paid';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import { formatBs } from '../../constants/finanzasMock';
-import { EXPENSAS_MOCK } from '../../constants/expensasMock';
+import { EXPENSAS_MOCK, DEPARTAMENTOS_ACTIVOS } from '../../constants/expensasMock';
 import { periodosConMovimientos, periodoEnCurso } from '../../constants/periodos';
 import { PAGOS_MOCK, HISTORIAL_ANTICIPOS, totalPago } from '../../constants/pagosMock';
 import { CONFIG_MORA } from '../../constants/moraMock';
@@ -51,20 +51,15 @@ const estadoChipSx = (estado) => {
     return { bgcolor: '#FDF0D5', color: '#B6802A' };
 };
 
-// Lista de deptos del sistema que ya tienen expensas.
-// El responsable se lee del edificio (edificioMock).
+// Lista de TODOS los deptos del edificio (incluye los recien registrados en Unidades,
+// aunque todavia no tengan expensas). El responsable se lee del edificio.
 function buildDeptosDelSistema() {
-    const map = new Map();
-    EXPENSAS_MOCK.forEach((e) => {
-        if (map.has(e.depto)) return;
-        map.set(e.depto, {
-            id: e.depto,
-            etiqueta: `Depto. ${e.depto}${e.tipo ? ` — Tipo ${e.tipo}` : ''}`,
-            tipo: e.tipo || '',
-            responsable: responsableDe(e.depto, { conTipo: true }),
-        });
-    });
-    return [...map.values()].sort((a, b) => a.id.localeCompare(b.id));
+    return DEPARTAMENTOS_ACTIVOS.map((d) => ({
+        id: d.id,
+        etiqueta: `Depto. ${d.id}${d.tipo ? ` — Tipo ${d.tipo}` : ''}`,
+        tipo: d.tipo || '',
+        responsable: responsableDe(d.id, { conTipo: true }),
+    })).sort((x, y) => x.id.localeCompare(y.id));
 }
 
 // Historial del depto: sale del calculo unico de deudas (deudasMock),

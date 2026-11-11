@@ -83,7 +83,8 @@ export default function RegistrarPago() {
 
     // Deptos con deuda (vencida o no): calculo unico de deudasMock,
     // el mismo que usan Mora, Dashboard, Estado de cuenta y Comunicados.
-    const deptosDisponibles = useMemo(() => deudasPorDepto(), []);
+    // Solo expensas listas para cobrar: si falta registrar el agua, no se puede pagar
+    const deptosDisponibles = useMemo(() => deudasPorDepto({ soloCobrables: true }), []);
 
     const [deptoId, setDeptoId] = useState('');
     const [fecha, setFecha] = useState(hoyIso());
