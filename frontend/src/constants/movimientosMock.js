@@ -12,6 +12,7 @@
 // Las pantallas usan todosLosMovimientos(), que junta ambas fuentes.
 
 import { PAGOS_PERSONAL_MOCK, ANTICIPOS_PERSONAL_MOCK, cargoEmpleado } from './personalMock';
+import { PAGOS_MOCK, HISTORIAL_ANTICIPOS } from './pagosMock';
 
 // Opciones de los selectores del formulario y filtros.
 export const TIPOS_MOVIMIENTO = ['Todos', 'Ingreso', 'Gasto'];
@@ -106,5 +107,70 @@ export const gastosDePersonal = () => [
 export const todosLosMovimientos = () => [...MOVIMIENTOS_LISTA, ...gastosDePersonal()]
     .sort((a, b) => (b.fecha || '').split('/').reverse().join('').localeCompare((a.fecha || '').split('/').reverse().join('')));
 
-// Busca un movimiento por id (numerico para los manuales, 'PER-...' para personal)
-export const movimientoPorId = (id) => todosLosMovimientos().find((m) => String(m.id) === String(id)) ?? null;
+// ============================================================
+//  LIBRO DE INGRESOS Y GASTOS (base de caja)
+//  Un movimiento existe cuando el dinero ENTRA o SALE de verdad:
+//    - Cobro de expensa: cuando el copropietario paga (no cuando se genera la expensa).
+//      Un pago hecho solo con credito a favor no es ingreso nuevo (el dinero ya
+//      entro el dia del anticipo).
+//    - Anticipo de copropietario: el dia que se recibe.
+//    - Otros ingresos y gastos: los registrados a mano.
+//    - Pagos y anticipos al personal: el dia que se pagan (desde Personal).
+//  Los descuentos al personal NO son movimientos: bajan el neto que se le paga.
+//  Las expensas generadas y los cargos extra son dinero POR COBRAR (saldo pendiente),
+//  no ingresos, hasta que se pagan.
+// ============================================================
+export const CATEGORIAS_COBROS = ['Expensas', 'Anticipos de copropietarios'];
+export const CATEGORIAS_FILTRO = [...CATEGORIAS_COBROS, ...CATEGORIAS];
+
+const cobrosDeCopropietarios = () => [
+    ...PAGOS_MOCK.filter((p) => (Number(p.monto) || 0) > 0).map((p) => ({
+        id: `EXP-${p.id}`, fecha: p.fecha, tipo: 'Ingreso', categoria: 'Expensas',
+        descripcion: `Pago ${p.id} — Depto. ${p.depto} (${p.periodoAplicado})`,
+        monto: Number(p.monto) || 0,
+        medio: p.medio, cuenta: cuentaPorMedio(p.medio), referencia: p.referencia || '',
+        comprobante: p.referencia ? `Pago ${p.referencia}` : `Pago ${p.id}`, codigo: p.id, origen: 'pagos',
+    })),
+    ...HISTORIAL_ANTICIPOS.map((a) => ({
+        id: `ANT-${a.id}`, fecha: a.fecha, tipo: 'Ingreso', categoria: 'Anticipos de copropietarios',
+        descripcion: `Anticipo ${a.id} — Depto. ${a.depto}`,
+        monto: Number(a.recibido) || 0,
+        medio: a.medio, cuenta: cuentaPorMedio(a.medio), referencia: a.referencia || '',
+        comprobante: a.referencia ? `Anticipo ${a.referencia}` : `Anticipo ${a.id}`, codigo: a.id, origen: 'pagos',
+    })),
+];
+
+const ordenFecha = (f) => (f || '').split('/').reverse().join('');
+
+// Libro completo: cobros + otros ingresos + gastos (incluye personal), mas reciente primero
+export const libroDiario = () => [...cobrosDeCopropietarios(), ...todosLosMovimientos()]
+    .sort((a, b) => ordenFecha(b.fecha).localeCompare(ordenFecha(a.fecha)));
+
+// Resumen de un periodo ('Noviembre 2026'). UNA sola formula para Dashboard,
+// Gestion financiera, Flujo de caja e Ingresos y gastos.
+const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+export const enPeriodo = (fecha, periodo) => {
+    const [, m, a] = String(fecha || '').split('/').map(Number);
+    const [mes, anio] = String(periodo || '').split(' ');
+    return m === MESES.indexOf(mes) + 1 && a === Number(anio);
+};
+export const resumenFinanciero = (periodo) => {
+    const movs = libroDiario().filter((m) => enPeriodo(m.fecha, periodo));
+    const suma = (fn) => movs.filter(fn).reduce((s, m) => s + (m.monto || 0), 0);
+    const cobrosExpensas = suma((m) => m.categoria === 'Expensas');
+    const anticiposRecibidos = suma((m) => m.categoria === 'Anticipos de copropietarios');
+    const ingresos = suma((m) => m.tipo === 'Ingreso');
+    const otrosIngresos = ingresos - cobrosExpensas - anticiposRecibidos;
+    const gastosPersonal = suma((m) => CATEGORIAS_PERSONAL.includes(m.categoria));
+    const gastos = suma((m) => m.tipo !== 'Ingreso');
+    return {
+        ingresos, cobrosExpensas, anticiposRecibidos, otrosIngresos,
+        gastos, gastosPersonal, gastosOperativos: gastos - gastosPersonal,
+        balance: ingresos - gastos,
+        enCaja: suma((m) => m.tipo === 'Ingreso' && m.cuenta === 'Caja') - suma((m) => m.tipo !== 'Ingreso' && m.cuenta === 'Caja'),
+        enBanco: suma((m) => m.tipo === 'Ingreso' && m.cuenta === 'Banco') - suma((m) => m.tipo !== 'Ingreso' && m.cuenta === 'Banco'),
+    };
+};
+
+// Busca un movimiento por id en el libro completo
+export const movimientoPorId = (id) => libroDiario().find((m) => String(m.id) === String(id)) ?? null;

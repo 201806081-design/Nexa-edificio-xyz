@@ -53,6 +53,12 @@ export default function DetalleMovimiento() {
             </Typography>
 
             {mensaje && <Alert severity="success" sx={{ mb: 3 }}>{mensaje}</Alert>}
+            {mov.origen === 'pagos' && (
+                <Alert severity="info" sx={{ mb: 3 }}
+                    action={<Button color="inherit" size="small" onClick={() => navigate('/finanzas/pagos')}>Ver en Pagos</Button>}>
+                    Este ingreso es un cobro a un copropietario ({mov.codigo}). Se registra y se corrige desde Pagos.
+                </Alert>
+            )}
             {mov.origen === 'personal' && (
                 <Alert severity="info" sx={{ mb: 3 }}
                     action={<Button color="inherit" size="small" onClick={() => navigate('/personal/historial-pagos')}>Ver en Personal</Button>}>

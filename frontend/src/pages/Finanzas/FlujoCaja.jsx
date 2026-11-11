@@ -78,7 +78,8 @@ export default function FlujoCaja() {
         const { mes, anio } = parsePeriodo(periodo);
         const enPeriodo = (f) => { const p = parseFecha(f); return p.mes === mes && p.anio === anio; };
 
-        const pagos = PAGOS_MOCK.filter((p) => enPeriodo(p.fecha));
+        // Solo pagos con dinero nuevo: los cubiertos con credito ya entraron como anticipo
+        const pagos = PAGOS_MOCK.filter((p) => enPeriodo(p.fecha) && (p.monto || 0) > 0);
         const anticipos = HISTORIAL_ANTICIPOS.filter((a) => enPeriodo(a.fecha));
         const movimientos = todosLosMovimientos().filter((m) => enPeriodo(m.fecha));
 

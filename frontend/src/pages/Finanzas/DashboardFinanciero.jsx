@@ -13,7 +13,10 @@ import DashboardLayout from '../../layouts/DashboardLayout';
 import { formatBs } from '../../constants/finanzasMock';
 import { periodosConMovimientos } from '../../constants/periodos';
 import { PAGOS_MOCK, HISTORIAL_ANTICIPOS } from '../../constants/pagosMock';
-import { todosLosMovimientos } from '../../constants/movimientosMock';
+import { todosLosMovimientos, resumenFinanciero } from '../../constants/movimientosMock';
+
+const MESES_NOMBRE = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+    'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 import { calcularDeudas, round2 } from '../../constants/deudasMock';
 
 // 'DD/MM/YYYY' -> {dia, mes, anio}
@@ -57,15 +60,10 @@ export default function DashboardFinanciero() {
             const p = parseFecha(fecha); return p.mes === m && p.anio === a;
         };
 
-        // --- KPIs del periodo (sincronizados con Resumen) ---
-        const sumPagos = PAGOS_MOCK.filter((p) => enMes(p.fecha, mes, anio)).reduce((s, p) => s + (p.monto || 0), 0);
-        const sumAnticipos = HISTORIAL_ANTICIPOS.filter((a) => enMes(a.fecha, mes, anio)).reduce((s, a) => s + (a.recibido || 0), 0);
-        const sumOtros = todosLosMovimientos().filter((m) => m.tipo === 'Ingreso' && enMes(m.fecha, mes, anio)).reduce((s, m) => s + (m.monto || 0), 0);
-        const ingresos = sumPagos + sumAnticipos + sumOtros;
-        const gastos = todosLosMovimientos()
-            .filter((m) => (m.tipo === 'Gasto' || m.tipo === 'Egreso') && enMes(m.fecha, mes, anio))
-            .reduce((s, m) => s + (m.monto || 0), 0);
-        const balance = ingresos - gastos;
+        // --- KPIs del periodo: formula unica (resumenFinanciero), igual que Ingresos y gastos ---
+        const r = resumenFinanciero(periodo);
+        const { ingresos, gastos, balance } = r;
+        const sumPagos = r.cobrosExpensas;
 
         // Saldo pendiente (snapshot al dia de hoy, no se filtra por periodo).
         // Sale del calculo unico de deudas (deudasMock), igual que Mora y Gestion financiera.
@@ -76,13 +74,8 @@ export default function DashboardFinanciero() {
 
         // --- Grafico "Ingresos vs Gastos" (4 meses hacia atras desde el periodo) ---
         const trend = mesesPrevios(mes, anio, 4).map(({ label, mes: mm, anio: aa }) => {
-            const ing = PAGOS_MOCK.filter((p) => enMes(p.fecha, mm, aa)).reduce((s, p) => s + (p.monto || 0), 0)
-                + HISTORIAL_ANTICIPOS.filter((a) => enMes(a.fecha, mm, aa)).reduce((s, a) => s + (a.recibido || 0), 0)
-                + todosLosMovimientos().filter((m) => m.tipo === 'Ingreso' && enMes(m.fecha, mm, aa)).reduce((s, m) => s + (m.monto || 0), 0);
-            const gas = todosLosMovimientos()
-                .filter((m) => (m.tipo === 'Gasto' || m.tipo === 'Egreso') && enMes(m.fecha, mm, aa))
-                .reduce((s, m) => s + (m.monto || 0), 0);
-            return { mes: label, ingresos: ing, gastos: gas };
+            const rm = resumenFinanciero(`${MESES_NOMBRE[mm - 1]} ${aa}`);
+            return { mes: label, ingresos: rm.ingresos, gastos: rm.gastos };
         });
 
         // --- Donut "Estado de expensas" (por monto; las vencidas incluyen el interes) ---

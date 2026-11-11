@@ -12,25 +12,8 @@ import { useNavigate } from 'react-router-dom';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import { formatBs } from '../../constants/finanzasMock';
 import { periodosConMovimientos } from '../../constants/periodos';
-import { PAGOS_MOCK, HISTORIAL_ANTICIPOS } from '../../constants/pagosMock';
-import { todosLosMovimientos } from '../../constants/movimientosMock';
+import { resumenFinanciero } from '../../constants/movimientosMock';
 import { saldoPendienteTotal } from '../../constants/deudasMock';
-
-// 'DD/MM/YYYY' -> {dia, mes, anio}
-const parseFecha = (f) => {
-    const [d, m, y] = (f || '').split('/').map(Number);
-    return { dia: d || 0, mes: m || 0, anio: y || 0 };
-};
-
-// 'Octubre 2026' -> {mes: 10, anio: 2026}
-const MES_IDX = {
-    enero: 1, febrero: 2, marzo: 3, abril: 4, mayo: 5, junio: 6,
-    julio: 7, agosto: 8, septiembre: 9, octubre: 10, noviembre: 11, diciembre: 12,
-};
-const parsePeriodo = (p) => {
-    const [mes, anio] = (p || '').toLowerCase().split(' ');
-    return { mes: MES_IDX[mes] || 0, anio: Number(anio) || 0 };
-};
 
 // Accesos a sub-vistas
 const ACCESOS = [
@@ -51,22 +34,9 @@ export default function GestionFinanciera() {
     // Ingresos y Gastos se filtran por el periodo seleccionado.
     // Saldo pendiente es un snapshot al dia de hoy (no se filtra por periodo: si todos pagan, llega a 0).
     const resumen = useMemo(() => {
-        const { mes, anio } = parsePeriodo(periodo);
-        const enPeriodo = (f) => {
-            const p = parseFecha(f);
-            return p.mes === mes && p.anio === anio;
-        };
-
-        // INGRESOS DEL PERIODO = pagos de expensas + anticipos + otros ingresos
-        const sumPagos = PAGOS_MOCK.filter((p) => enPeriodo(p.fecha)).reduce((s, p) => s + (p.monto || 0), 0);
-        const sumAnticipos = HISTORIAL_ANTICIPOS.filter((a) => enPeriodo(a.fecha)).reduce((s, a) => s + (a.recibido || 0), 0);
-        const sumOtros = todosLosMovimientos().filter((m) => m.tipo === 'Ingreso' && enPeriodo(m.fecha)).reduce((s, m) => s + (m.monto || 0), 0);
-        const ingresos = sumPagos + sumAnticipos + sumOtros;
-
-        // GASTOS DEL PERIODO = movimientos operativos tipo 'Gasto'
-        const gastos = todosLosMovimientos()
-            .filter((m) => (m.tipo === 'Gasto' || m.tipo === 'Egreso') && enPeriodo(m.fecha))
-            .reduce((s, m) => s + (m.monto || 0), 0);
+        // INGRESOS y GASTOS DEL PERIODO: formula unica (resumenFinanciero),
+        // la misma del Dashboard financiero y de Ingresos y gastos.
+        const { ingresos, gastos } = resumenFinanciero(periodo);
 
         // SALDO PENDIENTE = total que los residentes deben al edificio hoy
         //   (vencido con interes + no vencido). Calculo unico de deudasMock.

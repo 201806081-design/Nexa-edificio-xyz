@@ -14,7 +14,7 @@ import DescriptionOutlinedIcon from '@mui/icons-material/DescriptionOutlined';
 import { useNavigate } from 'react-router-dom';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import {
-    TIPOS_MOVIMIENTO, CATEGORIAS, todosLosMovimientos,
+    TIPOS_MOVIMIENTO, CATEGORIAS_FILTRO, libroDiario, resumenFinanciero,
 } from '../../constants/movimientosMock';
 import { periodosConMovimientos } from '../../constants/periodos';
 import { formatBs } from '../../constants/finanzasMock';
@@ -39,10 +39,14 @@ const tipoChipSx = (tipo) => (tipo === 'Ingreso'
     ? { bgcolor: '#E4F4EE', color: '#2E9D78' }
     : { bgcolor: '#FBEAE9', color: '#D9534F' });
 
+// Mismas cifras que el Dashboard financiero y Gestion financiera (resumenFinanciero)
 const RESUMEN = [
-    { clave: 'totalIngresos', label: 'Otros ingresos', icon: <NorthIcon />, color: '#2E9D78', bg: '#E4F4EE' },
-    { clave: 'totalGastos', label: 'Gastos operativos', icon: <SouthIcon />, color: '#D9534F', bg: '#FBEAE9' },
-    { clave: 'balance', label: 'Balance', icon: <DragHandleIcon />, color: null, bg: '#E4EEF5' }, // color dinamico segun signo
+    { clave: 'ingresos', label: 'Ingresos del periodo', icon: <NorthIcon />, color: '#2E9D78', bg: '#E4F4EE',
+        nota: (r) => `Expensas ${formatBs(r.cobrosExpensas)} · Anticipos ${formatBs(r.anticiposRecibidos)} · Otros ${formatBs(r.otrosIngresos)}` },
+    { clave: 'gastos', label: 'Gastos del periodo', icon: <SouthIcon />, color: '#D9534F', bg: '#FBEAE9',
+        nota: (r) => `Personal ${formatBs(r.gastosPersonal)} · Operativos ${formatBs(r.gastosOperativos)}` },
+    { clave: 'balance', label: 'Balance', icon: <DragHandleIcon />, color: null, bg: '#E4EEF5', // color dinamico segun signo
+        nota: (r) => `Caja ${formatBs(r.enCaja)} · Banco ${formatBs(r.enBanco)}` },
 ];
 
 export default function IngresosGastos() {
@@ -55,26 +59,23 @@ export default function IngresosGastos() {
     const [busqueda, setBusqueda] = useState('');
 
     // Movimientos filtrados por periodo + filtros adicionales
-    const movimientos = useMemo(() => todosLosMovimientos().filter((m) =>
+    // Libro completo: cobros de expensas, anticipos, otros ingresos y gastos (incluye personal)
+    const movimientos = useMemo(() => libroDiario().filter((m) =>
         fechaEnPeriodo(m.fecha, periodo) &&
         (tipo === 'Todos' || m.tipo === tipo) &&
         (categoria === 'Todas' || m.categoria === categoria) &&
         m.descripcion.toLowerCase().includes(busqueda.toLowerCase())),
         [periodo, tipo, categoria, busqueda]);
 
-    // KPIs calculados en vivo sobre los movimientos del periodo seleccionado
-    const resumen = useMemo(() => {
-        const mesMovs = todosLosMovimientos().filter((m) => fechaEnPeriodo(m.fecha, periodo));
-        const totalIngresos = mesMovs.filter((m) => m.tipo === 'Ingreso').reduce((s, m) => s + (m.monto || 0), 0);
-        const totalGastos = mesMovs.filter((m) => m.tipo === 'Gasto' || m.tipo === 'Egreso').reduce((s, m) => s + (m.monto || 0), 0);
-        return { totalIngresos, totalGastos, balance: totalIngresos - totalGastos };
-    }, [periodo]);
+    // KPIs del periodo: misma formula que el Dashboard financiero
+    const resumen = useMemo(() => resumenFinanciero(periodo), [periodo]);
 
     return (
         <DashboardLayout>
             <Typography variant="h1" color="primary.main" sx={{ mb: 0.5 }}>Ingresos y gastos</Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                Movimientos operativos del edificio (otros ingresos y gastos). Los pagos de expensas se registran en <strong>Pagos</strong>.
+                Todo el dinero que entra y sale del edificio. Los cobros de expensas y anticipos vienen de <strong>Pagos</strong>,
+                y los pagos al personal de <strong>Personal</strong>; aqui se registran los demas ingresos y gastos.
             </Typography>
 
             <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', justifyContent: { xs: 'stretch', md: 'flex-end' }, mb: 2 }}>
@@ -108,7 +109,7 @@ export default function IngresosGastos() {
                     <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Categoria</Typography>
                     <Select fullWidth value={categoria} onChange={(e) => setCategoria(e.target.value)}>
                         <MenuItem value="Todas">Todas</MenuItem>
-                        {CATEGORIAS.map((c) => <MenuItem key={c} value={c}>{c}</MenuItem>)}
+                        {CATEGORIAS_FILTRO.map((c) => <MenuItem key={c} value={c}>{c}</MenuItem>)}
                     </Select>
                 </Box>
                 <Box sx={{ flex: 1, minWidth: 160, display: 'flex', alignItems: 'flex-end' }}>
@@ -132,6 +133,7 @@ export default function IngresosGastos() {
                             <Box>
                                 <Typography variant="body2" color="text.secondary">{r.label}</Typography>
                                 <Typography variant="h3" sx={{ fontWeight: 700, color: colorFinal }}>{formatBs(valor)}</Typography>
+                                <Typography variant="caption" color="text.secondary">{r.nota(resumen)}</Typography>
                             </Box>
                         </Paper>
                     );
