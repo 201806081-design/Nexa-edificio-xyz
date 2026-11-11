@@ -37,7 +37,7 @@ export const salarioDesdeCargo = (cargo) => TARIFAS_CARGO[cargo] || 0;
 
 // --- Catalogo de empleados ---
 export const EMPLEADOS_MOCK = [
-    { id: 'EM-001', nombre: 'Patricia Montenegro', ci: '4712345', cargo: 'Administrador', fechaIngreso: '01/03/2024', estado: 'Activo' },
+    { id: 'EM-001', nombre: 'Oscar Montenegro', ci: '4712345', cargo: 'Administrador', fechaIngreso: '01/03/2024', estado: 'Activo' },
     { id: 'EM-002', nombre: 'Juan Alvarez', ci: '5823456', cargo: 'Portero', fechaIngreso: '15/06/2024', estado: 'Activo' },
     { id: 'EM-003', nombre: 'Elena Quispe', ci: '6934567', cargo: 'Limpieza', fechaIngreso: '02/09/2024', estado: 'Activo' },
     { id: 'EM-004', nombre: 'Ricardo Cabrera', ci: '7045678', cargo: 'Mantenimiento', fechaIngreso: '10/01/2025', estado: 'Activo' },
@@ -76,7 +76,7 @@ const planillaOctubre = (empleadoId, bonos, anticipos, otrosDesc, estado) => {
     return { empleadoId, periodo: 'Octubre 2026', salarioBase, bonos, anticipos, otrosDesc, neto, estado };
 };
 export const PLANILLA_MOCK = [
-    planillaOctubre('EM-001', 400, 300, 120, 'Calculado'), // Patricia -> 4180, pendiente
+    planillaOctubre('EM-001', 400, 300, 120, 'Calculado'), // Oscar -> 4180, pendiente
     planillaOctubre('EM-002', 250, 400, 90, 'Pagada'),    // Juan     -> 2760, pagada
     planillaOctubre('EM-003', 300, 0, 84, 'Pagada'),    // Elena    -> 3016, pagada
     planillaOctubre('EM-004', 250, 350, 105, 'Revisar'),   // Ricardo  -> 3295, en revision
@@ -84,7 +84,7 @@ export const PLANILLA_MOCK = [
 ];
 
 // Pagos reales de Octubre 2026 (coherentes con PLANILLA_MOCK).
-// Patricia y Ricardo NO estan aqui: aparecen como pendientes derivados.
+// Oscar y Ricardo NO estan aqui: aparecen como pendientes derivados.
 const buscarEmp = (id) => EMPLEADOS_MOCK.find((e) => e.id === id)?.nombre || '—';
 const netoPlanilla = (id, periodoBuscado = 'Octubre 2026') =>
     PLANILLA_MOCK.find((p) => p.empleadoId === id && p.periodo === periodoBuscado)?.neto || 0;

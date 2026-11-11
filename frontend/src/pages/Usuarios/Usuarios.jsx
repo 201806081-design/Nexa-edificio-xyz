@@ -6,26 +6,34 @@ import {
 } from '@mui/material';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import { ROLES } from '../../constants/permisos';
-import { USUARIOS_MOCK, empleadoDeUsuario } from '../../constants/usuariosMock';
+import {
+  USUARIOS_MOCK, empleadoDeUsuario, personalSugeridoParaRol, actualizarUsuario,
+} from '../../constants/usuariosMock';
+import { EMPLEADOS_MOCK } from '../../constants/personalMock';
 
 export default function Usuarios() {
   const [usuarios, setUsuarios] = useState(USUARIOS_MOCK);
   const [editando, setEditando] = useState(null); // usuario que se esta editando
   const [rolNuevo, setRolNuevo] = useState('');
+  const [empleadoNuevo, setEmpleadoNuevo] = useState('');
 
   const abrirModal = (usuario) => {
     setEditando(usuario);
     setRolNuevo(usuario.rol);
+    setEmpleadoNuevo(usuario.empleadoId || '');
+  };
+
+  // Al cambiar el rol, el personal vinculado cambia solo (se puede ajustar a mano)
+  const cambiarRol = (rol) => {
+    setRolNuevo(rol);
+    setEmpleadoNuevo(personalSugeridoParaRol(rol) || '');
   };
 
   const cerrarModal = () => setEditando(null);
 
   const guardarRol = () => {
-    setUsuarios((lista) =>
-      lista.map((u) => (u.id === editando.id ? { ...u, rol: rolNuevo } : u))
-    );
-    const original = USUARIOS_MOCK.find((u) => u.id === editando.id);
-    if (original) original.rol = rolNuevo; // se mantiene al volver a la pantalla
+    actualizarUsuario(editando.id, { rol: rolNuevo, empleadoId: empleadoNuevo });
+    setUsuarios(USUARIOS_MOCK.map((u) => ({ ...u }))); // tambien se ve en Personal > Empleados
     cerrarModal();
   };
 
@@ -94,11 +102,23 @@ export default function Usuarios() {
         </DialogTitle>
         <DialogContent>
           <Typography variant="body2" sx={{ mb: 1, mt: 1 }}>Rol asignado</Typography>
-          <Select fullWidth value={rolNuevo} onChange={(e) => setRolNuevo(e.target.value)}>
+          <Select fullWidth value={rolNuevo} onChange={(e) => cambiarRol(e.target.value)}>
             {Object.values(ROLES).map((r) => (
               <MenuItem key={r} value={r}>{r}</MenuItem>
             ))}
           </Select>
+
+          <Typography variant="body2" sx={{ mb: 1, mt: 2 }}>Personal del edificio</Typography>
+          <Select fullWidth displayEmpty value={empleadoNuevo} onChange={(e) => setEmpleadoNuevo(e.target.value)}>
+            <MenuItem value=""><em>No es personal</em></MenuItem>
+            {EMPLEADOS_MOCK.filter((e) => e.estado === 'Activo').map((e) => (
+              <MenuItem key={e.id} value={e.id}>{e.nombre} · {e.cargo}</MenuItem>
+            ))}
+          </Select>
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
+            Se completa solo segun el rol: el Administrador es el empleado con cargo Administrador.
+            Directorio y Consulta no son personal del edificio.
+          </Typography>
         </DialogContent>
         <DialogActions sx={{ p: 3, pt: 1 }}>
           <Button variant="outlined" onClick={cerrarModal}>Cancelar</Button>
