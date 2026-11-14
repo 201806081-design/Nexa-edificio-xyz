@@ -24,6 +24,7 @@ import PaidIcon from '@mui/icons-material/Paid';
 import CampaignIcon from '@mui/icons-material/Campaign';
 import EditIcon from '@mui/icons-material/Edit';
 import SendIcon from '@mui/icons-material/Send';
+import DraftsIcon from '@mui/icons-material/Drafts';
 import ExpandLess from '@mui/icons-material/ExpandLess';
 import ExpandMore from '@mui/icons-material/ExpandMore';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -70,6 +71,7 @@ const OPCIONES = {
     subopciones: [
       { nombre: 'Elaborar', icon: <EditIcon />, ruta: '/comunicados/elaborar' },
       { nombre: 'Enviados', icon: <SendIcon />, ruta: '/comunicados/enviados' },
+      { nombre: 'Borradores', icon: <DraftsIcon />, ruta: '/comunicados/borradores' },
     ],
   },
 };

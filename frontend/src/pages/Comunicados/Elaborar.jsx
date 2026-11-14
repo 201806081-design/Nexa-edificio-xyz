@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useRef } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import {
     Box, Typography, Paper, Button, Chip, Select, MenuItem, TextField,
     Checkbox, FormControlLabel, Radio, RadioGroup, InputAdornment, Alert,
@@ -42,14 +42,13 @@ const etiquetaTodosGrupo = (grupo) => {
     const n = grupo.count;
     switch (grupo.id) {
         case 'todos': return `Enviar a los ${n} copropietarios`;
-        case 'piso-1': return `Enviar a todos los del piso 1 (${n})`;
-        case 'piso-2': return `Enviar a todos los del piso 2 (${n})`;
-        case 'piso-3': return `Enviar a todos los del piso 3 (${n})`;
         case 'morosos': return n === 1 ? 'Enviar al moroso' : `Enviar a los ${n} morosos`;
         case 'personal': return `Enviar a todo el personal del edificio (${n})`;
         case 'directorio': return n === 1 ? 'Enviar al directorio' : `Enviar a los ${n} miembros del directorio`;
         case 'admins': return n === 1 ? 'Enviar al administrador del sistema' : `Enviar a los ${n} administradores del sistema`;
-        default: return `Enviar a todos los ${n} del grupo`;
+        default:
+            if (grupo.id.startsWith('piso-')) return `Enviar a todos los del piso ${grupo.id.slice(5)} (${n})`;
+            return `Enviar a todos los ${n} del grupo`;
     }
 };
 
@@ -63,8 +62,8 @@ export default function Elaborar() {
     const borradorInicial = location.state?.borrador ?? null;
 
     // Si llegamos desde "Compartir QR" (RegistrarPago / RegistrarAnticipo), prefill con QR.
-    const qrInicial = location.state?.qrData ?? '';
-    const qrTituloInicial = location.state?.qrTitulo ?? '';
+    const qrInicial = borradorInicial?.qrData || location.state?.qrData || '';
+    const qrTituloInicial = borradorInicial?.qrTitulo || location.state?.qrTitulo || '';
     const deptoPreseleccionado = location.state?.deptoPreseleccionado ?? null;
 
     const [borradorId, setBorradorId] = useState(borradorInicial?.id ?? null);
@@ -88,7 +87,8 @@ export default function Elaborar() {
     );
     const [qrData, setQrData] = useState(qrInicial);
     const [qrTitulo, setQrTitulo] = useState(qrTituloInicial);
-    const [adjunto, setAdjunto] = useState(null);
+    // Si el borrador tenia un archivo adjunto, se recupera (vive en memoria mientras la pagina este abierta)
+    const [adjunto, setAdjunto] = useState(borradorInicial?.adjunto?.file ?? null);
     const [previewAdjunto, setPreviewAdjunto] = useState(false);
     // Arranca solo con App tildado. Si venimos de un borrador, respetamos sus canales,
     // pero filtramos los que ya no son seleccionables (ej. correo si el backend lo deshabilita).
@@ -103,8 +103,8 @@ export default function Elaborar() {
         }
         return base;
     });
-    const [programarAhora, setProgramarAhora] = useState('ahora');
-    const [fechaProgramada, setFechaProgramada] = useState('');
+    const [programarAhora, setProgramarAhora] = useState(borradorInicial?.programarAhora ?? 'ahora');
+    const [fechaProgramada, setFechaProgramada] = useState(borradorInicial?.fechaProgramada ?? '');
 
     // URL del adjunto para preview (se regenera cuando cambia el archivo)
     const adjuntoUrl = useMemo(() => (adjunto ? URL.createObjectURL(adjunto) : null), [adjunto]);
@@ -119,20 +119,17 @@ export default function Elaborar() {
         && (programarAhora === 'ahora' || fechaProgramada);
     const cantidadFinal = destinatariosEspecificos.length > 0 ? destinatariosEspecificos.length : (grupo?.count ?? 0);
 
-    // Si el usuario cambia de grupo, reseteamos la seleccion granular (los IDs no aplican).
-    // Pero NO en el primer mount: respetamos el deptoPreseleccionado que viene del QR share.
-    const didMountDestinatarios = useRef(false);
-    useEffect(() => {
-        if (!didMountDestinatarios.current) {
-            didMountDestinatarios.current = true;
-            return;
-        }
+    // Al cambiar de grupo A MANO se limpia la seleccion granular (los IDs no aplican).
+    // Se hace en el onChange y no con un useEffect: con <StrictMode> React ejecuta los
+    // efectos dos veces al montar y borraba la persona preseleccionada desde el QR.
+    const cambiarGrupo = (id) => {
+        setDestinatarioId(id);
         setDestinatariosEspecificos([]);
-    }, [destinatarioId]);
+    };
 
     // Limpiamos el location.state despues del primer render para que no re-aplique al refresh
     useEffect(() => {
-        if (deptoPreseleccionado || qrInicial || location.state?.titulo) {
+        if (borradorInicial || deptoPreseleccionado || qrInicial || location.state?.titulo) {
             window.history.replaceState({}, '');
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -175,6 +172,7 @@ export default function Elaborar() {
             id: borradorId, titulo: titulo.trim(), mensaje: mensaje.trim(),
             destinatarioId, destinatariosEspecificos,
             canalesIds: canalesElegidos, prioridad, adjunto,
+            qrData, qrTitulo, programarAhora, fechaProgramada,
         });
         setBorradorId(b.id);
         setSnack({ open: true, msg: `Borrador "${b.titulo}" guardado (${b.id})`, sev: 'success' });
@@ -272,7 +270,7 @@ export default function Elaborar() {
                     <Typography variant="body2" sx={{ fontWeight: 700, mb: 0.5, color: '#132B3E' }}>
                         Destinatarios <span style={{ color: '#D9534F' }}>*</span>
                     </Typography>
-                    <Select fullWidth size="small" value={destinatarioId} onChange={(e) => setDestinatarioId(e.target.value)}
+                    <Select fullWidth size="small" value={destinatarioId} onChange={(e) => cambiarGrupo(e.target.value)}
                         startAdornment={<InputAdornment position="start"><GroupsIcon fontSize="small" /></InputAdornment>}
                         sx={{ mb: 0.5 }}>
                         {grupos.map((g) => (

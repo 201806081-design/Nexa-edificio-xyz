@@ -10,10 +10,13 @@ import {
     PieChart, Pie, Cell, ResponsiveContainer,
 } from 'recharts';
 import DashboardLayout from '../../layouts/DashboardLayout';
-import { PERIODO_ACTUAL, PERIODOS, formatBs } from '../../constants/finanzasMock';
-import { PAGOS_MOCK, HISTORIAL_ANTICIPOS, DEPARTAMENTOS_DEUDA } from '../../constants/pagosMock';
-import { MOVIMIENTOS_LISTA } from '../../constants/movimientosMock';
-import { DEUDAS_VENCIDAS, CONFIG_MORA } from '../../constants/moraMock';
+import { formatBs } from '../../constants/finanzasMock';
+import { periodosConMovimientos, periodosConTodos, TODOS_LOS_PERIODOS } from '../../constants/periodos';
+import { resumenFinanciero, libroDiario, enPeriodo as enPeriodoLibro } from '../../constants/movimientosMock';
+
+const MESES_NOMBRE = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+    'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+import { calcularDeudas, round2 } from '../../constants/deudasMock';
 
 // 'DD/MM/YYYY' -> {dia, mes, anio}
 const parseFecha = (f) => {
@@ -46,7 +49,10 @@ const mesesPrevios = (mesSel, anioSel, n = 4) => {
 const COLOR_ESTADO = { Pagadas: '#2E9D78', Pendientes: '#E5A33B', Vencidas: '#D9534F' };
 
 export default function DashboardFinanciero() {
-    const [periodo, setPeriodo] = useState(PERIODO_ACTUAL);
+    // Periodos: mes en curso + meses cerrados desde el inicio del sistema (periodos.js)
+    // "Todos los periodos" (por defecto) muestra el acumulado; luego cada mes
+    const periodos = useMemo(() => periodosConTodos(), []);
+    const [periodo, setPeriodo] = useState(() => periodos[0] || '');
 
     const datos = useMemo(() => {
         const { mes, anio } = parsePeriodo(periodo);
@@ -54,40 +60,38 @@ export default function DashboardFinanciero() {
             const p = parseFecha(fecha); return p.mes === m && p.anio === a;
         };
 
-        // --- KPIs del periodo (sincronizados con Resumen) ---
-        const sumPagos = PAGOS_MOCK.filter((p) => enMes(p.fecha, mes, anio)).reduce((s, p) => s + (p.monto || 0), 0);
-        const sumAnticipos = HISTORIAL_ANTICIPOS.filter((a) => enMes(a.fecha, mes, anio)).reduce((s, a) => s + (a.recibido || 0), 0);
-        const sumOtros = MOVIMIENTOS_LISTA.filter((m) => m.tipo === 'Ingreso' && enMes(m.fecha, mes, anio)).reduce((s, m) => s + (m.monto || 0), 0);
-        const ingresos = sumPagos + sumAnticipos + sumOtros;
-        const gastos = MOVIMIENTOS_LISTA
-            .filter((m) => (m.tipo === 'Gasto' || m.tipo === 'Egreso') && enMes(m.fecha, mes, anio))
-            .reduce((s, m) => s + (m.monto || 0), 0);
-        const balance = ingresos - gastos;
+        // --- KPIs del periodo: formula unica (resumenFinanciero), igual que Ingresos y gastos ---
+        const r = resumenFinanciero(periodo);
+        const { ingresos, gastos, balance } = r;
+        const sumPagos = r.cobrosExpensas;
 
-        // Saldo pendiente (snapshot, no se filtra por periodo)
-        const saldoActivo = DEPARTAMENTOS_DEUDA.reduce((s, d) => s + (d.saldoPendiente || 0), 0);
-        const saldoVencido = DEUDAS_VENCIDAS.reduce((s, d) => s + (d.deudaOriginal || 0), 0);
-        const saldoPendiente = saldoActivo + saldoVencido;
+        // Saldo pendiente (snapshot al dia de hoy, no se filtra por periodo).
+        // Sale del calculo unico de deudas (deudasMock), igual que Mora y Gestion financiera.
+        const deudas = calcularDeudas();
+        const saldoActivo = round2(deudas.filter((d) => !d.vencida).reduce((s, d) => s + d.pendiente, 0));
+        const saldoVencido = round2(deudas.filter((d) => d.vencida).reduce((s, d) => s + d.pendiente, 0));
+        const saldoPendiente = round2(saldoActivo + saldoVencido);
 
         // --- Grafico "Ingresos vs Gastos" (4 meses hacia atras desde el periodo) ---
-        const trend = mesesPrevios(mes, anio, 4).map(({ label, mes: mm, anio: aa }) => {
-            const ing = PAGOS_MOCK.filter((p) => enMes(p.fecha, mm, aa)).reduce((s, p) => s + (p.monto || 0), 0)
-                + HISTORIAL_ANTICIPOS.filter((a) => enMes(a.fecha, mm, aa)).reduce((s, a) => s + (a.recibido || 0), 0)
-                + MOVIMIENTOS_LISTA.filter((m) => m.tipo === 'Ingreso' && enMes(m.fecha, mm, aa)).reduce((s, m) => s + (m.monto || 0), 0);
-            const gas = MOVIMIENTOS_LISTA
-                .filter((m) => (m.tipo === 'Gasto' || m.tipo === 'Egreso') && enMes(m.fecha, mm, aa))
-                .reduce((s, m) => s + (m.monto || 0), 0);
-            return { mes: label, ingresos: ing, gastos: gas };
+        // Con "Todos los periodos": todos los meses desde el inicio del sistema hasta hoy.
+        // Con un mes: ese mes y los 3 anteriores (sin meses previos al inicio del sistema).
+        const esTodos = periodo === TODOS_LOS_PERIODOS;
+        const mesesSistema = periodosConMovimientos().slice().reverse().map((p) => {
+            const [nombre, a] = p.split(' ');
+            const m = MESES_NOMBRE.indexOf(nombre) + 1;
+            return { label: `${MESES_CORTO[m - 1]} ${String(a).slice(2)}`, mes: m, anio: Number(a) };
+        });
+        const clave = (x) => x.anio * 100 + x.mes;
+        const mesesGrafico = esTodos
+            ? mesesSistema
+            : mesesPrevios(mes, anio, 4).filter((x) => !mesesSistema.length || clave(x) >= clave(mesesSistema[0]));
+        const trend = mesesGrafico.map(({ label, mes: mm, anio: aa }) => {
+            const rm = resumenFinanciero(`${MESES_NOMBRE[mm - 1]} ${aa}`);
+            return { mes: label, ingresos: rm.ingresos, gastos: rm.gastos };
         });
 
-        // --- Donut "Estado de expensas" (por monto, con interes sobre vencidas) ---
-        const tasa = (Number(CONFIG_MORA.interesMensual) || 0) / 100;
-        const vencidasConInteres = DEUDAS_VENCIDAS.reduce((s, d) => {
-            const deuda = CONFIG_MORA.tipoCalculo === 'Simple'
-                ? d.deudaOriginal * (1 + tasa * d.meses)
-                : d.deudaOriginal * (1 + tasa) ** d.meses;
-            return s + deuda;
-        }, 0);
+        // --- Donut "Estado de expensas" (por monto; las vencidas incluyen el interes) ---
+        const vencidasConInteres = saldoVencido;
         const estadoExpensas = [
             { estado: 'Pagadas', valor: sumPagos },                 // lo pagado este periodo
             { estado: 'Pendientes', valor: saldoActivo },               // deuda del mes
@@ -95,28 +99,23 @@ export default function DashboardFinanciero() {
         ];
         const totalEstado = estadoExpensas.reduce((s, e) => s + e.valor, 0);
 
-        // --- Departamentos con mora (desde DEUDAS_VENCIDAS, con interes aplicado) ---
-        const departamentosMora = DEUDAS_VENCIDAS.map((d) => {
-            const deudaActual = CONFIG_MORA.tipoCalculo === 'Simple'
-                ? d.deudaOriginal * (1 + tasa * d.meses)
-                : d.deudaOriginal * (1 + tasa) ** d.meses;
-            return {
-                id: d.id,
-                departamento: `Depto. ${d.depto}`,
-                monto: deudaActual,
-                estado: d.meses >= 2 ? 'Vencido' : 'En mora',
-            };
-        }).sort((a, b) => b.monto - a.monto);
+        // --- Departamentos con mora (morosos del calculo unico, con interes aplicado) ---
+        const porDepto = new Map();
+        deudas.filter((d) => d.vencida).forEach((d) => {
+            const prev = porDepto.get(d.depto) || { id: d.depto, departamento: `Depto. ${d.depto}`, monto: 0, meses: 0 };
+            prev.monto = round2(prev.monto + d.pendiente);
+            prev.meses = Math.max(prev.meses, d.meses);
+            porDepto.set(d.depto, prev);
+        });
+        const departamentosMora = [...porDepto.values()]
+            .map((d) => ({ ...d, estado: d.meses >= 2 ? 'Vencido' : 'En mora' }))
+            .sort((a, b) => b.monto - a.monto);
 
-        // --- Ultimos movimientos (unificado, top 5) ---
-        const unificado = [
-            ...PAGOS_MOCK.map((p) => ({ fecha: p.fecha, descripcion: `Pago ${p.id} — Dpto. ${p.depto}`, tipo: 'ingreso', monto: p.monto })),
-            ...HISTORIAL_ANTICIPOS.map((a) => ({ fecha: a.fecha, descripcion: `Anticipo ${a.id} — Dpto. ${a.depto}`, tipo: 'ingreso', monto: a.recibido })),
-            ...MOVIMIENTOS_LISTA.map((m) => ({ fecha: m.fecha, descripcion: m.descripcion, tipo: m.tipo === 'Ingreso' ? 'ingreso' : 'egreso', monto: m.monto })),
-        ].sort((a, b) => {
-            const fa = parseFecha(a.fecha); const fb = parseFecha(b.fecha);
-            return (fb.anio - fa.anio) || (fb.mes - fa.mes) || (fb.dia - fa.dia);
-        }).slice(0, 5);
+        // --- Ultimos movimientos del periodo (del libro completo, top 5) ---
+        const unificado = libroDiario()
+            .filter((m) => enPeriodoLibro(m.fecha, periodo))
+            .map((m) => ({ fecha: m.fecha, descripcion: m.descripcion, tipo: m.tipo === 'Ingreso' ? 'ingreso' : 'egreso', monto: m.monto }))
+            .slice(0, 5);
 
         return { ingresos, gastos, balance, saldoPendiente, trend, estadoExpensas, totalEstado, departamentosMora, ultimos: unificado };
     }, [periodo]);
@@ -139,7 +138,7 @@ export default function DashboardFinanciero() {
             <Box sx={{ maxWidth: 360, mb: 3 }}>
                 <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Periodo</Typography>
                 <Select fullWidth value={periodo} onChange={(e) => setPeriodo(e.target.value)}>
-                    {PERIODOS.map((p) => <MenuItem key={p} value={p}>{p}</MenuItem>)}
+                    {periodos.map((p) => <MenuItem key={p} value={p}>{p}</MenuItem>)}
                 </Select>
             </Box>
 
@@ -163,7 +162,9 @@ export default function DashboardFinanciero() {
                 <Paper sx={{ p: 3, borderRadius: 2 }}>
                     <Typography variant="h3" color="primary.main" sx={{ fontWeight: 600, mb: 0.5 }}>Ingresos vs. gastos</Typography>
                     <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 2 }}>
-                        Tendencia de los ultimos 4 meses (segun lo registrado en el sistema)
+                        {periodo === TODOS_LOS_PERIODOS
+                            ? 'Todos los meses desde el inicio del sistema'
+                            : `${periodo} y los meses anteriores`}
                     </Typography>
                     <Box sx={{ height: 280 }}>
                         <ResponsiveContainer width="100%" height="100%">

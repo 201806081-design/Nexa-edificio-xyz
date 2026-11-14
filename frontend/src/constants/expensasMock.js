@@ -33,10 +33,12 @@
 //  sigan funcionando sin modificaciones.
 // ============================================================
 
-import { PERIODOS } from './finanzasMock';
+import { periodosCerrados, periodoEnCurso } from './periodos';
 import { EXPENSA_BASE, CONFIG_AGUA as CONFIG_AGUA_SHARED, REGLAS_PERIODO } from './configuracionMock';
 import { CONFIG_MORA as CONFIG_MORA_SHARED } from './moraMock';
-export { PERIODOS, REGLAS_PERIODO };
+import { departamentos, numeroDe, numerosDepto, vincularResponsable, categoriaDe } from './edificioMock';
+import { DEPARTAMENTOS_PAGO } from './pagosMock';
+export { REGLAS_PERIODO };
 
 // --- Tarifas por tipo de departamento (misma referencia que EXPENSA_BASE) ---
 export const TARIFAS = EXPENSA_BASE;
@@ -63,21 +65,38 @@ export const HISTORIAL_TARIFAS = [
     },
 ];
 
-export const DEPARTAMENTOS_FILTRO = ['Todos', '101', '102', '103', '201', '202', '203', '301', '302', '303'];
+// Filtro de deptos: sale del edificio (edificioMock)
+export const DEPARTAMENTOS_FILTRO = ['Todos', ...numerosDepto()];
+
+// Vuelve a armar la lista de deptos de Finanzas y los filtros desde el edificio.
+// Llamar despues de registrar o editar una unidad: asi un depto nuevo (ej. el 401)
+// aparece en Generar expensa, Expensas, Pagos, Registrar pago y Comunicados.
+// Conserva la ultima lectura del medidor de los deptos que ya existian.
+export const sincronizarDepartamentosActivos = () => {
+    const previos = new Map(DEPARTAMENTOS_ACTIVOS.map((d) => [d.id, d.ultimaLectura]));
+    const nuevos = departamentos().map((u) => filaDepto(u, previos.get(numeroDe(u)) ?? 0));
+    DEPARTAMENTOS_ACTIVOS.splice(0, DEPARTAMENTOS_ACTIVOS.length, ...nuevos);
+    DEPARTAMENTOS_FILTRO.splice(1, DEPARTAMENTOS_FILTRO.length - 1, ...numerosDepto());
+    DEPARTAMENTOS_PAGO.splice(1, DEPARTAMENTOS_PAGO.length - 1, ...numerosDepto());
+};
 export const ESTADOS_EXPENSA = ['Todos', 'Agua pendiente', 'Lista', 'Pagada', 'Vencida'];
 
-// Catalogo de departamentos activos.
-export const DEPARTAMENTOS_ACTIVOS = [
-    { id: '101', depto: '101', departamento: 'Depto. 101', tipo: 'A', responsable: 'Ana Lopez', base: EXPENSA_BASE.A, ultimaLectura: 103, lecturaAnterior: 103 },
-    { id: '102', depto: '102', departamento: 'Depto. 102', tipo: 'B', responsable: 'Luis Garcia', base: EXPENSA_BASE.B, ultimaLectura: 120, lecturaAnterior: 120 },
-    { id: '103', depto: '103', departamento: 'Depto. 103', tipo: 'A', responsable: 'Pedro Mamani', base: EXPENSA_BASE.A, ultimaLectura: 90, lecturaAnterior: 90 },
-    { id: '201', depto: '201', departamento: 'Depto. 201', tipo: 'A', responsable: 'Sofia Flores', base: EXPENSA_BASE.A, ultimaLectura: 180, lecturaAnterior: 180 },
-    { id: '202', depto: '202', departamento: 'Depto. 202', tipo: 'B', responsable: 'Luis Perez', base: EXPENSA_BASE.B, ultimaLectura: 204, lecturaAnterior: 204 },
-    { id: '203', depto: '203', departamento: 'Depto. 203', tipo: 'B', responsable: 'Carlos Mendoza', base: EXPENSA_BASE.B, ultimaLectura: 150, lecturaAnterior: 150 },
-    { id: '301', depto: '301', departamento: 'Depto. 301', tipo: 'C', responsable: 'Rocio Alba', base: EXPENSA_BASE.C, ultimaLectura: 60, lecturaAnterior: 60 },
-    { id: '302', depto: '302', departamento: 'Depto. 302', tipo: 'C', responsable: 'Maria Rojas', base: EXPENSA_BASE.C, ultimaLectura: 153, lecturaAnterior: 153 },
-    { id: '303', depto: '303', departamento: 'Depto. 303', tipo: 'C', responsable: 'Rafael Cruz', base: EXPENSA_BASE.C, ultimaLectura: 170, lecturaAnterior: 170 },
-];
+// Ultima lectura del medidor de agua de cada depto (dato propio de Finanzas)
+const ULTIMA_LECTURA = {
+    101: 103, 102: 120, 103: 90, 201: 180, 202: 204, 203: 150, 301: 60, 302: 153, 303: 170,
+};
+
+// Catalogo de departamentos activos: se arma desde el edificio (edificioMock).
+// tipo = categoria de expensa (A/B/C). responsable se lee siempre del edificio.
+const filaDepto = (u, ultimaLectura = 0) => {
+    const n = numeroDe(u);
+    const categoria = categoriaDe(u);
+    return vincularResponsable({
+        id: n, depto: n, departamento: u.identificador, tipo: categoria,
+        base: EXPENSA_BASE[categoria], ultimaLectura, lecturaAnterior: ultimaLectura,
+    });
+};
+export const DEPARTAMENTOS_ACTIVOS = departamentos().map((u) => filaDepto(u, ULTIMA_LECTURA[numeroDe(u)] ?? 0));
 
 // Calculo del agua por medidor (unico modo automatico).
 export const calcularAgua = (m3, tarifa = CONFIG_AGUA.tarifaPorM3) => {
@@ -135,101 +154,151 @@ export const eliminarExtra = (row, id) => {
 };
 
 // ============================================================
+//  CARGOS EXTRA DEL MES EN CURSO
+//  La expensa de un mes se genera cuando el mes termina, pero los gastos
+//  extra (pintura, reparaciones, multas...) ocurren DURANTE el mes. Se
+//  registran aqui como pendientes y, al generar la expensa de ese periodo,
+//  pasan solos a la columna Extras de cada depto. Despues se pueden editar
+//  desde la accion "Editar gastos extras" mientras la expensa no este pagada.
+// ============================================================
+export const CARGOS_EXTRA_PENDIENTES = [
+    // Ejemplo del requisito 2.3: "Extra Pintura Edificio: 250" para todos los deptos
+    ...numerosDepto().map((depto, i) => ({
+        id: i + 1, grupo: 1, periodo: 'Noviembre 2026', depto,
+        descripcion: 'Pintura del edificio', monto: 250, fecha: '05/11/2026',
+    })),
+];
+
+// Registra un cargo para uno o varios deptos. Devuelve un mensaje de error o null.
+export const registrarCargoExtra = ({ periodo, deptos, descripcion, monto }) => {
+    const d = String(descripcion || '').trim();
+    const m = Number(monto);
+    if (!d) return 'La descripcion es obligatoria';
+    if (!(m > 0)) return 'Ingresa un monto mayor a 0';
+    if (!deptos || deptos.length === 0) return 'Elige al menos un departamento';
+    const sigId = CARGOS_EXTRA_PENDIENTES.reduce((mx, c) => Math.max(mx, c.id), 0) + 1;
+    const grupo = CARGOS_EXTRA_PENDIENTES.reduce((mx, c) => Math.max(mx, c.grupo), 0) + 1;
+    const h = new Date();
+    const fecha = `${String(h.getDate()).padStart(2, '0')}/${String(h.getMonth() + 1).padStart(2, '0')}/${h.getFullYear()}`;
+    deptos.forEach((depto, i) => CARGOS_EXTRA_PENDIENTES.push({
+        id: sigId + i, grupo, periodo, depto: String(depto), descripcion: d, monto: Math.round(m * 100) / 100, fecha,
+    }));
+    return null;
+};
+
+// Cargos pendientes de un periodo agrupados por registro:
+// [{ grupo, descripcion, monto, fecha, deptos: ['101', ...] }]
+export const cargosPendientesAgrupados = (periodo) => {
+    const mapa = new Map();
+    CARGOS_EXTRA_PENDIENTES.filter((c) => c.periodo === periodo).forEach((c) => {
+        if (!mapa.has(c.grupo)) mapa.set(c.grupo, { grupo: c.grupo, descripcion: c.descripcion, monto: c.monto, fecha: c.fecha, deptos: [] });
+        mapa.get(c.grupo).deptos.push(c.depto);
+    });
+    return [...mapa.values()];
+};
+
+// Total pendiente de un depto en un periodo (para la vista previa de Generar expensa)
+export const totalCargosPendientes = (periodo, depto) => CARGOS_EXTRA_PENDIENTES
+    .filter((c) => c.periodo === periodo && c.depto === String(depto))
+    .reduce((s, c) => s + c.monto, 0);
+
+export const eliminarCargoExtra = (grupo) => {
+    for (let i = CARGOS_EXTRA_PENDIENTES.length - 1; i >= 0; i--) {
+        if (CARGOS_EXTRA_PENDIENTES[i].grupo === grupo) CARGOS_EXTRA_PENDIENTES.splice(i, 1);
+    }
+};
+
+// Al generar una expensa: pasa sus cargos pendientes a extras y los quita de pendientes
+export const aplicarCargosPendientes = (expensa) => {
+    const propios = CARGOS_EXTRA_PENDIENTES.filter((c) => c.periodo === expensa.periodo && c.depto === String(expensa.depto));
+    propios.forEach((c) => agregarExtra(expensa, { descripcion: c.descripcion, monto: c.monto }));
+    for (let i = CARGOS_EXTRA_PENDIENTES.length - 1; i >= 0; i--) {
+        const c = CARGOS_EXTRA_PENDIENTES[i];
+        if (c.periodo === expensa.periodo && c.depto === String(expensa.depto)) CARGOS_EXTRA_PENDIENTES.splice(i, 1);
+    }
+    return propios.length;
+};
+
+// ============================================================
 //  PERIODOS DINAMICOS
 // ============================================================
 
-const MESES_LARGOS = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
-    'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+// Los periodos salen de la fuente unica (periodos.js).
+// periodosDisponibles = meses cerrados (el mes en curso no se puede generar).
+export const periodosDisponibles = periodosCerrados;
+export { periodoEnCurso };
 
-// Inicio del edificio = Octubre 2026 (0-indexed: mes=9).
-const PRIMER_PERIODO = { anio: 2026, mes: 9 };
-
-// Devuelve los periodos ya cerrados hasta la fecha del sistema, mas reciente primero.
-// Hoy = 6-Nov-2026      -> ['Octubre 2026']
-// Simulando Feb-2027   -> ['Enero 2027', 'Diciembre 2026', 'Noviembre 2026', 'Octubre 2026']
-// El mes en curso NUNCA aparece (aun no termino).
-export const periodosDisponibles = () => {
-    const hoy = new Date();
-    const primerDiaMesActual = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
-    const periodos = [];
-    let anio = PRIMER_PERIODO.anio;
-    let mes = PRIMER_PERIODO.mes;
-    let seguro = 0;
-    while (seguro++ < 240) {
-        const inicioSiguiente = new Date(anio, mes + 1, 1);
-        if (inicioSiguiente > primerDiaMesActual) break;
-        periodos.push(`${MESES_LARGOS[mes]} ${anio}`);
-        mes++;
-        if (mes >= 12) { mes = 0; anio++; }
-    }
-    return periodos.reverse();
-};
-
-// Mes en curso segun fecha del sistema ("Noviembre 2026").
-// Util para el aviso "la expensa de este mes aun no se puede generar".
-export const periodoEnCurso = () => {
-    const hoy = new Date();
-    return `${MESES_LARGOS[hoy.getMonth()]} ${hoy.getFullYear()}`;
-};
-
-// Semillas (Octubre 2026 con mezcla de estados + 1 vencida de Septiembre para demo).
+// Semillas: Octubre 2026 (primer mes del sistema).
+// LINEA DE TIEMPO (una expensa se genera cuando su mes TERMINA):
+//   octubre      -> el edificio opera; algunos copropietarios dejan anticipos
+//   01/11/2026   -> se generan las expensas de octubre
+//   02-03/11     -> se registra el agua de cada depto
+//   03-07/11     -> se aplican los anticipos y llegan los pagos (ver pagosMock)
+//   10/11/2026   -> vence octubre: quien no pago queda moroso (deudasMock)
+// Situacion de cada depto:
+//   101 Pagada PG-0037 (credito PA-0011)  | 102 pago parcial PG-0039 (debe 165)
+//   103 sin pagar                         | 201 Pagada PG-0041 (efectivo)
+//   202 Pagada PG-0036 (credito PA-0010)  | 203 sin pagar
+//   301 Pagada PG-0042 (QR)               | 302 Pagada PG-0040 (QR)
+//   303 Pagada PG-0038 (credito PA-0012)
 export const EXPENSAS_MOCK = [
-    // --- Octubre 2026 ---
     {
-        id: 'EX-0001', depto: '101', departamento: 'Depto. 101', tipo: 'A', responsable: 'Ana Lopez', periodo: 'Octubre 2026',
+        id: 'EX-0001', depto: '101', departamento: 'Depto. 101', tipo: 'A', periodo: 'Octubre 2026',
         base: 300, agua: 15, m3: 3, lecturaAnt: 100, lecturaAct: 103, lecturaAnterior: 100, lecturaActual: 103,
         extras: [],
-        monto: 315, total: 315, estado: 'Pagada', pagado: 315, aguaNota: '', fechaGen: '01/10/2026', fechaAgua: '02/10/2026'
+        monto: 315, total: 315, estado: 'Pagada', pagado: 315, aguaNota: '', fechaGen: '01/11/2026', fechaAgua: '02/11/2026'
     },
     {
-        id: 'EX-0002', depto: '102', departamento: 'Depto. 102', tipo: 'B', responsable: 'Luis Garcia', periodo: 'Octubre 2026',
+        id: 'EX-0002', depto: '102', departamento: 'Depto. 102', tipo: 'B', periodo: 'Octubre 2026',
         base: 350, agua: 15, m3: 5, lecturaAnt: 115, lecturaAct: 120, lecturaAnterior: 115, lecturaActual: 120,
         extras: [],
-        monto: 365, total: 365, estado: 'Lista', pagado: 200, aguaNota: '', fechaGen: '01/10/2026', fechaAgua: '03/10/2026'
+        monto: 365, total: 365, estado: 'Lista', pagado: 200, aguaNota: '', fechaGen: '01/11/2026', fechaAgua: '03/11/2026'
     },
     {
-        id: 'EX-0003', depto: '103', departamento: 'Depto. 103', tipo: 'A', responsable: 'Pedro Mamani', periodo: 'Octubre 2026',
-        base: 300, agua: 0, m3: null, lecturaAnt: null, lecturaAct: null, lecturaAnterior: null, lecturaActual: null,
+        id: 'EX-0003', depto: '103', departamento: 'Depto. 103', tipo: 'A', periodo: 'Octubre 2026',
+        base: 300, agua: 15, m3: 4, lecturaAnt: 86, lecturaAct: 90, lecturaAnterior: 86, lecturaActual: 90,
         extras: [],
-        monto: 300, total: 300, estado: 'Agua pendiente', pagado: 0, aguaNota: '', fechaGen: '01/10/2026', fechaAgua: null
+        monto: 315, total: 315, estado: 'Lista', pagado: 0, aguaNota: '', fechaGen: '01/11/2026', fechaAgua: '03/11/2026'
     },
     {
-        id: 'EX-0004', depto: '201', departamento: 'Depto. 201', tipo: 'A', responsable: 'Sofia Flores', periodo: 'Octubre 2026',
-        base: 300, agua: 0, m3: null, lecturaAnt: null, lecturaAct: null, lecturaAnterior: null, lecturaActual: null,
+        id: 'EX-0004', depto: '201', departamento: 'Depto. 201', tipo: 'A', periodo: 'Octubre 2026',
+        base: 300, agua: 18, m3: 6, lecturaAnt: 174, lecturaAct: 180, lecturaAnterior: 174, lecturaActual: 180,
         extras: [],
-        monto: 300, total: 300, estado: 'Agua pendiente', pagado: 0, aguaNota: '', fechaGen: '01/10/2026', fechaAgua: null
+        monto: 318, total: 318, estado: 'Pagada', pagado: 318, aguaNota: '', fechaGen: '01/11/2026', fechaAgua: '03/11/2026'
     },
     {
-        id: 'EX-0005', depto: '202', departamento: 'Depto. 202', tipo: 'B', responsable: 'Luis Perez', periodo: 'Octubre 2026',
+        id: 'EX-0005', depto: '202', departamento: 'Depto. 202', tipo: 'B', periodo: 'Octubre 2026',
         base: 350, agua: 15, m3: 4, lecturaAnt: 200, lecturaAct: 204, lecturaAnterior: 200, lecturaActual: 204,
         extras: [],
-        monto: 365, total: 365, estado: 'Pagada', pagado: 365, aguaNota: '', fechaGen: '01/10/2026', fechaAgua: '02/10/2026'
+        monto: 365, total: 365, estado: 'Pagada', pagado: 365, aguaNota: '', fechaGen: '01/11/2026', fechaAgua: '02/11/2026'
     },
     {
-        id: 'EX-0006', depto: '203', departamento: 'Depto. 203', tipo: 'B', responsable: 'Carlos Mendoza', periodo: 'Octubre 2026',
-        base: 350, agua: 0, m3: null, lecturaAnt: null, lecturaAct: null, lecturaAnterior: null, lecturaActual: null,
+        id: 'EX-0006', depto: '203', departamento: 'Depto. 203', tipo: 'B', periodo: 'Octubre 2026',
+        base: 350, agua: 15, m3: 5, lecturaAnt: 145, lecturaAct: 150, lecturaAnterior: 145, lecturaActual: 150,
         extras: [],
-        monto: 350, total: 350, estado: 'Agua pendiente', pagado: 0, aguaNota: '', fechaGen: '01/10/2026', fechaAgua: null
+        monto: 365, total: 365, estado: 'Lista', pagado: 0, aguaNota: '', fechaGen: '01/11/2026', fechaAgua: '03/11/2026'
     },
     {
-        id: 'EX-0007', depto: '301', departamento: 'Depto. 301', tipo: 'C', responsable: 'Rocio Alba', periodo: 'Octubre 2026',
-        base: 400, agua: 0, m3: null, lecturaAnt: null, lecturaAct: null, lecturaAnterior: null, lecturaActual: null,
+        id: 'EX-0007', depto: '301', departamento: 'Depto. 301', tipo: 'C', periodo: 'Octubre 2026',
+        base: 400, agua: 15, m3: 3, lecturaAnt: 57, lecturaAct: 60, lecturaAnterior: 57, lecturaActual: 60,
         extras: [],
-        monto: 400, total: 400, estado: 'Agua pendiente', pagado: 0, aguaNota: '', fechaGen: '01/10/2026', fechaAgua: null
+        monto: 415, total: 415, estado: 'Pagada', pagado: 415, aguaNota: '', fechaGen: '01/11/2026', fechaAgua: '02/11/2026'
     },
     {
-        id: 'EX-0008', depto: '302', departamento: 'Depto. 302', tipo: 'C', responsable: 'Maria Rojas', periodo: 'Octubre 2026',
+        id: 'EX-0008', depto: '302', departamento: 'Depto. 302', tipo: 'C', periodo: 'Octubre 2026',
         base: 400, agua: 15, m3: 3, lecturaAnt: 150, lecturaAct: 153, lecturaAnterior: 150, lecturaActual: 153,
         extras: [],
-        monto: 415, total: 415, estado: 'Pagada', pagado: 415, aguaNota: '', fechaGen: '01/10/2026', fechaAgua: '02/10/2026'
+        monto: 415, total: 415, estado: 'Pagada', pagado: 415, aguaNota: '', fechaGen: '01/11/2026', fechaAgua: '02/11/2026'
     },
     {
-        id: 'EX-0009', depto: '303', departamento: 'Depto. 303', tipo: 'C', responsable: 'Rafael Cruz', periodo: 'Octubre 2026',
-        base: 400, agua: 0, m3: null, lecturaAnt: null, lecturaAct: null, lecturaAnterior: null, lecturaActual: null,
+        id: 'EX-0009', depto: '303', departamento: 'Depto. 303', tipo: 'C', periodo: 'Octubre 2026',
+        base: 400, agua: 21, m3: 7, lecturaAnt: 163, lecturaAct: 170, lecturaAnterior: 163, lecturaActual: 170,
         extras: [],
-        monto: 400, total: 400, estado: 'Agua pendiente', pagado: 0, aguaNota: '', fechaGen: '01/10/2026', fechaAgua: null
+        monto: 421, total: 421, estado: 'Pagada', pagado: 421, aguaNota: '', fechaGen: '01/11/2026', fechaAgua: '03/11/2026'
     },
 ];
+// El responsable de cada expensa se lee del edificio segun su depto
+EXPENSAS_MOCK.forEach((e) => vincularResponsable(e));
 
 export const estadoChipSx = (estado) => {
     if (estado === 'Lista') return { bgcolor: '#E4F4EE', color: '#2E9D78' };

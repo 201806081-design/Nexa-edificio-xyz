@@ -3,8 +3,13 @@ import {
     Box, Typography, Paper, Button, Chip, TextField, Select, MenuItem,
     Table, TableHead, TableBody, TableRow, TableCell, InputAdornment, IconButton,
     Dialog, DialogTitle, DialogContent, DialogActions, Divider, Alert, Snackbar,
-    Menu,
+    Menu, Tooltip,
 } from '@mui/material';
+import EditIcon from '@mui/icons-material/Edit';
+import DeleteIcon from '@mui/icons-material/Delete';
+import KeyIcon from '@mui/icons-material/Key';
+import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
+import EmpleadoForm from './EmpleadoForm';
 import SearchIcon from '@mui/icons-material/Search';
 import PersonAddIcon from '@mui/icons-material/PersonAdd';
 import VisibilityIcon from '@mui/icons-material/Visibility';
@@ -17,8 +22,12 @@ import DashboardLayout from '../../layouts/DashboardLayout';
 import {
     EMPLEADOS_MOCK, CARGOS, ESTADOS_EMPLEADO, TARIFAS_CARGO,
     PLANILLA_MOCK, PAGOS_PERSONAL_MOCK, RESUMEN_PLANILLA, RESUMEN_PAGOS_PERSONAL,
-    HISTORIAL_SALARIOS_CARGO, salarioDesdeCargo,
+    HISTORIAL_SALARIOS_CARGO, salarioDesdeCargo, periodoEnCurso,
+    MOTIVOS_BAJA, empleadoTieneHistorial, eliminarEmpleado,
 } from '../../constants/personalMock';
+import {
+    usuarioDeEmpleado, asegurarCuentaAdministrador, sincronizarCuentaConEmpleado,
+} from '../../constants/usuariosMock';
 import { formatBs } from '../../constants/finanzasMock';
 
 const estadoChipSx = (estado) => estado === 'Activo'
@@ -97,8 +106,11 @@ export default function Empleados() {
     const cerrarMenu = () => setMenuAnchor(null);
 
     // Modales
-    const [nuevoAbierto, setNuevoAbierto] = useState(false);
-    const [nuevoEmp, setNuevoEmp] = useState({ nombre: '', ci: '', cargo: 'Portero', estado: 'Activo' });
+    const [formAbierto, setFormAbierto] = useState(false);
+    const [empEditar, setEmpEditar] = useState(null);      // null = nuevo empleado
+    const [credenciales, setCredenciales] = useState(null); // { usuario } cuenta recien creada
+    const [eliminarAbierto, setEliminarAbierto] = useState(false);
+    const [motivoBaja, setMotivoBaja] = useState({ motivo: 'Renuncia', detalle: '' });
 
     const [cfgAbierta, setCfgAbierta] = useState(false);
     const [tarifasDraft, setTarifasDraft] = useState({ ...TARIFAS_CARGO });
@@ -120,44 +132,43 @@ export default function Empleados() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [busqueda, cargo, estado, tick]);
 
-    // --- Nuevo empleado ---
-    const abrirNuevo = () => {
-        setNuevoEmp({ nombre: '', ci: '', cargo: 'Portero', estado: 'Activo' });
-        setNuevoAbierto(true);
-    };
-    const guardarNuevo = () => {
-        if (!nuevoEmp.nombre.trim() || !nuevoEmp.ci.trim()) {
-            setSnack({ open: true, msg: 'Completa nombre y CI del empleado', sev: 'warning' });
-            return;
+    // --- Nuevo empleado / Editar informacion (misma ficha) ---
+    const abrirNuevo = () => { setEmpEditar(null); setFormAbierto(true); };
+    const abrirEditar = () => { setEmpEditar(filaSel); setFormAbierto(true); cerrarMenu(); };
+
+    const guardarEmpleado = (datos) => {
+        let emp;
+        if (empEditar) {
+            emp = EMPLEADOS_MOCK.find((e) => e.id === empEditar.id);
+            Object.assign(emp, datos);
+            // El cambio de cargo afecta las planillas que se generen desde ahora;
+            // las ya generadas o pagadas no se tocan.
+            emp.salarioBase = salarioDesdeCargo(emp.cargo);
+        } else {
+            emp = { id: siguienteIdEmpleado(), ...datos, estado: 'Activo', salarioBase: salarioDesdeCargo(datos.cargo) };
+            // Entra en la planilla del mes de su ingreso cuando se genere (no en meses que no trabajo)
+            EMPLEADOS_MOCK.push(emp);
         }
-        const id = siguienteIdEmpleado();
-        const salarioBase = salarioDesdeCargo(nuevoEmp.cargo);
-        const nuevo = {
-            id, nombre: nuevoEmp.nombre.trim(), ci: nuevoEmp.ci.trim(),
-            cargo: nuevoEmp.cargo, fechaIngreso: fechaHoyBonita(),
-            estado: nuevoEmp.estado, salarioBase,
-        };
-        // 1) Agregar al catalogo de empleados
-        EMPLEADOS_MOCK.push(nuevo);
-
-        // 2) Sincronizar con la planilla del mes: nueva fila en estado Calculado
-        PLANILLA_MOCK.push({
-            empleadoId: id, periodo: RESUMEN_PLANILLA.periodo,
-            salarioBase, bonos: 0, anticipos: 0, otrosDesc: 0,
-            neto: salarioBase, estado: 'Calculado',
-        });
-
-        // 3) Sincronizar con historial de pagos: fila pendiente para el periodo actual
-        PAGOS_PERSONAL_MOCK.push({
-            id: null, fecha: null, empleadoId: id, empleado: nuevo.nombre,
-            periodo: 'Nov. 2026', concepto: 'Salario',
-            medio: null, referencia: null, montoNeto: salarioBase, estado: 'Pendiente',
-        });
-
+        // El Administrador es personal y usuario del sistema: se le crea su cuenta
+        const cuenta = asegurarCuentaAdministrador(emp);
         recalcularResumenes();
-        setNuevoAbierto(false);
+        setFormAbierto(false);
         setTick((t) => t + 1);
-        setSnack({ open: true, msg: `Empleado ${nuevo.nombre} (${id}) registrado y agregado a planilla`, sev: 'success' });
+        if (cuenta) setCredenciales(cuenta);
+        setSnack({ open: true, msg: empEditar ? `Datos de ${emp.nombre} actualizados` : `Empleado ${emp.nombre} (${emp.id}) registrado`, sev: 'success' });
+    };
+
+    // Eliminar: solo si se registro por error (sin planilla ni pagos). Si tiene historial, se da de baja.
+    const abrirEliminar = () => { setEliminarAbierto(true); cerrarMenu(); };
+    const confirmarEliminar = () => {
+        const nombre = filaSel?.nombre;
+        if (eliminarEmpleado(filaSel.id)) {
+            setSnack({ open: true, msg: `Empleado ${nombre} eliminado`, sev: 'success' });
+        } else {
+            setSnack({ open: true, msg: 'Tiene planilla o pagos registrados: dale de baja en lugar de eliminarlo', sev: 'warning' });
+        }
+        setEliminarAbierto(false);
+        setTick((t) => t + 1);
     };
 
     // --- Configuracion de salarios por cargo ---
@@ -250,12 +261,29 @@ export default function Empleados() {
     // --- Editar estado ---
     const abrirEditarEstado = () => {
         setEstadoDraft(filaSel?.estado || 'Activo');
+        setMotivoBaja({ motivo: filaSel?.motivoBaja?.motivo || 'Renuncia', detalle: filaSel?.motivoBaja?.detalle || '' });
         setEditarEstadoAbierto(true);
         cerrarMenu();
     };
     const guardarEstado = () => {
         const emp = EMPLEADOS_MOCK.find((e) => e.id === filaSel.id);
-        if (emp) emp.estado = estadoDraft;
+        if (emp && emp.estado !== estadoDraft) {
+            emp.estado = estadoDraft;
+            // Fecha de baja: desde el mes en curso ya no entra en la planilla.
+            // Si se reactiva, se borra y vuelve a entrar.
+            if (estadoDraft === 'Inactivo') {
+                const h = new Date();
+                emp.fechaBaja = `${String(h.getDate()).padStart(2, '0')}/${String(h.getMonth() + 1).padStart(2, '0')}/${h.getFullYear()}`;
+                emp.motivoBaja = { motivo: motivoBaja.motivo, detalle: motivoBaja.detalle.trim() };
+            } else {
+                delete emp.fechaBaja;
+                delete emp.motivoBaja;
+            }
+            // Si tenia cuenta (Administrador), se desactiva o reactiva con el empleado
+            sincronizarCuentaConEmpleado(emp);
+            const cuenta = asegurarCuentaAdministrador(emp);
+            if (cuenta) setCredenciales(cuenta);
+        }
         setEditarEstadoAbierto(false);
         setTick((t) => t + 1);
         setSnack({ open: true, msg: `Estado de ${filaSel.nombre} cambiado a ${estadoDraft}`, sev: 'success' });
@@ -346,7 +374,14 @@ export default function Empleados() {
                             ) : empleados.map((e) => (
                                 <TableRow key={e.id}>
                                     <TableCell sx={{ fontWeight: 600, color: 'primary.main' }}>{e.id}</TableCell>
-                                    <TableCell sx={{ fontWeight: 600 }}>{e.nombre}</TableCell>
+                                    <TableCell sx={{ fontWeight: 600 }}>
+                                        {e.nombre}
+                                        {usuarioDeEmpleado(e.id) && (
+                                            <Typography variant="caption" color="primary.main" sx={{ display: 'block', fontWeight: 600 }}>
+                                                Usuario del sistema: {usuarioDeEmpleado(e.id).username}
+                                            </Typography>
+                                        )}
+                                    </TableCell>
                                     <TableCell>{e.ci}</TableCell>
                                     <TableCell>{e.cargo}</TableCell>
                                     <TableCell sx={{ fontWeight: 600 }}>{formatBs(e.salarioBase)}</TableCell>
@@ -372,66 +407,67 @@ export default function Empleados() {
                 </MenuItem>
                 <MenuItem onClick={abrirEditarEstado}>
                     <SwapHorizIcon fontSize="small" sx={{ mr: 1, color: '#B6802A' }} />
-                    Editar estado
+                    {filaSel?.estado === 'Activo' ? 'Dar de baja' : 'Reactivar'}
                 </MenuItem>
+                <MenuItem onClick={abrirEditar}>
+                    <EditIcon fontSize="small" sx={{ mr: 1, color: '#1F5F8B' }} />
+                    Editar informacion
+                </MenuItem>
+                <Tooltip placement="left"
+                    title={filaSel && empleadoTieneHistorial(filaSel.id) ? 'Tiene planilla o pagos: usa "Dar de baja"' : ''}>
+                    <span>
+                        <MenuItem onClick={abrirEliminar} disabled={!filaSel || empleadoTieneHistorial(filaSel.id)}>
+                            <DeleteIcon fontSize="small" sx={{ mr: 1, color: '#D9534F' }} />
+                            Eliminar
+                        </MenuItem>
+                    </span>
+                </Tooltip>
             </Menu>
 
-            {/* ============================================================ */}
-            {/* Dialog: Nuevo empleado                                       */}
-            {/* ============================================================ */}
-            <Dialog open={nuevoAbierto} onClose={() => setNuevoAbierto(false)} maxWidth="sm" fullWidth>
+            {/* Ficha del empleado: registrar o editar (se monta de nuevo cada vez) */}
+            {formAbierto && (
+                <EmpleadoForm key={empEditar?.id ?? 'nuevo'} open={formAbierto} empleado={empEditar}
+                    onClose={() => setFormAbierto(false)} onGuardar={guardarEmpleado} />
+            )}
+
+            {/* Cuenta creada para el Administrador */}
+            <Dialog open={!!credenciales} onClose={() => setCredenciales(null)} maxWidth="xs" fullWidth>
                 <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1.5, fontWeight: 700 }}>
-                    <Box sx={{ width: 36, height: 36, borderRadius: '50%', bgcolor: '#E4EEF5', color: 'primary.main', display: 'grid', placeItems: 'center' }}>
-                        <PersonAddIcon fontSize="small" />
-                    </Box>
-                    Nuevo empleado
+                    <KeyIcon color="primary" /> Cuenta de usuario creada
                 </DialogTitle>
                 <DialogContent dividers>
-                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                        El salario base se tomara automaticamente del cargo seleccionado. Al registrarlo
-                        se agregara una fila a la planilla del mes y aparecera como pago pendiente.
+                    <Typography variant="body2" sx={{ mb: 2 }}>
+                        Como es <strong>Administrador</strong>, se le creo una cuenta para entrar al sistema.
                     </Typography>
-
-                    <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Nombre completo</Typography>
-                    <TextField fullWidth size="small" value={nuevoEmp.nombre}
-                        onChange={(e) => setNuevoEmp((p) => ({ ...p, nombre: e.target.value }))}
-                        placeholder="Ej. Luisa Fernandez" sx={{ mb: 2 }} />
-
-                    <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Carnet de identidad</Typography>
-                    <TextField fullWidth size="small" value={nuevoEmp.ci}
-                        onChange={(e) => setNuevoEmp((p) => ({ ...p, ci: e.target.value }))}
-                        placeholder="Ej. 9876543" sx={{ mb: 2 }} />
-
-                    <Box sx={{ display: 'flex', gap: 2, mb: 2, flexWrap: 'wrap' }}>
-                        <Box sx={{ flex: 1, minWidth: 180 }}>
-                            <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Cargo</Typography>
-                            <Select fullWidth size="small" value={nuevoEmp.cargo}
-                                onChange={(e) => setNuevoEmp((p) => ({ ...p, cargo: e.target.value }))}>
-                                {CARGOS.map((c) => <MenuItem key={c} value={c}>{c}</MenuItem>)}
-                            </Select>
-                        </Box>
-                        <Box sx={{ flex: 1, minWidth: 120 }}>
-                            <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Estado</Typography>
-                            <Select fullWidth size="small" value={nuevoEmp.estado}
-                                onChange={(e) => setNuevoEmp((p) => ({ ...p, estado: e.target.value }))}>
-                                <MenuItem value="Activo">Activo</MenuItem>
-                                <MenuItem value="Inactivo">Inactivo</MenuItem>
-                            </Select>
-                        </Box>
+                    <Box sx={{ bgcolor: '#F3F6FA', borderRadius: 2, p: 2, mb: 2 }}>
+                        <Typography variant="body2">Usuario: <strong>{credenciales?.usuario.username}</strong></Typography>
+                        <Typography variant="body2">Correo: <strong>{credenciales?.usuario.email}</strong></Typography>
                     </Box>
-
-                    <Alert severity="info" icon={false} sx={{ bgcolor: '#E4EEF5', color: 'text.primary' }}>
-                        <Typography variant="body2" sx={{ fontWeight: 700 }}>
-                            Salario base asignado: {formatBs(salarioDesdeCargo(nuevoEmp.cargo))}
+                    <Alert severity="success" icon={false} sx={{ bgcolor: '#E4F4EE', color: 'text.primary' }}>
+                        <Typography variant="body2">
+                            Se envio a su correo un enlace para activar la cuenta y crear su contraseña.
+                            Nadie mas la conoce, ni el administrador.
                         </Typography>
-                        <Typography variant="caption" color="text.secondary">
-                            Se puede ajustar luego desde "Configuracion de salarios" (afecta a todos los empleados del mismo cargo).
-                        </Typography>
+                        <Typography variant="caption" color="text.secondary">(Envio simulado: lo hara el backend.)</Typography>
                     </Alert>
                 </DialogContent>
                 <DialogActions sx={{ p: 2 }}>
-                    <Button variant="outlined" onClick={() => setNuevoAbierto(false)}>Cancelar</Button>
-                    <Button variant="contained" onClick={guardarNuevo}>Registrar empleado</Button>
+                    <Button variant="contained" onClick={() => setCredenciales(null)}>Entendido</Button>
+                </DialogActions>
+            </Dialog>
+
+            {/* Eliminar empleado (solo registrado por error) */}
+            <Dialog open={eliminarAbierto} onClose={() => setEliminarAbierto(false)} maxWidth="xs" fullWidth>
+                <DialogTitle sx={{ fontWeight: 700 }}>Eliminar empleado</DialogTitle>
+                <DialogContent dividers>
+                    <Typography variant="body2">
+                        ¿Eliminar a <strong>{filaSel?.nombre}</strong> ({filaSel?.id})? Usalo solo si se registro por error;
+                        si el empleado dejo de trabajar, usa <strong>Dar de baja</strong> para conservar su historial.
+                    </Typography>
+                </DialogContent>
+                <DialogActions sx={{ p: 2 }}>
+                    <Button variant="outlined" onClick={() => setEliminarAbierto(false)}>Cancelar</Button>
+                    <Button variant="contained" color="error" onClick={confirmarEliminar}>Eliminar</Button>
                 </DialogActions>
             </Dialog>
 
@@ -558,6 +594,40 @@ export default function Empleados() {
                                 </Box>
                             </Box>
 
+                            {/* Ficha: datos personales, contacto y experiencia */}
+                            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 1, mb: 2 }}>
+                                {[
+                                    ['CI', `${empDet.ci}${empDet.complemento ? `-${empDet.complemento}` : ''} ${empDet.expedido || ''}`],
+                                    ['Fecha de nacimiento', empDet.fechaNacimiento ? empDet.fechaNacimiento.split('-').reverse().join('/') : '—'],
+                                    ['Celular', empDet.celular ? `+591 ${empDet.celular}` : '—'],
+                                    ['Telefono fijo', empDet.telefono ? `+591 ${empDet.telefono}` : '—'],
+                                    ['Correo', empDet.correo || '—'],
+                                    ['Direccion', empDet.direccion || '—'],
+                                    ['Tipo de contrato', empDet.tipoContrato || '—'],
+                                    ['Contacto de emergencia', empDet.contactoEmergencia
+                                        ? `${empDet.contactoEmergencia.nombre} · +591 ${empDet.contactoEmergencia.celular}` : '—'],
+                                    ['Usuario del sistema', usuarioDeEmpleado(empDet.id)
+                                        ? `${usuarioDeEmpleado(empDet.id).username} (${usuarioDeEmpleado(empDet.id).activo ? 'activo' : 'desactivado'})` : 'No tiene'],
+                                    ...(empDet.motivoBaja ? [['Baja', `${empDet.fechaBaja} · ${empDet.motivoBaja.motivo}${empDet.motivoBaja.detalle ? ` — ${empDet.motivoBaja.detalle}` : ''}`]] : []),
+                                ].map(([k, v]) => (
+                                    <Box key={k} sx={{ borderBottom: '1px solid #EEF2F6', py: 0.5 }}>
+                                        <Typography variant="caption" color="text.secondary">{k}</Typography>
+                                        <Typography variant="body2" sx={{ fontWeight: 600, wordBreak: 'break-word' }}>{v}</Typography>
+                                    </Box>
+                                ))}
+                            </Box>
+                            {(empDet.experiencia || empDet.cv) && (
+                                <Box sx={{ mb: 2 }}>
+                                    <Typography variant="body2" sx={{ fontWeight: 700, mb: 0.5 }}>Experiencia</Typography>
+                                    {empDet.experiencia && <Typography variant="body2" sx={{ mb: 1 }}>{empDet.experiencia}</Typography>}
+                                    {empDet.cv && (
+                                        <Chip icon={<PictureAsPdfIcon />} label={empDet.cv.name}
+                                            onClick={empDet.cv.url ? () => window.open(empDet.cv.url, '_blank') : undefined}
+                                            sx={{ bgcolor: '#E4EEF5', color: '#1F5F8B', fontWeight: 600 }} />
+                                    )}
+                                </Box>
+                            )}
+
                             {/* Historial salarial del cargo (filtrado desde la fecha de ingreso) */}
                             <Typography variant="body2" sx={{ fontWeight: 700, mb: 1 }}>
                                 Historial salarial — Cargo {empDet.cargo} ({historialSalarial.length})
@@ -619,13 +689,33 @@ export default function Empleados() {
                 <DialogContent dividers>
                     <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                         Cambia el estado de <strong>{filaSel?.nombre}</strong> ({filaSel?.cargo}).
-                        Un empleado inactivo no aparece en la planilla ni en el historial del nuevo mes.
+                        Si lo pasas a <strong>Inactivo</strong>, deja de aparecer en la planilla desde el mes en curso
+                        ({periodoEnCurso()}). Los meses que ya trabajo y no se le pagaron siguen pendientes y se le pueden pagar.
+                        Si lo reactivas, vuelve a entrar en la planilla.
                     </Typography>
                     <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Estado</Typography>
                     <Select fullWidth size="small" value={estadoDraft} onChange={(e) => setEstadoDraft(e.target.value)}>
                         <MenuItem value="Activo">Activo</MenuItem>
-                        <MenuItem value="Inactivo">Inactivo</MenuItem>
+                        <MenuItem value="Inactivo">Inactivo (dar de baja)</MenuItem>
                     </Select>
+                    {estadoDraft === 'Inactivo' && filaSel?.estado === 'Activo' && (
+                        <>
+                            <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5, mt: 2 }}>Motivo de la baja</Typography>
+                            <Select fullWidth size="small" value={motivoBaja.motivo}
+                                onChange={(e) => setMotivoBaja((m) => ({ ...m, motivo: e.target.value }))}>
+                                {MOTIVOS_BAJA.map((m) => <MenuItem key={m} value={m}>{m}</MenuItem>)}
+                            </Select>
+                            <TextField fullWidth size="small" multiline minRows={2} sx={{ mt: 1.5 }}
+                                placeholder="Detalle (opcional). Ej. Presento su renuncia el 05/11/2026"
+                                value={motivoBaja.detalle} slotProps={{ htmlInput: { maxLength: 200 } }}
+                                onChange={(e) => setMotivoBaja((m) => ({ ...m, detalle: e.target.value }))} />
+                            {usuarioDeEmpleado(filaSel?.id) && (
+                                <Alert severity="warning" sx={{ mt: 1.5 }}>
+                                    Su cuenta <strong>{usuarioDeEmpleado(filaSel.id).username}</strong> quedara desactivada.
+                                </Alert>
+                            )}
+                        </>
+                    )}
                 </DialogContent>
                 <DialogActions sx={{ p: 2 }}>
                     <Button variant="outlined" onClick={() => setEditarEstadoAbierto(false)}>Cancelar</Button>

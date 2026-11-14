@@ -2,8 +2,10 @@ import { useState, useMemo, useEffect } from 'react';
 import {
     Box, Typography, Paper, Button, Chip, Select, MenuItem, TextField,
     Table, TableHead, TableBody, TableRow, TableCell, IconButton, InputAdornment, Alert, Snackbar,
-    Dialog, DialogTitle, DialogContent, DialogActions, Divider,
+    Dialog, DialogTitle, DialogContent, DialogActions, Divider, Menu, ListItemIcon, ListItemText,
 } from '@mui/material';
+import MoreVertIcon from '@mui/icons-material/MoreVert';
+import UploadFileIcon from '@mui/icons-material/UploadFile';
 import SearchIcon from '@mui/icons-material/Search';
 import DownloadIcon from '@mui/icons-material/Download';
 import AddIcon from '@mui/icons-material/Add';
@@ -18,9 +20,9 @@ import autoTable from 'jspdf-autotable';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import {
     PAGOS_PERSONAL_MOCK, PLANILLA_MOCK, RESUMEN_PAGOS_PERSONAL, RESUMEN_PLANILLA,
-    ESTADOS_PAGO_PERSONAL, EMPLEADOS_MOCK, MEDIOS_PAGO_PERSONAL, CONCEPTOS_PAGO,
+    ESTADOS_PAGO_PERSONAL, MEDIOS_PAGO_PERSONAL, CONCEPTOS_PAGO,
     nombreEmpleado, cargoEmpleado,
-    periodosDisponibles, asegurarPlanillaActualizada, periodoEnCurso,
+    periodosDisponibles, periodoEnCurso, empleadosPagables, cuentaDeMedio,
 } from '../../constants/personalMock';
 import { formatBs } from '../../constants/finanzasMock';
 
@@ -89,14 +91,10 @@ export default function HistorialPagos() {
     const [busqueda, setBusqueda] = useState('');
     const [snack, setSnack] = useState({ open: false, msg: '', sev: 'success' });
 
-    // Al montar y cada 5s: asegurar planilla + tick para refrescar la UI.
+    // Cada 5s refresca la UI (por si cambia la fecha del sistema).
+    // La planilla se genera desde la pantalla Planilla, no aqui.
     useEffect(() => {
-        asegurarPlanillaActualizada();
-        setTick((t) => t + 1);
-        const h = setInterval(() => {
-            asegurarPlanillaActualizada();
-            setTick((t) => t + 1);
-        }, 5000);
+        const h = setInterval(() => setTick((t) => t + 1), 5000);
         return () => clearInterval(h);
     }, []);
 
@@ -144,7 +142,8 @@ export default function HistorialPagos() {
     const filas = useMemo(() => {
         const periodoCort = periodoCorto(periodo);
         const pagosDelPeriodo = PAGOS_PERSONAL_MOCK.filter((p) => p.periodo === periodoCort);
-        const idsConPago = new Set(pagosDelPeriodo.map((p) => p.empleadoId));
+        // Solo el pago de SALARIO cubre la planilla (un anticipo o bono no la cubre)
+        const idsConPago = new Set(pagosDelPeriodo.filter((p) => p.concepto === 'Salario').map((p) => p.empleadoId));
         const pendientesPlanilla = PLANILLA_MOCK
             .filter((pl) => pl.periodo === periodo && pl.estado !== 'Pagada' && !idsConPago.has(pl.empleadoId))
             .map((pl) => ({
@@ -165,7 +164,8 @@ export default function HistorialPagos() {
     const resumenPeriodo = useMemo(() => {
         const periodoCort = periodoCorto(periodo);
         const pagosDelPeriodo = PAGOS_PERSONAL_MOCK.filter((p) => p.periodo === periodoCort);
-        const idsConPago = new Set(pagosDelPeriodo.map((p) => p.empleadoId));
+        // Solo el pago de SALARIO cubre la planilla (un anticipo o bono no la cubre)
+        const idsConPago = new Set(pagosDelPeriodo.filter((p) => p.concepto === 'Salario').map((p) => p.empleadoId));
         const pendientesPlanilla = PLANILLA_MOCK
             .filter((pl) => pl.periodo === periodo && pl.estado !== 'Pagada' && !idsConPago.has(pl.empleadoId));
         const pagados = pagosDelPeriodo.filter((p) => p.estado === 'Pagado');
@@ -180,6 +180,25 @@ export default function HistorialPagos() {
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [periodo, tick]);
+
+    // --- Menu de acciones por fila (Ver detalle / Pagar) ---
+    const [menuAnchor, setMenuAnchor] = useState(null);
+    const [filaMenu, setFilaMenu] = useState(null);
+    const abrirMenu = (ev, f) => { setMenuAnchor(ev.currentTarget); setFilaMenu(f); };
+    const cerrarMenu = () => setMenuAnchor(null);
+
+    // Pagar un pendiente: abre "Registrar pago" con el empleado, concepto,
+    // periodo y monto ya cargados desde su planilla.
+    const pagarPendiente = (f) => {
+        cerrarMenu();
+        setDetalleAbierto(false);
+        setPagoDraft({
+            empleadoId: f.empleadoId, concepto: f.concepto || 'Salario', periodo,
+            monto: f.montoNeto || 0, fecha: fechaHoyBonita(),
+            medio: 'Transferencia', referencia: '', motivo: '',
+        });
+        setRegistrarAbierto(true);
+    };
 
     // --- Registrar pago ---
     const abrirRegistrar = () => {
@@ -236,7 +255,8 @@ export default function HistorialPagos() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [pagoDraft, tick]);
     const confirmarRegistrar = () => {
-        const { empleadoId, concepto, periodo: periodoDraft, monto, fecha, medio, referencia, motivo } = pagoDraft;
+        const { empleadoId, concepto, periodo: periodoDraft, monto, fecha, medio, referencia, motivo, comprobante = null } = pagoDraft;
+        const cuenta = cuentaDeMedio(medio); // Efectivo sale de Caja; transferencia o cheque, del Banco
         const montoNum = Number(monto) || 0;
         if (!empleadoId) {
             setSnack({ open: true, msg: 'Selecciona un empleado', sev: 'warning' });
@@ -285,13 +305,15 @@ export default function HistorialPagos() {
             pagoExistente.fecha = fecha;
             pagoExistente.medio = medio;
             pagoExistente.referencia = referencia || null;
+            pagoExistente.cuenta = cuenta;
+            pagoExistente.comprobante = comprobante;
             pagoExistente.montoNeto = montoNum;
             pagoExistente.estado = 'Pagado';
         } else {
             PAGOS_PERSONAL_MOCK.push({
                 id: codigo, fecha, empleadoId, empleado: empleadoNombre,
                 periodo: periodoCortoStr, concepto,
-                medio, referencia: referencia || null,
+                medio, cuenta, referencia: referencia || null, comprobante,
                 montoNeto: montoNum, estado: 'Pagado',
                 motivo: motivo || null,
             });
@@ -319,7 +341,7 @@ export default function HistorialPagos() {
         recalcularResumenes();
         setRegistrarAbierto(false);
         setTick((t) => t + 1);
-        setSnack({ open: true, msg: `Pago ${codigo} registrado (${concepto}) para ${empleadoNombre}`, sev: 'success' });
+        setSnack({ open: true, msg: `Pago ${codigo} registrado (${concepto}) para ${empleadoNombre}. Tambien quedo como gasto en Ingresos y gastos (${cuenta}).`, sev: 'success' });
     };
 
     const abrirDetalle = (p) => {
@@ -366,7 +388,8 @@ export default function HistorialPagos() {
         setSnack({ open: true, msg: `PDF descargado: ${nombreArchivo}`, sev: 'success' });
     };
 
-    const empleadosActivos = EMPLEADOS_MOCK.filter((e) => e.estado === 'Activo');
+    // Activos + inactivos a los que todavia se les debe una planilla
+    const empleadosActivos = empleadosPagables();
     const cargoDraft = pagoDraft.empleadoId ? cargoEmpleado(pagoDraft.empleadoId) : '';
 
     return (
@@ -475,7 +498,7 @@ export default function HistorialPagos() {
                                 <TableCell><strong>Medio</strong></TableCell>
                                 <TableCell><strong>Monto neto</strong></TableCell>
                                 <TableCell><strong>Estado</strong></TableCell>
-                                <TableCell align="center"><strong>Detalle</strong></TableCell>
+                                <TableCell align="center"><strong>Acciones</strong></TableCell>
                             </TableRow>
                         </TableHead>
                         <TableBody>
@@ -498,8 +521,8 @@ export default function HistorialPagos() {
                                     <TableCell sx={{ fontWeight: 700 }}>{formatBs(f.montoNeto)}</TableCell>
                                     <TableCell><Chip label={f.estado} size="small" sx={estadoChipSx(f.estado)} /></TableCell>
                                     <TableCell align="center">
-                                        <IconButton size="small" color="primary" onClick={() => abrirDetalle(f)}>
-                                            <VisibilityIcon fontSize="small" />
+                                        <IconButton size="small" onClick={(ev) => abrirMenu(ev, f)}>
+                                            <MoreVertIcon />
                                         </IconButton>
                                     </TableCell>
                                 </TableRow>
@@ -508,10 +531,23 @@ export default function HistorialPagos() {
                     </Table>
                 </Box>
 
+                <Menu anchorEl={menuAnchor} open={Boolean(menuAnchor)} onClose={cerrarMenu}>
+                    <MenuItem onClick={() => { cerrarMenu(); abrirDetalle(filaMenu); }}>
+                        <ListItemIcon><VisibilityIcon fontSize="small" /></ListItemIcon>
+                        <ListItemText>Ver detalle</ListItemText>
+                    </MenuItem>
+                    {filaMenu?.estado === 'Pendiente' && (
+                        <MenuItem onClick={() => pagarPendiente(filaMenu)}>
+                            <ListItemIcon><PaidIcon fontSize="small" sx={{ color: '#2E9D78' }} /></ListItemIcon>
+                            <ListItemText>Pagar</ListItemText>
+                        </MenuItem>
+                    )}
+                </Menu>
+
                 <Alert severity="info" icon={false} sx={{ bgcolor: '#E4EEF5', color: 'text.primary', mt: 2 }}>
                     <Typography variant="body2">
-                        Los pendientes se derivan de la planilla no pagada. Los periodos aparecen a medida que terminan los meses;
-                        el mes en curso (<strong>{periodoHoy}</strong>) aun no esta disponible.
+                        Los pendientes salen de la planilla no pagada; usa los tres puntos para pagarlos. La planilla de un mes
+                        se genera en <strong>Planilla</strong> cuando el mes termina; el mes en curso (<strong>{periodoHoy}</strong>) aun no esta disponible.
                     </Typography>
                 </Alert>
             </Paper>
@@ -539,7 +575,9 @@ export default function HistorialPagos() {
                                 onChange={(e) => cambiarEmpleadoDraft(e.target.value)}>
                                 <MenuItem value=""><em>Selecciona un empleado</em></MenuItem>
                                 {empleadosActivos.map((e) => (
-                                    <MenuItem key={e.id} value={e.id}>{e.id} — {e.nombre}</MenuItem>
+                                    <MenuItem key={e.id} value={e.id}>
+                                        {e.id} — {e.nombre}{e.estado !== 'Activo' ? ' (Inactivo)' : ''}
+                                    </MenuItem>
                                 ))}
                             </Select>
                         </Box>
@@ -583,11 +621,21 @@ export default function HistorialPagos() {
                     <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>
                         {pagoDraft.concepto === 'Salario' ? 'Monto neto a pagar' : `Monto del ${pagoDraft.concepto.toLowerCase()}`}
                     </Typography>
+                    {/* El salario sale de la planilla: se muestra de solo lectura, pero bien visible */}
                     <TextField fullWidth size="small" type="number" value={pagoDraft.monto}
                         onChange={(e) => setPagoDraft((p) => ({ ...p, monto: e.target.value }))}
-                        disabled={pagoDraft.concepto === 'Salario' && !!pagoDraft.empleadoId}
-                        slotProps={{ input: { startAdornment: <InputAdornment position="start">Bs</InputAdornment> } }}
-                        sx={{ mb: 2 }} />
+                        slotProps={{
+                            input: {
+                                readOnly: pagoDraft.concepto === 'Salario' && !!pagoDraft.empleadoId,
+                                startAdornment: <InputAdornment position="start">Bs</InputAdornment>,
+                            },
+                        }}
+                        sx={{
+                            mb: 2,
+                            '& .MuiInputBase-input': { fontWeight: 700, color: '#132B3E', fontSize: 16 },
+                            ...(pagoDraft.concepto === 'Salario' && pagoDraft.empleadoId
+                                ? { '& .MuiOutlinedInput-root': { bgcolor: '#F3F6FA' } } : {}),
+                        }} />
 
                     <Box sx={{ display: 'flex', gap: 2, mb: 2, flexWrap: 'wrap' }}>
                         <Box sx={{ flex: 1, minWidth: 140 }}>
@@ -610,7 +658,29 @@ export default function HistorialPagos() {
                     <TextField fullWidth size="small" value={pagoDraft.referencia}
                         onChange={(e) => setPagoDraft((p) => ({ ...p, referencia: e.target.value }))}
                         placeholder={pagoDraft.medio === 'Efectivo' ? 'REC-00000' : '1234567890'}
+                        helperText={`Sale de: ${cuentaDeMedio(pagoDraft.medio) === 'Caja' ? 'Caja (efectivo)' : 'Banco (cuenta del edificio)'}. Se registra solo como gasto en Ingresos y gastos.`}
                         sx={{ mb: 2 }} />
+
+                    {/* Comprobante del pago (recibo firmado, voucher, foto del cheque) */}
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap', mb: 2 }}>
+                        <Button component="label" size="small" variant="outlined" startIcon={<UploadFileIcon />}
+                            sx={{ color: '#1a2733', borderColor: '#cdd8e3' }}>
+                            {pagoDraft.comprobante ? 'Cambiar comprobante' : 'Adjuntar comprobante'}
+                            <input hidden type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={(e) => {
+                                const f = e.target.files && e.target.files[0];
+                                e.target.value = '';
+                                if (!f) return;
+                                if (f.size > 5 * 1024 * 1024) { setSnack({ open: true, msg: 'El archivo supera 5 MB', sev: 'warning' }); return; }
+                                setPagoDraft((p) => ({ ...p, comprobante: { name: f.name, type: f.type, url: URL.createObjectURL(f) } }));
+                            }} />
+                        </Button>
+                        {pagoDraft.comprobante && (
+                            <Chip size="small" label={pagoDraft.comprobante.name}
+                                onClick={() => window.open(pagoDraft.comprobante.url, '_blank')}
+                                onDelete={() => setPagoDraft((p) => ({ ...p, comprobante: null }))} />
+                        )}
+                        <Typography variant="caption" color="text.secondary">Opcional · PDF, JPG o PNG</Typography>
+                    </Box>
 
                     {(pagoDraft.concepto === 'Anticipo' || pagoDraft.concepto === 'Bono') && (
                         <>
@@ -708,7 +778,7 @@ export default function HistorialPagos() {
                                 <Alert severity="warning" icon={false} sx={{ bgcolor: '#FDF0D5', color: '#8A5A00', mt: 2 }}>
                                     <Typography variant="body2" sx={{ fontWeight: 700 }}>Pago pendiente</Typography>
                                     <Typography variant="body2">
-                                        Usa el boton "Registrar pago" para ejecutarlo o entra desde la Planilla al menu de acciones.
+                                        Puedes pagarlo ahora con el boton "Pagar".
                                     </Typography>
                                 </Alert>
                             )}
@@ -716,6 +786,9 @@ export default function HistorialPagos() {
                     )}
                 </DialogContent>
                 <DialogActions sx={{ p: 2 }}>
+                    {detalleSel?.estado === 'Pendiente' && (
+                        <Button variant="outlined" startIcon={<PaidIcon />} onClick={() => pagarPendiente(detalleSel)}>Pagar</Button>
+                    )}
                     <Button variant="contained" onClick={() => setDetalleAbierto(false)}>Cerrar</Button>
                 </DialogActions>
             </Dialog>

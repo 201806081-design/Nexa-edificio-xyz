@@ -14,6 +14,8 @@
 // vuelve atras, el selector los esconde (aunque los datos quedan en memoria
 // para no perder pagos aplicados durante la simulacion).
 
+import { periodosCerrados, periodoEnCurso } from './periodos';
+
 export const CARGOS = ['Administrador', 'Portero', 'Limpieza', 'Mantenimiento', 'Seguridad'];
 
 export const ESTADOS_EMPLEADO = ['Todos', 'Activo', 'Inactivo'];
@@ -33,52 +35,70 @@ export const TARIFAS_CARGO = {
 };
 export const salarioDesdeCargo = (cargo) => TARIFAS_CARGO[cargo] || 0;
 
+// Registra un cargo nuevo con su salario base. Devuelve un mensaje de error o null.
+export const registrarCargo = (nombre, salario) => {
+    const n = String(nombre || '').trim();
+    const m = Number(salario);
+    if (!n) return 'Escribe el nombre del cargo';
+    if (n.length > 40) return 'Maximo 40 caracteres';
+    if (CARGOS.some((c) => c.toLowerCase() === n.toLowerCase())) return 'Ese cargo ya existe';
+    if (!(m > 0)) return 'Ingresa un salario base mayor a 0';
+    CARGOS.push(n);
+    TARIFAS_CARGO[n] = Math.round(m * 100) / 100;
+    return null;
+};
+
+// --- Catalogos de la ficha del empleado ---
+// Departamento donde se expidio el carnet (Bolivia)
+export const EXPEDIDOS = ['LP', 'CB', 'SC', 'OR', 'PT', 'CH', 'TJ', 'BE', 'PD'];
+export const TIPOS_CONTRATO = ['Indefinido', 'Plazo fijo', 'Eventual'];
+export const MOTIVOS_BAJA = ['Renuncia', 'Fin de contrato', 'Despido', 'Jubilacion', 'Otro'];
+
 // --- Catalogo de empleados ---
+// Ficha completa del empleado. 'nombre' (nombres + apellidos) se mantiene porque
+// lo usan Planilla, Historial de pagos y Finanzas.
+// celular: 8 digitos (Bolivia, codigo +591 fijo); telefono fijo es opcional.
+const emp = (id, nombres, apellidos, ci, expedido, cargo, fechaIngreso, extra) => ({
+    id, nombres, apellidos, nombre: `${nombres} ${apellidos}`, ci, complemento: '', expedido,
+    cargo, fechaIngreso, estado: 'Activo', tipoContrato: 'Indefinido', telefono: '', cv: null, ...extra,
+});
 export const EMPLEADOS_MOCK = [
-    { id: 'EM-001', nombre: 'Patricia Montenegro', ci: '4712345', cargo: 'Administrador', fechaIngreso: '01/03/2024', estado: 'Activo' },
-    { id: 'EM-002', nombre: 'Juan Alvarez', ci: '5823456', cargo: 'Portero', fechaIngreso: '15/06/2024', estado: 'Activo' },
-    { id: 'EM-003', nombre: 'Elena Quispe', ci: '6934567', cargo: 'Limpieza', fechaIngreso: '02/09/2024', estado: 'Activo' },
-    { id: 'EM-004', nombre: 'Ricardo Cabrera', ci: '7045678', cargo: 'Mantenimiento', fechaIngreso: '10/01/2025', estado: 'Activo' },
-    { id: 'EM-005', nombre: 'Fernando Coca', ci: '8156789', cargo: 'Seguridad', fechaIngreso: '20/04/2025', estado: 'Activo' },
+    emp('EM-001', 'Oscar', 'Montenegro', '4712345', 'CB', 'Administrador', '01/03/2024', {
+        fechaNacimiento: '1985-06-14', celular: '71456230', correo: 'oscar.montenegro@nexa.bo',
+        direccion: 'Av. Ayacucho 1450, Cochabamba',
+        contactoEmergencia: { nombre: 'Lucia Rivas (esposa)', celular: '72215566' },
+        experiencia: 'Lic. en Administracion de Empresas. 8 años administrando condominios y edificios residenciales.',
+    }),
+    emp('EM-002', 'Juan', 'Alvarez', '5823456', 'CB', 'Portero', '15/06/2024', {
+        fechaNacimiento: '1979-02-03', celular: '76543210', correo: 'juan.alvarez@gmail.com',
+        direccion: 'Calle Tumusla 230, Cochabamba',
+        contactoEmergencia: { nombre: 'Maria Alvarez (hija)', celular: '70011223' },
+        experiencia: '5 años como portero en edificios del centro.',
+    }),
+    emp('EM-003', 'Elena', 'Quispe', '6934567', 'LP', 'Limpieza', '02/09/2024', {
+        fechaNacimiento: '1990-11-21', celular: '67890123', correo: 'elena.quispe@gmail.com',
+        direccion: 'Barrio Sarco, calle 4 N.º 12, Cochabamba', tipoContrato: 'Plazo fijo',
+        contactoEmergencia: { nombre: 'Rosa Quispe (madre)', celular: '69988776' },
+        experiencia: 'Limpieza de oficinas y areas comunes.',
+    }),
+    emp('EM-004', 'Ricardo', 'Cabrera', '7045678', 'CB', 'Mantenimiento', '10/01/2025', {
+        fechaNacimiento: '1983-08-09', celular: '72233445', correo: 'ricardo.cabrera@gmail.com',
+        direccion: 'Av. Blanco Galindo km 3, Cochabamba',
+        contactoEmergencia: { nombre: 'Carla Cabrera (hermana)', celular: '71122334' },
+        experiencia: 'Tecnico electricista y plomeria, 10 años de experiencia.',
+    }),
+    emp('EM-005', 'Fernando', 'Coca', '8156789', 'SC', 'Seguridad', '20/04/2025', {
+        fechaNacimiento: '1992-04-30', celular: '78899001', correo: 'fernando.coca@gmail.com',
+        direccion: 'Zona Queru Queru, calle Los Pinos 55, Cochabamba',
+        contactoEmergencia: { nombre: 'Jorge Coca (padre)', celular: '77665544' },
+        experiencia: 'Ex guardia de seguridad privada, curso de primeros auxilios.',
+    }),
 ].map((e) => ({ ...e, salarioBase: salarioDesdeCargo(e.cargo) }));
 
-// ============================================================
-//  PERIODOS DINAMICOS
-// ============================================================
-
-const MESES_LARGOS = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
-    'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
-
-// Inicio del edificio (operacion de personal): Octubre 2026 (0-indexed: mes=9)
-const PRIMER_PERIODO = { anio: 2026, mes: 9 };
-
-// Devuelve los periodos ya cerrados hasta la fecha del sistema, mas reciente primero.
-// Hoy = 3 Nov 2026     -> ['Octubre 2026']
-// Hoy simulado Feb 2027 -> ['Enero 2027', 'Diciembre 2026', 'Noviembre 2026', 'Octubre 2026']
-// El mes en curso NUNCA aparece (aun no termina).
-export const periodosDisponibles = () => {
-    const hoy = new Date();
-    const primerDiaMesActual = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
-    const periodos = [];
-    let anio = PRIMER_PERIODO.anio;
-    let mes = PRIMER_PERIODO.mes;
-    let seguro = 0;
-    while (seguro++ < 240) { // max 20 anios por las dudas
-        const inicioSiguiente = new Date(anio, mes + 1, 1);
-        if (inicioSiguiente > primerDiaMesActual) break;
-        periodos.push(`${MESES_LARGOS[mes]} ${anio}`);
-        mes++;
-        if (mes >= 12) { mes = 0; anio++; }
-    }
-    return periodos.reverse();
-};
-
-// Devuelve el periodo que esta "en curso" segun la fecha del sistema (no completado).
-// Util para el Alert "la planilla de Noviembre aun no esta disponible".
-export const periodoEnCurso = () => {
-    const hoy = new Date();
-    return `${MESES_LARGOS[hoy.getMonth()]} ${hoy.getFullYear()}`;
-};
+// Los periodos salen de la fuente unica (periodos.js).
+// periodosDisponibles = meses cerrados (la planilla del mes en curso aun no se paga).
+export const periodosDisponibles = periodosCerrados;
+export { periodoEnCurso };
 
 // Fabrica una fila de planilla "vacia" (sin bonos ni anticipos) para un empleado y periodo.
 const planillaFilaVacia = (empleado, periodo) => ({
@@ -94,16 +114,16 @@ const planillaFilaVacia = (empleado, periodo) => ({
 // ============================================================
 
 // Planilla de Octubre 2026: algunas pagadas, algunas pendientes.
-// Las filas de meses posteriores se generan automaticamente cuando el mes se cierra
-// (ver asegurarPlanillaActualizada abajo).
+// La planilla de los meses siguientes la genera el administrador con
+// "Generar planilla" cuando el mes termina.
 const planillaOctubre = (empleadoId, bonos, anticipos, otrosDesc, estado) => {
-    const emp = EMPLEADOS_MOCK.find((e) => e.id === empleadoId);
-    const salarioBase = emp ? emp.salarioBase : 0;
+    const e = EMPLEADOS_MOCK.find((x) => x.id === empleadoId);
+    const salarioBase = e ? e.salarioBase : 0;
     const neto = salarioBase + bonos - anticipos - otrosDesc;
     return { empleadoId, periodo: 'Octubre 2026', salarioBase, bonos, anticipos, otrosDesc, neto, estado };
 };
 export const PLANILLA_MOCK = [
-    planillaOctubre('EM-001', 400, 300, 120, 'Calculado'), // Patricia -> 4180, pendiente
+    planillaOctubre('EM-001', 400, 300, 120, 'Calculado'), // Oscar    -> 4180, pendiente
     planillaOctubre('EM-002', 250, 400, 90, 'Pagada'),    // Juan     -> 2760, pagada
     planillaOctubre('EM-003', 300, 0, 84, 'Pagada'),    // Elena    -> 3016, pagada
     planillaOctubre('EM-004', 250, 350, 105, 'Revisar'),   // Ricardo  -> 3295, en revision
@@ -111,7 +131,7 @@ export const PLANILLA_MOCK = [
 ];
 
 // Pagos reales de Octubre 2026 (coherentes con PLANILLA_MOCK).
-// Patricia y Ricardo NO estan aqui: aparecen como pendientes derivados.
+// Oscar y Ricardo NO estan aqui: aparecen como pendientes derivados.
 const buscarEmp = (id) => EMPLEADOS_MOCK.find((e) => e.id === id)?.nombre || '—';
 const netoPlanilla = (id, periodoBuscado = 'Octubre 2026') =>
     PLANILLA_MOCK.find((p) => p.empleadoId === id && p.periodo === periodoBuscado)?.neto || 0;
@@ -144,6 +164,19 @@ export const HISTORIAL_SALARIOS_CARGO = [
 // Tipos de descuentos que se pueden aplicar al "Otros desc." de la planilla.
 export const TIPOS_DESCUENTO = ['Anticipo salarial', 'Rotura/dano', 'Aporte social', 'Ajuste', 'Otro'];
 
+// Registra un tipo de descuento nuevo (ej. 'Uniforme'). Devuelve un mensaje de error o null.
+export const registrarTipoDescuento = (nombre) => {
+    const n = String(nombre || '').trim();
+    if (!n) return 'Escribe el nombre';
+    if (n.length > 40) return 'Maximo 40 caracteres';
+    if (TIPOS_DESCUENTO.some((t) => t.toLowerCase() === n.toLowerCase())) return 'Ese tipo ya existe';
+    TIPOS_DESCUENTO.splice(TIPOS_DESCUENTO.indexOf('Otro'), 0, n);
+    return null;
+};
+
+// Cuenta de la que sale el dinero segun el medio (igual que en Ingresos y gastos)
+export const cuentaDeMedio = (medio) => (medio === 'Efectivo' ? 'Caja' : 'Banco');
+
 // Anticipos ya otorgados a empleados (saldo pendiente a descontar).
 export const ANTICIPOS_PERSONAL_MOCK = [
     { id: 'AP-001', fecha: '20/10/2026', empleadoId: 'EM-002', empleado: buscarEmp('EM-002'), monto: 400, descontado: 400, saldo: 0, estado: 'Descontado' },
@@ -162,13 +195,49 @@ export const ANTICIPOS_PERSONAL_MOCK = [
 //
 // Se llama al abrir Planilla o HistorialPagos y en cada tick de 5s, asi al
 // avanzar la fecha del sistema (o simularla), las nuevas planillas aparecen solas.
+// ------------------------------------------------------------
+//  QUIEN ENTRA EN LA PLANILLA DE UN MES
+//  - Debe haber ingresado antes de que termine el mes.
+//  - Si esta Inactivo, solo entra en los meses que termino de trabajar:
+//    la planilla del mes en que se le dio de baja (y siguientes) ya no lo incluye.
+//    Los dias trabajados ese ultimo mes se pagan con el finiquito.
+// ------------------------------------------------------------
+const MESES_PL = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+    'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+const fechaDMY = (txt) => {
+    const [d, m, a] = String(txt || '').split('/').map(Number);
+    return a ? new Date(a, m - 1, d) : null;
+};
+const finDePeriodo = (periodo) => {
+    const [mes, anio] = String(periodo || '').split(' ');
+    return new Date(Number(anio), MESES_PL.indexOf(mes) + 1, 0); // ultimo dia del mes
+};
+
+export const empleadoTrabajoEnPeriodo = (emp, periodo) => {
+    const fin = finDePeriodo(periodo);
+    const ingreso = fechaDMY(emp.fechaIngreso);
+    if (ingreso && ingreso > fin) return false;
+    if (emp.estado === 'Activo') return true;
+    const baja = fechaDMY(emp.fechaBaja);
+    return !!baja && baja > fin; // se fue despues de terminar ese mes
+};
+
+export const empleadosParaPlanilla = (periodo) => EMPLEADOS_MOCK.filter((e) => empleadoTrabajoEnPeriodo(e, periodo));
+
+// Empleados a los que se les puede registrar un pago: los activos y tambien
+// los inactivos que todavia tienen una planilla sin pagar (se les debe).
+export const empleadosPagables = () => EMPLEADOS_MOCK.filter((e) => e.estado === 'Activo'
+    || PLANILLA_MOCK.some((p) => p.empleadoId === e.id && p.estado !== 'Pagada'));
+
+// Genera las filas de planilla que falten para los meses cerrados.
+// Ya no se llama sola: la planilla de un mes la genera el administrador con el
+// boton "Generar planilla" cuando el mes termina (igual que las expensas).
 export const asegurarPlanillaActualizada = () => {
     const periodos = periodosDisponibles();
     const existentes = new Set(PLANILLA_MOCK.map((f) => `${f.empleadoId}|${f.periodo}`));
-    const activos = EMPLEADOS_MOCK.filter((e) => e.estado === 'Activo');
     let agregadas = 0;
     periodos.forEach((periodo) => {
-        activos.forEach((emp) => {
+        empleadosParaPlanilla(periodo).forEach((emp) => {
             const key = `${emp.id}|${periodo}`;
             if (!existentes.has(key)) {
                 PLANILLA_MOCK.push(planillaFilaVacia(emp, periodo));
@@ -206,4 +275,121 @@ export const nombreEmpleado = (id) => {
 export const cargoEmpleado = (id) => {
     const e = EMPLEADOS_MOCK.find((x) => x.id === id);
     return e ? e.cargo : '—';
+};
+
+// Un empleado con planilla o pagos registrados NO se puede eliminar (se perderia
+// historial contable): se le da de baja (Inactivo). Solo se elimina uno registrado por error.
+export const empleadoTieneHistorial = (id) => PLANILLA_MOCK.some((p) => p.empleadoId === id)
+    || PAGOS_PERSONAL_MOCK.some((p) => p.empleadoId === id)
+    || ANTICIPOS_PERSONAL_MOCK.some((a) => a.empleadoId === id);
+
+export const eliminarEmpleado = (id) => {
+    if (empleadoTieneHistorial(id)) return false;
+    const i = EMPLEADOS_MOCK.findIndex((e) => e.id === id);
+    if (i >= 0) EMPLEADOS_MOCK.splice(i, 1);
+    return i >= 0;
+};
+
+// ============================================================
+//  ANTICIPOS Y DESCUENTOS DEL MES EN CURSO ("novedades")
+//  Igual que los cargos extra de Expensas: ocurren DURANTE el mes, pero la
+//  planilla se genera cuando el mes termina. Se registran aqui como pendientes
+//  y, al generar la planilla de ese periodo, se descuentan del neto de cada uno.
+//   - Anticipo: se entrega dinero ese dia -> tambien queda como pago 'Anticipo'
+//     (aparece en Historial de pagos y como gasto de Personal en Finanzas).
+//   - Descuento: no mueve dinero (rotura, ajuste...) -> solo baja el neto.
+// ============================================================
+const ABR_MES = { Enero: 'Ene.', Febrero: 'Feb.', Marzo: 'Mar.', Abril: 'Abr.', Mayo: 'May.', Junio: 'Jun.',
+    Julio: 'Jul.', Agosto: 'Ago.', Septiembre: 'Sep.', Octubre: 'Oct.', Noviembre: 'Nov.', Diciembre: 'Dic.' };
+export const periodoCortoDe = (periodo) => {
+    const [mes, anio] = String(periodo || '').split(' ');
+    return ABR_MES[mes] ? `${ABR_MES[mes]} ${anio}` : periodo;
+};
+const fechaHoyDMY = () => {
+    const h = new Date();
+    return `${String(h.getDate()).padStart(2, '0')}/${String(h.getMonth() + 1).padStart(2, '0')}/${h.getFullYear()}`;
+};
+const siguienteIdPagoPersonal = () => {
+    const nums = PAGOS_PERSONAL_MOCK.map((p) => Number(String(p.id || '').replace(/\D/g, '')) || 0);
+    return `PE-${String((nums.length ? Math.max(...nums) : 0) + 1).padStart(4, '0')}`;
+};
+
+export const NOVEDADES_PENDIENTES = [];
+
+// { periodo, empleadoId, tipo: 'Anticipo'|'Descuento', subtipo, monto, motivo, medio, referencia, comprobante }
+// Devuelve un mensaje de error o null.
+export const registrarNovedad = ({ periodo, empleadoId, tipo, subtipo, monto, motivo, medio = 'Efectivo', referencia = '', comprobante = null }) => {
+    const emp = EMPLEADOS_MOCK.find((e) => e.id === empleadoId);
+    const m = Math.round((Number(monto) || 0) * 100) / 100;
+    if (!emp) return 'Elige un empleado';
+    if (!(m > 0)) return 'Ingresa un monto mayor a 0';
+    if (!String(motivo || '').trim()) return 'El motivo es obligatorio';
+    if (tipo === 'Anticipo' && medio !== 'Efectivo' && !String(referencia || '').trim()) {
+        return `Falta el N.º de ${medio.toLowerCase()}`;
+    }
+    // No se puede descontar mas que su salario del mes
+    const yaPendiente = NOVEDADES_PENDIENTES
+        .filter((n) => n.periodo === periodo && n.empleadoId === empleadoId)
+        .reduce((s, n) => s + n.monto, 0);
+    if (yaPendiente + m > emp.salarioBase) return `Supera su salario del mes (${emp.salarioBase} Bs)`;
+
+    const id = NOVEDADES_PENDIENTES.reduce((mx, n) => Math.max(mx, n.id), 0) + 1;
+    const fecha = fechaHoyDMY();
+    let pagoId = null;
+    if (tipo === 'Anticipo') {
+        pagoId = siguienteIdPagoPersonal();
+        PAGOS_PERSONAL_MOCK.push({
+            id: pagoId, fecha, empleadoId, empleado: emp.nombre, periodo: periodoCortoDe(periodo),
+            concepto: 'Anticipo', medio, cuenta: cuentaDeMedio(medio), referencia: String(referencia || '').trim(),
+            comprobante, montoNeto: m, estado: 'Pagado', motivo: String(motivo).trim(),
+        });
+    }
+    NOVEDADES_PENDIENTES.push({
+        id, periodo, empleadoId, tipo, subtipo: tipo === 'Anticipo' ? 'Anticipo salarial' : subtipo,
+        monto: m, motivo: String(motivo).trim(), fecha, pagoId, comprobante,
+    });
+    return null;
+};
+
+export const eliminarNovedad = (id) => {
+    const i = NOVEDADES_PENDIENTES.findIndex((n) => n.id === id);
+    if (i < 0) return;
+    const n = NOVEDADES_PENDIENTES[i];
+    if (n.pagoId) { // se registro por error: se quita tambien el pago del anticipo
+        const j = PAGOS_PERSONAL_MOCK.findIndex((p) => p.id === n.pagoId);
+        if (j >= 0) PAGOS_PERSONAL_MOCK.splice(j, 1);
+    }
+    NOVEDADES_PENDIENTES.splice(i, 1);
+};
+
+export const novedadesDe = (periodo) => NOVEDADES_PENDIENTES.filter((n) => n.periodo === periodo);
+
+// Totales pendientes de un empleado en un periodo: { anticipos, descuentos }
+export const totalesNovedades = (periodo, empleadoId) => novedadesDe(periodo)
+    .filter((n) => n.empleadoId === empleadoId)
+    .reduce((t, n) => (n.tipo === 'Anticipo'
+        ? { ...t, anticipos: t.anticipos + n.monto } : { ...t, descuentos: t.descuentos + n.monto }),
+    { anticipos: 0, descuentos: 0 });
+
+// Vista previa de la planilla de un periodo (antes de generarla)
+export const previaPlanilla = (periodo) => empleadosParaPlanilla(periodo).map((e) => {
+    const { anticipos, descuentos } = totalesNovedades(periodo, e.id);
+    return {
+        empleadoId: e.id, empleado: e.nombre, cargo: e.cargo, salarioBase: e.salarioBase,
+        anticipos, otrosDesc: descuentos, neto: e.salarioBase - anticipos - descuentos,
+    };
+});
+
+// Genera la planilla del periodo con las novedades aplicadas. Devuelve cuantas filas creo.
+export const generarPlanillaPeriodo = (periodo) => {
+    if (PLANILLA_MOCK.some((p) => p.periodo === periodo)) return 0;
+    const filas = previaPlanilla(periodo);
+    filas.forEach((f) => PLANILLA_MOCK.push({
+        empleadoId: f.empleadoId, periodo, salarioBase: f.salarioBase,
+        bonos: 0, anticipos: f.anticipos, otrosDesc: f.otrosDesc, neto: f.neto, estado: 'Calculado',
+    }));
+    for (let i = NOVEDADES_PENDIENTES.length - 1; i >= 0; i--) {
+        if (NOVEDADES_PENDIENTES[i].periodo === periodo) NOVEDADES_PENDIENTES.splice(i, 1);
+    }
+    return filas.length;
 };

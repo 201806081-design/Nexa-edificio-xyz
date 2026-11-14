@@ -31,7 +31,8 @@ const APLICAR_MORA_DESDE_V1 = MoraMod.APLICAR_MORA_DESDE || [
 
 const MESES_ES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
     'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
-const DIAS_VENCIMIENTO = [5, 10, 15, 20, 25, 28];
+// Misma lista que Mora e intereses (fuente unica en configuracionMock)
+const { DIAS_VENCIMIENTO, textoDiaVencimiento } = ConfigMod;
 
 const yyyyMmToTexto = (yyyyMm) => {
     if (!yyyyMm) return '';
@@ -286,7 +287,7 @@ export default function ConfiguracionFinanciera() {
                         <Box sx={{ flex: 1, minWidth: 140 }}>
                             <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Dia de vencimiento</Typography>
                             <Select fullWidth value={reglas.diaVencimiento} onChange={(e) => cambiarReglas('diaVencimiento', e.target.value)}>
-                                {DIAS_VENCIMIENTO.map((d) => <MenuItem key={d} value={d}>Dia {d} del mes</MenuItem>)}
+                                {DIAS_VENCIMIENTO.map((d) => <MenuItem key={d} value={d}>{textoDiaVencimiento(d)}</MenuItem>)}
                             </Select>
                         </Box>
                         <Box sx={{ flex: 1, minWidth: 140 }}>

@@ -25,17 +25,18 @@ export const APLICAR_MINIMO_OPCIONES = [
 ];
 
 // Reglas del periodo
+// diaVencimiento: numero de dia (10 = el 10 de cada mes). Lo comparten
+// Configuracion financiera (Expensas) y Mora e intereses: si se cambia en una, se ve en la otra.
 export const REGLAS_PERIODO = {
-    diaVencimiento: '10 de cada mes',
+    diaVencimiento: 10,
     moneda: 'Bolivianos',
 };
 
-export const DIAS_VENCIMIENTO = [
-    '10 de cada mes',
-    '15 de cada mes',
-    '20 de cada mes',
-    'Ultimo dia del mes',
-];
+// Opciones del dia de vencimiento: UNA sola lista para todas las pantallas
+export const DIAS_VENCIMIENTO = [5, 10, 15, 20, 25, 28];
+
+// 10 -> 'Dia 10 de cada mes'
+export const textoDiaVencimiento = (d) => `Dia ${d} de cada mes`;
 
 export const MONEDAS = ['Bolivianos', 'Dolares'];
 

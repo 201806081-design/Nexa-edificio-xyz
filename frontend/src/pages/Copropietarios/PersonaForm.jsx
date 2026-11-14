@@ -3,7 +3,7 @@ import {
   Box, Typography, TextField, Button, ToggleButton, ToggleButtonGroup,
   Select, MenuItem, Alert,
 } from '@mui/material';
-import { UNIDADES_MOCK, UNIDADES_INFO } from '../../constants/copropietariosMock';
+import { deptosParaSelector, ESTADOS_CIVILES } from '../../constants/copropietariosMock';
 
 const VACIO = {
   tipo: 'Propietario',
@@ -12,16 +12,16 @@ const VACIO = {
   documento: '',
   telefono: '',
   correo: '',
+  estadoCivil: '',
+  hijos: '',
+  habitantes: '',
   unidad: '',
   tipoDepartamento: '',
   piso: '',
 };
 
 // Etiqueta de la unidad para el selector: "Depto. 302 -- 2 dormitorios -- piso 3"
-function etiquetaUnidad(u) {
-  const info = UNIDADES_INFO[u];
-  return info ? `${u} -- ${info.tipoDepartamento} -- piso ${info.piso}` : u;
-}
+const etiquetaUnidad = (d) => `${d.identificador} -- ${d.tipoDepartamento} -- piso ${d.piso}`;
 
 // Un campo con su etiqueta arriba
 function Campo({ label, ...props }) {
@@ -37,14 +37,17 @@ export default function PersonaForm({
   titulo, subtitulo, valorInicial, textoBoton, onGuardar, onCancelar,
   tipoEditable = true, // en editar se pasa false: el tipo queda bloqueado
 }) {
-  const [form, setForm] = useState(valorInicial ?? VACIO);
+  const [form, setForm] = useState({ ...VACIO, ...(valorInicial ?? {}) });
+  // Deptos registrados en Unidades (incluye los agregados despues de cargar la app)
+  const deptos = deptosParaSelector();
   const [errores, setErrores] = useState({});
   const [mostrarAviso, setMostrarAviso] = useState(false);
 
   const cambiar = (campo, valor) => {
     if (campo === 'unidad') {
       // Al elegir unidad, se autocompletan tipo de departamento y piso
-      const info = UNIDADES_INFO[valor] ?? { tipoDepartamento: '', piso: '' };
+      const d = deptos.find((x) => x.identificador === valor);
+      const info = d ? { tipoDepartamento: d.tipoDepartamento, piso: d.piso } : { tipoDepartamento: '', piso: '' };
       setForm((f) => ({ ...f, unidad: valor, ...info }));
     } else {
       setForm((f) => ({ ...f, [campo]: valor }));
@@ -58,6 +61,11 @@ export default function PersonaForm({
     if (!form.apellidos.trim()) err.apellidos = 'Este campo es obligatorio';
     if (!/^\d+$/.test(form.documento)) err.documento = 'Ingrese un documento valido';
     if (!/^\d+$/.test(form.telefono)) err.telefono = 'Ingrese un telefono valido';
+    if (!form.estadoCivil) err.estadoCivil = 'Seleccione el estado civil';
+    const hijos = Number(form.hijos);
+    if (form.hijos === '' || !Number.isInteger(hijos) || hijos < 0 || hijos > 20) err.hijos = 'Entre 0 y 20';
+    const hab = Number(form.habitantes);
+    if (form.habitantes === '' || !Number.isInteger(hab) || hab < 1 || hab > 30) err.habitantes = 'Entre 1 y 30';
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.correo)) err.correo = 'Ingrese un correo valido';
     setErrores(err);
     return Object.keys(err).length === 0;
@@ -69,7 +77,7 @@ export default function PersonaForm({
       return;
     }
     setMostrarAviso(false);
-    onGuardar(form);
+    onGuardar({ ...form, hijos: Number(form.hijos), habitantes: Number(form.habitantes) });
   };
 
   return (
@@ -141,14 +149,39 @@ export default function PersonaForm({
         </Box>
 
         <Typography variant="h3" sx={{ fontSize: '1.1rem', fontWeight: 600, mt: 3, mb: 1 }}>
+          Datos del hogar
+        </Typography>
+        <Box sx={{ display: 'flex', gap: 2, mb: 1, flexDirection: { xs: 'column', md: 'row' } }}>
+          <Box sx={{ flex: 1, minWidth: 220 }}>
+            <Typography variant="body2" sx={{ fontWeight: 500, mb: 0.5 }}>Estado civil *</Typography>
+            <Select fullWidth displayEmpty value={form.estadoCivil}
+              onChange={(e) => cambiar('estadoCivil', e.target.value)} error={!!errores.estadoCivil}>
+              <MenuItem value=""><em>Seleccione</em></MenuItem>
+              {ESTADOS_CIVILES.map((ec) => <MenuItem key={ec} value={ec}>{ec}</MenuItem>)}
+            </Select>
+            {errores.estadoCivil && (
+              <Typography variant="caption" color="error" sx={{ ml: 1.75 }}>{errores.estadoCivil}</Typography>
+            )}
+          </Box>
+          <Campo label="Numero de hijos *" type="number" placeholder="Ej. 2" value={form.hijos}
+            onChange={(e) => cambiar('hijos', e.target.value)}
+            slotProps={{ htmlInput: { min: 0, max: 20 } }}
+            error={!!errores.hijos} helperText={errores.hijos} />
+          <Campo label="Personas que viven en el depto *" type="number" placeholder="Ej. 4" value={form.habitantes}
+            onChange={(e) => cambiar('habitantes', e.target.value)}
+            slotProps={{ htmlInput: { min: 1, max: 30 } }}
+            error={!!errores.habitantes} helperText={errores.habitantes} />
+        </Box>
+
+        <Typography variant="h3" sx={{ fontSize: '1.1rem', fontWeight: 600, mt: 3, mb: 1 }}>
           Unidad relacionada
         </Typography>
         <Typography variant="body2" sx={{ fontWeight: 500, mb: 0.5 }}>Departamento</Typography>
         <Select fullWidth displayEmpty value={form.unidad}
           onChange={(e) => cambiar('unidad', e.target.value)}>
           <MenuItem value=""><em>Seleccione unidad</em></MenuItem>
-          {UNIDADES_MOCK.map((u) => (
-            <MenuItem key={u} value={u}>{etiquetaUnidad(u)}</MenuItem>
+          {deptos.map((d) => (
+            <MenuItem key={d.identificador} value={d.identificador}>{etiquetaUnidad(d)}</MenuItem>
           ))}
         </Select>
 

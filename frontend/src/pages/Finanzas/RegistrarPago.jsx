@@ -13,48 +13,9 @@ import DashboardLayout from '../../layouts/DashboardLayout';
 import {
     MEDIOS_PAGO, PAGOS_MOCK, HISTORIAL_ANTICIPOS,
 } from '../../constants/pagosMock';
-import { EXPENSAS_MOCK, DEPARTAMENTOS_ACTIVOS } from '../../constants/expensasMock';
-import { DEUDAS_VENCIDAS, CONFIG_MORA } from '../../constants/moraMock';
-import { REGLAS_PERIODO } from '../../constants/configuracionMock';
+import { EXPENSAS_MOCK } from '../../constants/expensasMock';
+import { deudasPorDepto, situacionExpensa } from '../../constants/deudasMock';
 import { formatBs } from '../../constants/finanzasMock';
-
-const calcularConMora = (deudaOriginal, meses) => {
-    const tasa = (Number(CONFIG_MORA.interesMensual) || 0) / 100;
-    const m = Math.max(0, Number(meses) || 0);
-    if (CONFIG_MORA.tipoCalculo === 'Simple') {
-        return Math.round(deudaOriginal * (1 + tasa * m) * 100) / 100;
-    }
-    return Math.round(deudaOriginal * ((1 + tasa) ** m) * 100) / 100;
-};
-
-const MESES_ES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
-    'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
-const calcularMesesVencidos = (periodoTexto, fechaHoy, diaVenc) => {
-    if (!periodoTexto || !fechaHoy) return 0;
-    const [mesNombre, anio] = periodoTexto.split(' ');
-    const idxMes = MESES_ES.indexOf(mesNombre);
-    if (idxMes < 0 || !anio) return 0;
-    const anioV = idxMes === 11 ? Number(anio) + 1 : Number(anio);
-    const mesV = idxMes === 11 ? 0 : idxMes + 1;
-    const fechaVenc = new Date(anioV, mesV, Number(diaVenc) || 10);
-    if (fechaHoy < fechaVenc) return 0;
-    let count = 0;
-    const f = new Date(fechaVenc);
-    while (f <= fechaHoy) {
-        count++;
-        f.setMonth(f.getMonth() + 1);
-    }
-    return count;
-};
-
-const pagadoDeudaVencida = (deptoId, periodo) => PAGOS_MOCK
-    .filter((p) => p.depto === deptoId
-        && (p.periodoAplicado || '').toLowerCase().includes((periodo || '').toLowerCase().split(' ')[0]))
-    .reduce((s, p) => {
-        const totalPago = Number(p.total)
-            || (Number(p.monto) || 0) + (Number(p.creditoAplicado) || 0);
-        return s + totalPago;
-    }, 0);
 
 function distribuir(deudas, monto) {
     let restante = Number(monto) || 0;
@@ -120,89 +81,10 @@ export default function RegistrarPago() {
     const navigate = useNavigate();
     const location = useLocation();
 
-    const deptosDisponibles = useMemo(() => {
-        const mapa = new Map();
-        const refHoy = new Date();
-        const diaVenc = REGLAS_PERIODO.diaVencimiento;
-
-        EXPENSAS_MOCK.forEach((e) => {
-            if (e.estado === 'Pagada') return;
-            const original = Number(e.total || e.monto) || 0;
-            const pagado = Number(e.pagado) || 0;
-            const meses = pagado >= original
-                ? 0
-                : calcularMesesVencidos(e.periodo, refHoy, diaVenc);
-            const totalConMora = calcularConMora(original, meses);
-            const pendiente = Math.max(0, Math.round((totalConMora - pagado) * 100) / 100);
-            if (pendiente < 0.01) return;
-            if (!mapa.has(e.depto)) {
-                mapa.set(e.depto, {
-                    id: e.depto,
-                    etiqueta: `${e.depto} — ${e.responsable}`,
-                    responsable: `${e.responsable} · Propietario`,
-                    saldoPendiente: 0,
-                    deudas: [],
-                });
-            }
-            const d = mapa.get(e.depto);
-            if (!d.deudas.some((x) => x.periodo === e.periodo)) {
-                d.deudas.push({
-                    periodo: e.periodo,
-                    totalDeuda: totalConMora,
-                    pagado,
-                    pendiente,
-                    expensaId: e.id,
-                    mora: Math.round((totalConMora - original) * 100) / 100,
-                    meses,
-                });
-            }
-        });
-        DEUDAS_VENCIDAS.forEach((dv) => {
-            const pagado = pagadoDeudaVencida(dv.depto, dv.periodo);
-            const meses = pagado >= dv.deudaOriginal
-                ? 0
-                : calcularMesesVencidos(dv.periodo, refHoy, diaVenc);
-            const totalConMora = calcularConMora(dv.deudaOriginal, meses);
-            const pendiente = Math.max(0, Math.round((totalConMora - pagado) * 100) / 100);
-            if (pendiente < 0.01) return;
-            if (!mapa.has(dv.depto)) {
-                const activo = DEPARTAMENTOS_ACTIVOS.find((a) => a.id === dv.depto);
-                const nombre = activo ? activo.responsable : `Depto. ${dv.depto}`;
-                mapa.set(dv.depto, {
-                    id: dv.depto,
-                    etiqueta: `${dv.depto} — ${nombre}`,
-                    responsable: `${nombre} · Propietario`,
-                    saldoPendiente: 0,
-                    deudas: [],
-                });
-            }
-            const d = mapa.get(dv.depto);
-            if (!d.deudas.some((x) => x.periodo === dv.periodo)) {
-                d.deudas.push({
-                    periodo: dv.periodo,
-                    totalDeuda: totalConMora,
-                    pagado,
-                    pendiente,
-                    expensaId: null,
-                    mora: Math.round((totalConMora - dv.deudaOriginal) * 100) / 100,
-                    meses,
-                });
-            }
-        });
-        const MES_IDX = {
-            enero: 1, febrero: 2, marzo: 3, abril: 4, mayo: 5, junio: 6,
-            julio: 7, agosto: 8, septiembre: 9, octubre: 10, noviembre: 11, diciembre: 12
-        };
-        const periodoKey = (p) => {
-            const [mes, anio] = (p || '').toLowerCase().split(' ');
-            return (Number(anio) || 0) * 100 + (MES_IDX[mes] || 0);
-        };
-        mapa.forEach((d) => {
-            d.deudas.sort((a, b) => periodoKey(a.periodo) - periodoKey(b.periodo));
-            d.saldoPendiente = d.deudas.reduce((s, x) => s + x.pendiente, 0);
-        });
-        return Array.from(mapa.values()).sort((a, b) => String(a.id).localeCompare(String(b.id)));
-    }, []);
+    // Deptos con deuda (vencida o no): calculo unico de deudasMock,
+    // el mismo que usan Mora, Dashboard, Estado de cuenta y Comunicados.
+    // Solo expensas listas para cobrar: si falta registrar el agua, no se puede pagar
+    const deptosDisponibles = useMemo(() => deudasPorDepto({ soloCobrables: true }), []);
 
     const [deptoId, setDeptoId] = useState('');
     const [fecha, setFecha] = useState(hoyIso());
@@ -255,7 +137,8 @@ export default function RegistrarPago() {
     // Compartir el QR con el residente via Comunicados
     const compartirPorComunicados = () => {
         if (!depto) return;
-        const nombre = (depto.responsable || '').split(' · ')[0];
+        // Se saluda a quien esta pagando (si se escribio) o al responsable del depto
+        const nombre = pagadoPor.trim() || (depto.responsable || '').split(' · ')[0];
         const montoDisplay = efectivoNum > 0 ? efectivoNum : saldoPendiente;
         navigate('/comunicados/elaborar', {
             state: {
@@ -353,6 +236,18 @@ export default function RegistrarPago() {
 
         const periodos = distribucion.filter((x) => x.aplicado > 0).map((x) => x.periodo).join(' / ');
 
+        // Desglose de lo que cubre este pago (con la mora del momento), para el detalle en Pagos.
+        // pagadoAntes = lo que ya se habia pagado de esa expensa en pagos anteriores.
+        const composicion = depto.deudas
+            .filter((d) => (Number((aplicaciones.find((a) => a.periodo === d.periodo) || {}).aplicar) || 0) > 0)
+            .map((d) => ({
+                periodo: d.periodo, tipo: d.tipo,
+                base: d.base, agua: d.agua,
+                m3Agua: EXPENSAS_MOCK.find((e) => e.id === d.expensaId)?.m3 ?? null,
+                mora: d.interes, mesesMora: d.meses,
+                total: d.deudaActual, pagadoAntes: d.pagado,
+            }));
+
         const medioFinal = soloCredito ? 'Crédito a favor' : medio;
         const referenciaFinal = soloCredito ? '' : referencia;
 
@@ -360,6 +255,7 @@ export default function RegistrarPago() {
             id: codigo,
             fecha: fechaBonita(fecha),
             depto: depto.id,
+            tipoDepto: depto.deudas[0]?.tipo,
             responsable: (depto.responsable || '').split(' · ')[0],
             pagadoPor: pagadoPor || (depto.responsable || '').split(' · ')[0],
             medio: medioFinal,
@@ -370,6 +266,7 @@ export default function RegistrarPago() {
             total: totalEfectivo,
             saldoPosterior: nuevoSaldo,
             estado,
+            composicion,
         });
 
         aplicaciones.forEach((a) => {
@@ -377,15 +274,17 @@ export default function RegistrarPago() {
             const exp = EXPENSAS_MOCK.find((e) => e.id === a.expensaId);
             if (!exp) return;
             exp.pagado = (exp.pagado || 0) + Number(a.aplicar);
-            const totalExp = exp.total || exp.monto || 0;
-            if (exp.pagado >= totalExp) exp.estado = 'Pagada';
+            // Queda pagada cuando cubre la deuda completa, incluido el interes de mora
+            const { deudaActual } = situacionExpensa({ ...exp, estado: '' });
+            if (exp.pagado >= deudaActual - 0.005) exp.estado = 'Pagada';
         });
 
         if (creditoReal > 0) {
             let restante = creditoReal;
             HISTORIAL_ANTICIPOS
                 .filter((a) => a.depto === depto.id && (a.credito || 0) > 0)
-                .sort((a, b) => (a.fecha || '').localeCompare(b.fecha || ''))
+                // Primero el anticipo mas antiguo (fecha 'DD/MM/YYYY' -> 'YYYYMMDD' para comparar)
+                .sort((a, b) => (a.fecha || '').split('/').reverse().join('').localeCompare((b.fecha || '').split('/').reverse().join('')))
                 .forEach((a) => {
                     if (restante <= 0) return;
                     const descontar = Math.min(a.credito, restante);

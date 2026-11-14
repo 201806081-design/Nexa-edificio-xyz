@@ -14,8 +14,9 @@ import DescriptionOutlinedIcon from '@mui/icons-material/DescriptionOutlined';
 import { useNavigate } from 'react-router-dom';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import {
-    PERIODOS, TIPOS_MOVIMIENTO, CATEGORIAS, MOVIMIENTOS_LISTA,
+    TIPOS_MOVIMIENTO, CATEGORIAS_FILTRO, libroDiario, resumenFinanciero,
 } from '../../constants/movimientosMock';
+import { periodosConTodos, TODOS_LOS_PERIODOS } from '../../constants/periodos';
 import { formatBs } from '../../constants/finanzasMock';
 
 // 'Octubre 2026' -> {mes: 10, anio: 2026}
@@ -29,6 +30,7 @@ const parsePeriodo = (p) => {
 };
 // Si la fecha 'DD/MM/YYYY' cae dentro del periodo seleccionado
 const fechaEnPeriodo = (fecha, periodoSel) => {
+    if (periodoSel === TODOS_LOS_PERIODOS) return true;
     const [, m, y] = (fecha || '').split('/').map(Number);
     const { mes, anio } = parsePeriodo(periodoSel);
     return m === mes && y === anio;
@@ -38,40 +40,44 @@ const tipoChipSx = (tipo) => (tipo === 'Ingreso'
     ? { bgcolor: '#E4F4EE', color: '#2E9D78' }
     : { bgcolor: '#FBEAE9', color: '#D9534F' });
 
+// Mismas cifras que el Dashboard financiero y Gestion financiera (resumenFinanciero)
 const RESUMEN = [
-    { clave: 'totalIngresos', label: 'Otros ingresos', icon: <NorthIcon />, color: '#2E9D78', bg: '#E4F4EE' },
-    { clave: 'totalGastos', label: 'Gastos operativos', icon: <SouthIcon />, color: '#D9534F', bg: '#FBEAE9' },
-    { clave: 'balance', label: 'Balance', icon: <DragHandleIcon />, color: null, bg: '#E4EEF5' }, // color dinamico segun signo
+    { clave: 'ingresos', label: 'Ingresos del periodo', icon: <NorthIcon />, color: '#2E9D78', bg: '#E4F4EE',
+        nota: (r) => `Expensas ${formatBs(r.cobrosExpensas)} · Anticipos ${formatBs(r.anticiposRecibidos)} · Otros ${formatBs(r.otrosIngresos)}` },
+    { clave: 'gastos', label: 'Gastos del periodo', icon: <SouthIcon />, color: '#D9534F', bg: '#FBEAE9',
+        nota: (r) => `Personal ${formatBs(r.gastosPersonal)} · Operativos ${formatBs(r.gastosOperativos)}` },
+    { clave: 'balance', label: 'Balance', icon: <DragHandleIcon />, color: null, bg: '#E4EEF5', // color dinamico segun signo
+        nota: (r) => `Caja ${formatBs(r.enCaja)} · Banco ${formatBs(r.enBanco)}` },
 ];
 
 export default function IngresosGastos() {
     const navigate = useNavigate();
-    const [periodo, setPeriodo] = useState('Octubre 2026');
+    // Periodos: mes en curso + meses cerrados desde el inicio del sistema (periodos.js)
+    // "Todos los periodos" (por defecto) muestra el acumulado; luego cada mes
+    const periodos = useMemo(() => periodosConTodos(), []);
+    const [periodo, setPeriodo] = useState(() => periodos[0] || '');
     const [tipo, setTipo] = useState('Todos');
     const [categoria, setCategoria] = useState('Todas');
     const [busqueda, setBusqueda] = useState('');
 
     // Movimientos filtrados por periodo + filtros adicionales
-    const movimientos = useMemo(() => MOVIMIENTOS_LISTA.filter((m) =>
+    // Libro completo: cobros de expensas, anticipos, otros ingresos y gastos (incluye personal)
+    const movimientos = useMemo(() => libroDiario().filter((m) =>
         fechaEnPeriodo(m.fecha, periodo) &&
         (tipo === 'Todos' || m.tipo === tipo) &&
         (categoria === 'Todas' || m.categoria === categoria) &&
         m.descripcion.toLowerCase().includes(busqueda.toLowerCase())),
         [periodo, tipo, categoria, busqueda]);
 
-    // KPIs calculados en vivo sobre los movimientos del periodo seleccionado
-    const resumen = useMemo(() => {
-        const mesMovs = MOVIMIENTOS_LISTA.filter((m) => fechaEnPeriodo(m.fecha, periodo));
-        const totalIngresos = mesMovs.filter((m) => m.tipo === 'Ingreso').reduce((s, m) => s + (m.monto || 0), 0);
-        const totalGastos = mesMovs.filter((m) => m.tipo === 'Gasto' || m.tipo === 'Egreso').reduce((s, m) => s + (m.monto || 0), 0);
-        return { totalIngresos, totalGastos, balance: totalIngresos - totalGastos };
-    }, [periodo]);
+    // KPIs del periodo: misma formula que el Dashboard financiero
+    const resumen = useMemo(() => resumenFinanciero(periodo), [periodo]);
 
     return (
         <DashboardLayout>
             <Typography variant="h1" color="primary.main" sx={{ mb: 0.5 }}>Ingresos y gastos</Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                Movimientos operativos del edificio (otros ingresos y gastos). Los pagos de expensas se registran en <strong>Pagos</strong>.
+                Todo el dinero que entra y sale del edificio. Los cobros de expensas y anticipos vienen de <strong>Pagos</strong>,
+                y los pagos al personal de <strong>Personal</strong>; aqui se registran los demas ingresos y gastos.
             </Typography>
 
             <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', justifyContent: { xs: 'stretch', md: 'flex-end' }, mb: 2 }}>
@@ -92,7 +98,7 @@ export default function IngresosGastos() {
                 <Box sx={{ flex: 1, minWidth: 160 }}>
                     <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Periodo</Typography>
                     <Select fullWidth value={periodo} onChange={(e) => setPeriodo(e.target.value)}>
-                        {PERIODOS.map((p) => <MenuItem key={p} value={p}>{p}</MenuItem>)}
+                        {periodos.map((p) => <MenuItem key={p} value={p}>{p}</MenuItem>)}
                     </Select>
                 </Box>
                 <Box sx={{ flex: 1, minWidth: 160 }}>
@@ -105,7 +111,7 @@ export default function IngresosGastos() {
                     <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Categoria</Typography>
                     <Select fullWidth value={categoria} onChange={(e) => setCategoria(e.target.value)}>
                         <MenuItem value="Todas">Todas</MenuItem>
-                        {CATEGORIAS.map((c) => <MenuItem key={c} value={c}>{c}</MenuItem>)}
+                        {CATEGORIAS_FILTRO.map((c) => <MenuItem key={c} value={c}>{c}</MenuItem>)}
                     </Select>
                 </Box>
                 <Box sx={{ flex: 1, minWidth: 160, display: 'flex', alignItems: 'flex-end' }}>
@@ -129,6 +135,7 @@ export default function IngresosGastos() {
                             <Box>
                                 <Typography variant="body2" color="text.secondary">{r.label}</Typography>
                                 <Typography variant="h3" sx={{ fontWeight: 700, color: colorFinal }}>{formatBs(valor)}</Typography>
+                                <Typography variant="caption" color="text.secondary">{r.nota(resumen)}</Typography>
                             </Box>
                         </Paper>
                     );
@@ -146,6 +153,7 @@ export default function IngresosGastos() {
                             <TableCell><strong>Categoria</strong></TableCell>
                             <TableCell><strong>Descripcion</strong></TableCell>
                             <TableCell><strong>Monto</strong></TableCell>
+                            <TableCell><strong>Medio / cuenta</strong></TableCell>
                             <TableCell><strong>Comprobante</strong></TableCell>
                             <TableCell align="center"><strong>Acciones</strong></TableCell>
                         </TableRow>
@@ -153,7 +161,7 @@ export default function IngresosGastos() {
                     <TableBody>
                         {movimientos.length === 0 && (
                             <TableRow>
-                                <TableCell colSpan={7} align="center" sx={{ color: 'text.secondary', py: 3 }}>
+                                <TableCell colSpan={8} align="center" sx={{ color: 'text.secondary', py: 3 }}>
                                     No hay movimientos registrados para {periodo}.
                                 </TableCell>
                             </TableRow>
@@ -168,6 +176,10 @@ export default function IngresosGastos() {
                                     <TableCell>{m.descripcion}</TableCell>
                                     <TableCell sx={{ fontWeight: 600, color: esIngreso ? '#2E9D78' : '#D9534F' }}>
                                         {esIngreso ? '+' : '-'}{formatBs(m.monto)}
+                                    </TableCell>
+                                    <TableCell>
+                                        <Typography variant="body2">{m.medio || '—'}</Typography>
+                                        <Typography variant="caption" color="text.secondary">{m.cuenta || ''}</Typography>
                                     </TableCell>
                                     <TableCell>
                                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, color: 'text.secondary' }}>

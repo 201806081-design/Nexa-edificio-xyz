@@ -16,9 +16,10 @@ import {
 } from 'recharts';
 import { useNavigate } from 'react-router-dom';
 import DashboardLayout from '../../layouts/DashboardLayout';
-import { PERIODOS, formatBs } from '../../constants/finanzasMock';
+import { formatBs } from '../../constants/finanzasMock';
+import { periodosConMovimientos } from '../../constants/periodos';
 import { PAGOS_MOCK, HISTORIAL_ANTICIPOS } from '../../constants/pagosMock';
-import { MOVIMIENTOS_LISTA } from '../../constants/movimientosMock';
+import { todosLosMovimientos } from '../../constants/movimientosMock';
 
 // Semana del mes a partir del dia (1-7 S1, 8-14 S2, 15-21 S3, 22-fin S4)
 const semanaMes = (dia) => {
@@ -67,7 +68,9 @@ const PALETA_EGRESOS = ['#D9534F', '#E5A33B', '#A05A2C', '#5B8DEF', '#C13584'];
 
 export default function FlujoCaja() {
     const navigate = useNavigate();
-    const [periodo, setPeriodo] = useState(PERIODOS[0]);
+    // Periodos: mes en curso + meses cerrados desde el inicio del sistema (periodos.js)
+    const periodos = useMemo(() => periodosConMovimientos(), []);
+    const [periodo, setPeriodo] = useState(() => periodos[0] || '');
     const [vista, setVista] = useState('barras');
 
     // Agregacion desde los mocks reales, FILTRADA por periodo (mes y anio)
@@ -75,9 +78,10 @@ export default function FlujoCaja() {
         const { mes, anio } = parsePeriodo(periodo);
         const enPeriodo = (f) => { const p = parseFecha(f); return p.mes === mes && p.anio === anio; };
 
-        const pagos = PAGOS_MOCK.filter((p) => enPeriodo(p.fecha));
+        // Solo pagos con dinero nuevo: los cubiertos con credito ya entraron como anticipo
+        const pagos = PAGOS_MOCK.filter((p) => enPeriodo(p.fecha) && (p.monto || 0) > 0);
         const anticipos = HISTORIAL_ANTICIPOS.filter((a) => enPeriodo(a.fecha));
-        const movimientos = MOVIMIENTOS_LISTA.filter((m) => enPeriodo(m.fecha));
+        const movimientos = todosLosMovimientos().filter((m) => enPeriodo(m.fecha));
 
         const sumExp = pagos.reduce((s, p) => s + (p.monto || 0), 0);
         const sumAnt = anticipos.reduce((s, a) => s + (a.recibido || 0), 0);
@@ -170,7 +174,7 @@ export default function FlujoCaja() {
                     </Paper>
                 ))}
                 <Select value={periodo} onChange={(e) => setPeriodo(e.target.value)} fullWidth size="small" sx={{ bgcolor: '#fff' }}>
-                    {PERIODOS.map((p) => <MenuItem key={p} value={p}>{p}</MenuItem>)}
+                    {periodos.map((p) => <MenuItem key={p} value={p}>{p}</MenuItem>)}
                 </Select>
             </Box>
 

@@ -116,7 +116,7 @@ export default function RegistrarAnticipo() {
             state: {
                 deptoPreseleccionado: depto.id,
                 titulo: `QR para anticipo - Depto ${depto.id}`,
-                mensaje: `Estimado/a ${responsable},\n\nLe enviamos el codigo QR para registrar un pago anticipado al Depto ${depto.id}.\n\nMonto a anticipar: ${formatBs(montoNum || 0)}\nReferencia: ${referencia}\n\nEl anticipo quedara como saldo a favor y se aplicara a las proximas expensas.\n\nAdministracion Edificio XYZ`,
+                mensaje: `Estimado/a ${pagadoPor.trim() || responsable},\n\nLe enviamos el codigo QR para registrar un pago anticipado al Depto ${depto.id}.\n\nMonto a anticipar: ${formatBs(montoNum || 0)}\nReferencia: ${referencia}\n\nEl anticipo quedara como saldo a favor y se aplicara a las proximas expensas.\n\nAdministracion Edificio XYZ`,
                 prioridad: 'Importante',
                 qrData: datosQR,
                 qrTitulo: `Anticipo Depto ${depto.id} - ${formatBs(montoNum || 0)}`,

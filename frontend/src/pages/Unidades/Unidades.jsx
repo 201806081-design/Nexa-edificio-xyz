@@ -1,9 +1,12 @@
 import { useState } from 'react';
 import {
     Box, Typography, Table, TableHead, TableBody, TableRow, TableCell,
-    Button, Chip, Paper, IconButton, Divider, Alert,
+    Button, Chip, Paper, IconButton, Divider, Alert, Tooltip,
     ToggleButton, ToggleButtonGroup,
+    Dialog, DialogTitle, DialogContent, DialogActions, TextField, Select, MenuItem,
 } from '@mui/material';
+import EditIcon from '@mui/icons-material/Edit';
+import CategoryIcon from '@mui/icons-material/Category';
 import AddIcon from '@mui/icons-material/Add';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import HistoryIcon from '@mui/icons-material/History';
@@ -14,6 +17,9 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import { UNIDADES_MOCK } from '../../constants/unidadesMock';
 import { COPROPIETARIOS_MOCK, nombreCompleto } from '../../constants/copropietariosMock';
+import { TIPOS_DEPARTAMENTO, CATEGORIA_POR_TIPO, registrarTipoDepartamento } from '../../constants/edificioMock';
+import { EXPENSA_BASE } from '../../constants/configuracionMock';
+import { formatBs } from '../../constants/finanzasMock';
 
 const PESTANAS = ['Todas', 'Departamentos', 'Parqueos', 'Bauleras'];
 const PESTANA_A_TIPO = { Departamentos: 'Departamento', Parqueos: 'Parqueo', Bauleras: 'Baulera' };
@@ -46,6 +52,20 @@ export default function Unidades() {
 
     const verHistorial = (id) => navigate(`/unidades/historial?departamento=${id}`);
     const verDetalle = (id) => navigate(`/unidades/${id}`);
+    const editar = (id) => navigate(`/unidades/${id}/editar`);
+
+    // --- Tipos de departamento (el administrador puede registrar nuevos) ---
+    const [tiposAbierto, setTiposAbierto] = useState(false);
+    const [nuevoTipo, setNuevoTipo] = useState({ nombre: '', categoria: '' });
+    const [errorTipo, setErrorTipo] = useState('');
+    const [, setTick] = useState(0);
+    const guardarTipo = () => {
+        const err = registrarTipoDepartamento(nuevoTipo.nombre, nuevoTipo.categoria);
+        if (err) { setErrorTipo(err); return; }
+        setNuevoTipo({ nombre: '', categoria: '' });
+        setErrorTipo('');
+        setTick((t) => t + 1);
+    };
 
     return (
         <DashboardLayout>
@@ -56,7 +76,11 @@ export default function Unidades() {
                 Consulta los departamentos, parqueos y bauleras registrados
             </Typography>
 
-            <Box sx={{ display: 'flex', justifyContent: { xs: 'stretch', md: 'flex-end' }, mb: 2 }}>
+            <Box sx={{ display: 'flex', gap: 1.5, justifyContent: { xs: 'stretch', md: 'flex-end' }, flexDirection: { xs: 'column', md: 'row' }, mb: 2 }}>
+                <Button variant="outlined" startIcon={<CategoryIcon />} onClick={() => setTiposAbierto(true)}
+                    sx={{ width: { xs: '100%', md: 'auto' } }}>
+                    Tipos de departamento
+                </Button>
                 <Button
                     variant="contained"
                     startIcon={<AddIcon />}
@@ -121,9 +145,16 @@ export default function Unidades() {
                                 <TableCell>{ubicacion(u)}</TableCell>
                                 <TableCell>{personaAsociada(u.personaId)}</TableCell>
                                 <TableCell align="center">
-                                    <IconButton color="primary" onClick={() => verDetalle(u.id)}>
-                                        <VisibilityIcon />
-                                    </IconButton>
+                                    <Tooltip title="Ver detalle">
+                                        <IconButton color="primary" onClick={() => verDetalle(u.id)}>
+                                            <VisibilityIcon />
+                                        </IconButton>
+                                    </Tooltip>
+                                    <Tooltip title="Editar">
+                                        <IconButton color="primary" onClick={() => editar(u.id)}>
+                                            <EditIcon />
+                                        </IconButton>
+                                    </Tooltip>
                                     {u.tipo === 'Departamento' && (
                                         <IconButton color="primary" onClick={() => verHistorial(u.id)} title="Ver historial de ocupantes">
                                             <HistoryIcon />
@@ -163,8 +194,11 @@ export default function Unidades() {
                         </Box>
                         <Divider sx={{ mb: 1 }} />
                         <Box sx={{ display: 'flex', justifyContent: 'center', gap: 3 }}>
-                            <IconButton color="primary" onClick={() => verDetalle(u.id)}>
+                            <IconButton color="primary" onClick={() => verDetalle(u.id)} title="Ver detalle">
                                 <VisibilityIcon />
+                            </IconButton>
+                            <IconButton color="primary" onClick={() => editar(u.id)} title="Editar">
+                                <EditIcon />
                             </IconButton>
                             {u.tipo === 'Departamento' && (
                                 <IconButton color="primary" onClick={() => verHistorial(u.id)} title="Ver historial de ocupantes">
@@ -178,6 +212,54 @@ export default function Unidades() {
                     Mostrando {unidades.length} unidades
                 </Typography>
             </Box>
+
+            {/* Dialogo: tipos de departamento */}
+            <Dialog open={tiposAbierto} onClose={() => setTiposAbierto(false)} maxWidth="sm" fullWidth>
+                <DialogTitle sx={{ fontWeight: 700 }}>Tipos de departamento</DialogTitle>
+                <DialogContent dividers>
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                        Cada tipo se asocia a una categoria de expensa (A, B o C), que define cuanto paga el departamento cada mes.
+                        Los tipos nuevos aparecen al registrar o editar una unidad.
+                    </Typography>
+                    <Table size="small" sx={{ mb: 3 }}>
+                        <TableHead>
+                            <TableRow sx={{ bgcolor: '#F3F6FA' }}>
+                                <TableCell><strong>Tipo</strong></TableCell>
+                                <TableCell><strong>Categoria</strong></TableCell>
+                                <TableCell align="right"><strong>Expensa base</strong></TableCell>
+                            </TableRow>
+                        </TableHead>
+                        <TableBody>
+                            {TIPOS_DEPARTAMENTO.map((t) => (
+                                <TableRow key={t}>
+                                    <TableCell>{t}</TableCell>
+                                    <TableCell>Tipo {CATEGORIA_POR_TIPO[t]}</TableCell>
+                                    <TableCell align="right">{formatBs(EXPENSA_BASE[CATEGORIA_POR_TIPO[t]] ?? 0)}</TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
+
+                    <Typography variant="body2" sx={{ fontWeight: 700, mb: 1 }}>Registrar nuevo tipo</Typography>
+                    <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', md: 'row' } }}>
+                        <TextField size="small" fullWidth label="Nombre" placeholder="Ej. 3 dormitorios"
+                            value={nuevoTipo.nombre} slotProps={{ htmlInput: { maxLength: 40 } }}
+                            onChange={(e) => { setNuevoTipo((n) => ({ ...n, nombre: e.target.value })); setErrorTipo(''); }} />
+                        <Select size="small" displayEmpty value={nuevoTipo.categoria} sx={{ minWidth: 200 }}
+                            onChange={(e) => { setNuevoTipo((n) => ({ ...n, categoria: e.target.value })); setErrorTipo(''); }}>
+                            <MenuItem value=""><em>Categoria de expensa</em></MenuItem>
+                            {['A', 'B', 'C'].map((c) => (
+                                <MenuItem key={c} value={c}>Tipo {c} · {formatBs(EXPENSA_BASE[c] ?? 0)}</MenuItem>
+                            ))}
+                        </Select>
+                        <Button variant="contained" onClick={guardarTipo} sx={{ whiteSpace: 'nowrap' }}>Agregar</Button>
+                    </Box>
+                    {errorTipo && <Alert severity="error" sx={{ mt: 2 }}>{errorTipo}</Alert>}
+                </DialogContent>
+                <DialogActions sx={{ p: 2 }}>
+                    <Button variant="outlined" onClick={() => setTiposAbierto(false)}>Cerrar</Button>
+                </DialogActions>
+            </Dialog>
         </DashboardLayout>
     );
 }

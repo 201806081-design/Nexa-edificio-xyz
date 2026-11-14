@@ -25,7 +25,7 @@ import Pagos from '../pages/Finanzas/Pagos';
 import RegistrarPago from '../pages/Finanzas/RegistrarPago';
 import PagoRegistrado from '../pages/Finanzas/PagoRegistrado';
 import ConciliacionBancaria from '../pages/Finanzas/ConciliacionBancaria';
-import AnticipoRegistrar from '../pages/Finanzas/AnticipoRegistrar';
+import RegistrarAnticipo from '../pages/Finanzas/RegistrarAnticipo';
 import AnticipoRegistrado from '../pages/Finanzas/AnticipoRegistrado';
 import GenerarExpensas from '../pages/Finanzas/GenerarExpensas';
 import EstadoCuenta from '../pages/Finanzas/EstadoCuenta';
@@ -41,6 +41,7 @@ import HistorialPagos from '../pages/Personal/HistorialPagos';
 // HU-CO-01 Comunicados
 import Elaborar from '../pages/Comunicados/Elaborar';
 import Enviados from '../pages/Comunicados/Enviados';
+import Borradores from '../pages/Comunicados/Borradores';
 import ProtectedRoute from './ProtectedRoute';
 
 export default function AppRoutes() {
@@ -76,7 +77,7 @@ export default function AppRoutes() {
       <Route path="/finanzas/pagos/registrar" element={<ProtectedRoute><RegistrarPago /></ProtectedRoute>} />
       <Route path="/finanzas/pagos/registrado" element={<ProtectedRoute><PagoRegistrado /></ProtectedRoute>} />
       <Route path="/finanzas/pagos/conciliacion" element={<ProtectedRoute><ConciliacionBancaria /></ProtectedRoute>} />
-      <Route path="/finanzas/pagos/anticipo" element={<ProtectedRoute><AnticipoRegistrar /></ProtectedRoute>} />
+      <Route path="/finanzas/pagos/anticipo" element={<ProtectedRoute><RegistrarAnticipo /></ProtectedRoute>} />
       <Route path="/finanzas/pagos/anticipo/registrado" element={<ProtectedRoute><AnticipoRegistrado /></ProtectedRoute>} />
       <Route path="/finanzas/configuracion" element={<ProtectedRoute><ConfiguracionFinanciera /></ProtectedRoute>} />
       <Route path="/finanzas/expensas/generar" element={<ProtectedRoute><GenerarExpensas /></ProtectedRoute>} />
@@ -95,6 +96,7 @@ export default function AppRoutes() {
       {/* HU-CO-01 Comunicados */}
       <Route path="/comunicados/elaborar" element={<ProtectedRoute rolesPermitidos={['Administrador']}><Elaborar /></ProtectedRoute>} />
       <Route path="/comunicados/enviados" element={<ProtectedRoute rolesPermitidos={['Administrador']}><Enviados /></ProtectedRoute>} />
+      <Route path="/comunicados/borradores" element={<ProtectedRoute rolesPermitidos={['Administrador']}><Borradores /></ProtectedRoute>} />
 
       <Route path="*" element={<Navigate to="/login" replace />} />
     </Routes>

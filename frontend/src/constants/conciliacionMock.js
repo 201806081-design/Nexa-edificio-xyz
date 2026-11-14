@@ -9,8 +9,7 @@
 // Esto significa que CUALQUIER pago no efectivo registrado en el sistema
 // aparece aqui automaticamente como movimiento del banco a conciliar.
 
-import { PAGOS_MOCK, HISTORIAL_ANTICIPOS, PERIODOS } from './pagosMock';
-export { PERIODOS };
+import { PAGOS_MOCK, HISTORIAL_ANTICIPOS } from './pagosMock';
 
 // Cuentas reales del edificio (sin "Todos" — siempre se ve una cuenta por vez,
 // porque el admin concilia banco por banco).
@@ -28,7 +27,7 @@ export const bancoPorMedio = (medio) => BANCOS_POR_MEDIO[medio] || null;
 
 // IDs del sistema que arrancan ya CONCILIADOS (pagos viejos que el admin ya confirmo).
 // Los pagos mas recientes arrancan como 'Pendiente' para que el admin los concilie.
-const CONCILIADOS_INICIAL = new Set(['PG-0038', 'PA-0010', 'PA-0009']);
+const CONCILIADOS_INICIAL = new Set(['PA-0010', 'PA-0011']);
 
 // Convierte un pago (o anticipo) en un movimiento bancario.
 // Devuelve null si el medio no pasa por el banco (Efectivo u otro no bancarizable).

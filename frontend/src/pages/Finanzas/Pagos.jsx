@@ -18,12 +18,12 @@ import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 import { useNavigate } from 'react-router-dom';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import {
-    ESTADOS_PAGO, DEPARTAMENTOS_PAGO, PAGOS_MOCK, DEPARTAMENTOS_DEUDA,
-    HISTORIAL_ANTICIPOS,
+    ESTADOS_PAGO, DEPARTAMENTOS_PAGO, PAGOS_MOCK,
+    HISTORIAL_ANTICIPOS, totalPago,
 } from '../../constants/pagosMock';
 import * as ExpMod from '../../constants/expensasMock';
-import { periodosDisponibles } from '../../constants/expensasMock';
-import { DEUDAS_VENCIDAS, CONFIG_MORA } from '../../constants/moraMock';
+import { periodosConMovimientos } from '../../constants/periodos';
+import { CONFIG_MORA } from '../../constants/moraMock';
 import { formatBs } from '../../constants/finanzasMock';
 
 const EXPENSAS_MOCK = ExpMod.EXPENSAS_MOCK || [];
@@ -35,6 +35,11 @@ const periodoCoincide = (periodoAplicado, periodoSel) => {
     const p = (periodoAplicado || '').toLowerCase();
     return (p.includes(mesSel) || p.includes(corto)) && p.includes(anioSel || '');
 };
+
+// Un pago es "recuperado" cuando cubre una expensa ya VENCIDA (con meses de mora).
+// Las expensas se pagan normalmente el mes siguiente a su periodo (se generan
+// cuando el mes termina), asi que el periodo no sirve para distinguirlo.
+const esPagoDeDeudaVencida = (p) => (p.composicion || []).some((c) => (c.mesesMora || 0) > 0 || (c.mora || 0) > 0);
 
 const MES_IDX = {
     enero: 1, febrero: 2, marzo: 3, abril: 4, mayo: 5, junio: 6,
@@ -57,6 +62,7 @@ const calcularComposicion = (pago) => {
             base: c.base ?? 0,
             agua: c.agua ?? 0,
             m3Agua: c.m3Agua ?? null,
+            pagadoAntes: c.pagadoAntes ?? 0,
             mora: c.mora ?? 0,
             mesesMora: c.mesesMora ?? 0,
             total: c.total ?? ((c.base ?? 0) + (c.agua ?? 0) + (c.mora ?? 0)),
@@ -77,25 +83,6 @@ const calcularComposicion = (pago) => {
             base, agua, m3Agua: m3,
             mora: 0, mesesMora: 0,
             total,
-        });
-    }
-    const deudas = DEUDAS_VENCIDAS.filter((d) =>
-        d.depto === pago.depto &&
-        periodoCoincide(pago.periodoAplicado, d.periodo));
-    const tasa = (CONFIG_MORA?.interesMensual || 0) / 100;
-    for (const d of deudas) {
-        const base = d.expensaBase ?? 0;
-        const agua = d.agua ?? 0;
-        const deudaOrig = d.deudaOriginal ?? (base + agua);
-        const conMora = CONFIG_MORA?.tipoCalculo === 'Simple'
-            ? deudaOrig * (1 + tasa * d.meses)
-            : deudaOrig * (1 + tasa) ** d.meses;
-        const mora = Math.round(conMora - deudaOrig);
-        items.push({
-            periodo: d.periodo, tipo: d.tipo || null,
-            base, agua, m3Agua: null,
-            mora, mesesMora: d.meses,
-            total: deudaOrig + mora,
         });
     }
     return items;
@@ -130,7 +117,7 @@ const StatMini = ({ label, value, color = '#1a2733', bg = '#fff', border = '#E2E
     </Box>
 );
 
-const ExpensaCard = ({ periodo, tipo, base, agua, m3Agua, mora, mesesMora, total, chipExtra }) => {
+const ExpensaCard = ({ periodo, tipo, base, agua, m3Agua, mora, mesesMora, total, pagadoAntes = 0, chipExtra }) => {
     const esVencida = mora > 0;
     return (
         <Paper sx={{ p: 2, mb: 2, bgcolor: '#F8FAFC', borderLeft: `4px solid ${esVencida ? '#D9534F' : '#1F5F8B'}` }}>
@@ -165,6 +152,12 @@ const ExpensaCard = ({ periodo, tipo, base, agua, m3Agua, mora, mesesMora, total
                 <Typography variant="body2" sx={{ fontWeight: 700 }}>Total</Typography>
                 <Typography variant="h5" sx={{ fontWeight: 700, color: '#1a2733' }}>{formatBs(total)}</Typography>
             </Box>
+            {pagadoAntes > 0 && (
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 0.5 }}>
+                    <Typography variant="body2" color="text.secondary">Ya pagado en pagos anteriores</Typography>
+                    <Typography variant="body2" color="text.secondary">− {formatBs(pagadoAntes)}</Typography>
+                </Box>
+            )}
         </Paper>
     );
 };
@@ -173,10 +166,10 @@ export default function Pagos() {
     const navigate = useNavigate();
     const [tab, setTab] = useState('expensas');
 
-    // Periodos dinamicos (igual que Expensas): solo meses ya cerrados.
+    // Periodos: mes en curso + meses cerrados (los pagos de hoy deben verse). Fuente unica: periodos.js
     const [tick, setTick] = useState(0);
-    const periodos = useMemo(() => periodosDisponibles(), [tick]);
-    const [periodo, setPeriodo] = useState(() => periodosDisponibles()[0] || 'Octubre 2026');
+    const periodos = useMemo(() => periodosConMovimientos(), [tick]);
+    const [periodo, setPeriodo] = useState(() => periodosConMovimientos()[0] || '');
 
     useEffect(() => {
         const h = setInterval(() => setTick((t) => t + 1), 5000);
@@ -215,12 +208,14 @@ export default function Pagos() {
     const resumenExp = useMemo(() => {
         const pagosDelMes = PAGOS_MOCK.filter((p) => fechaEnPeriodo(p.fecha, periodo));
         const registrados = pagosDelMes.length;
+        // Total aplicado a expensas (efectivo + credito a favor) por los pagos hechos en el mes.
+        // Cobrado = pagos al dia; recuperado = pagos de deudas vencidas (con mora).
         const cobrado = pagosDelMes
-            .filter((p) => periodoCoincide(p.periodoAplicado, periodo))
-            .reduce((s, p) => s + (p.monto || 0), 0);
+            .filter((p) => !esPagoDeDeudaVencida(p))
+            .reduce((s, p) => s + totalPago(p), 0);
         const recuperado = pagosDelMes
-            .filter((p) => !periodoCoincide(p.periodoAplicado, periodo))
-            .reduce((s, p) => s + (p.monto || 0), 0);
+            .filter((p) => esPagoDeDeudaVencida(p))
+            .reduce((s, p) => s + totalPago(p), 0);
         return { cobrado, registrados, recuperado };
     }, [periodo, tick]);
 
@@ -234,9 +229,9 @@ export default function Pagos() {
     const nombreMes = (periodo || '').split(' ')[0] || 'periodo';
 
     const RESUMEN_EXP = [
-        { label: `Cobrado en ${nombreMes}`, valor: formatBs(resumenExp.cobrado), nota: 'Pagos aplicados al periodo seleccionado', icon: <TrendingUpIcon />, color: '#2E9D78', bg: '#E4F4EE' },
+        { label: `Cobrado en ${nombreMes}`, valor: formatBs(resumenExp.cobrado), nota: 'Pagos al dia del mes (incluye credito a favor)', icon: <TrendingUpIcon />, color: '#2E9D78', bg: '#E4F4EE' },
         { label: 'Pagos registrados', valor: `${resumenExp.registrados} pagos`, nota: 'Incluye pagos parciales', icon: <ReceiptLongIcon />, color: '#1F5F8B', bg: '#E4EEF5' },
-        { label: 'Saldo recuperado', valor: formatBs(resumenExp.recuperado), nota: 'Pagos a deudas de meses anteriores', icon: <SavingsIcon />, color: '#8E6DD1', bg: '#EFEAF8' },
+        { label: 'Saldo recuperado', valor: formatBs(resumenExp.recuperado), nota: 'Pagos de expensas vencidas (con mora)', icon: <SavingsIcon />, color: '#8E6DD1', bg: '#EFEAF8' },
     ];
 
     const RESUMEN_ANT = [
@@ -257,7 +252,8 @@ export default function Pagos() {
     const hayMas = pagosFiltrados.length > limite;
 
     const composicion = useMemo(() => calcularComposicion(pagoSel), [pagoSel]);
-    const totalComp = useMemo(() => composicion.reduce((s, c) => s + (c.total || 0), 0), [composicion]);
+    // Total a cobrar en este pago = total de cada expensa menos lo ya pagado antes
+    const totalComp = useMemo(() => composicion.reduce((s, c) => s + (c.total || 0) - (c.pagadoAntes || 0), 0), [composicion]);
     const tasaMora = CONFIG_MORA?.interesMensual || 0;
     const tipoCalc = (CONFIG_MORA?.tipoCalculo || 'Simple').toLowerCase();
 
@@ -371,7 +367,7 @@ export default function Pagos() {
                                             </TableCell>
                                         </TableRow>
                                     ) : pagosVisibles.map((p) => {
-                                        const esRecuperado = !periodoCoincide(p.periodoAplicado, periodo);
+                                        const esRecuperado = esPagoDeDeudaVencida(p);
                                         return (
                                             <TableRow key={p.id} sx={esRecuperado ? { bgcolor: '#EFEAF8' } : {}}>
                                                 <TableCell sx={{ color: 'primary.main', fontWeight: 600 }}>{p.id}</TableCell>
@@ -385,7 +381,14 @@ export default function Pagos() {
                                                             sx={{ ml: 0.5, bgcolor: '#8E6DD1', color: '#fff', fontWeight: 600, height: 18, fontSize: '0.65rem' }} />
                                                     )}
                                                 </TableCell>
-                                                <TableCell sx={{ fontWeight: 600 }}>{formatBs(p.monto)}</TableCell>
+                                                <TableCell sx={{ fontWeight: 600 }}>
+                                                    {formatBs(totalPago(p))}
+                                                    {(p.creditoAplicado || 0) > 0 && (
+                                                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', fontWeight: 400 }}>
+                                                            {p.monto > 0 ? `${formatBs(p.monto)} + ` : ''}{formatBs(p.creditoAplicado)} de credito
+                                                        </Typography>
+                                                    )}
+                                                </TableCell>
                                                 <TableCell sx={{ fontWeight: 600, color: p.saldoPosterior > 0 ? '#D9534F' : '#2E9D78' }}>{formatBs(p.saldoPosterior)}</TableCell>
                                                 <TableCell><Chip label={p.estado} size="small" sx={estadoChipSx(p.estado)} /></TableCell>
                                                 <TableCell align="center">
@@ -422,7 +425,7 @@ export default function Pagos() {
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1, flexWrap: 'wrap' }}>
                                 <Box sx={{ width: 14, height: 14, bgcolor: '#EFEAF8', border: '1px solid #CFDCEA', borderRadius: 0.5 }} />
                                 <Typography variant="caption" color="text.secondary">
-                                    Filas en lila = pagos cobrados en {nombreMes} aplicados a deudas de meses anteriores (<strong>Saldo recuperado</strong>).
+                                    Filas en lila = pagos de {nombreMes} que cubrieron expensas ya vencidas, con mora (<strong>Saldo recuperado</strong>).
                                 </Typography>
                             </Box>
                         </Box>
@@ -590,6 +593,7 @@ export default function Pagos() {
                                     mora={c.mora}
                                     mesesMora={c.mesesMora}
                                     total={c.total}
+                                    pagadoAntes={c.pagadoAntes}
                                 />
                             ))}
 
@@ -600,12 +604,17 @@ export default function Pagos() {
                                 <Box sx={{ p: 2, bgcolor: '#F1F5FA', borderRadius: 2, textAlign: 'center' }}>
                                     <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>Total a cobrar</Typography>
                                     <Typography variant="h3" sx={{ fontWeight: 700 }}>
-                                        {composicion.length > 0 ? formatBs(totalComp) : formatBs(pagoSel.monto + pagoSel.saldoPosterior)}
+                                        {composicion.length > 0 ? formatBs(totalComp) : formatBs(totalPago(pagoSel) + pagoSel.saldoPosterior)}
                                     </Typography>
                                 </Box>
                                 <Box sx={{ p: 2, bgcolor: '#E4F4EE', borderRadius: 2, textAlign: 'center' }}>
                                     <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>Monto pagado</Typography>
-                                    <Typography variant="h3" sx={{ fontWeight: 700, color: '#2E9D78' }}>{formatBs(pagoSel.monto)}</Typography>
+                                    <Typography variant="h3" sx={{ fontWeight: 700, color: '#2E9D78' }}>{formatBs(totalPago(pagoSel))}</Typography>
+                                    {(pagoSel.creditoAplicado || 0) > 0 && (
+                                        <Typography variant="caption" color="text.secondary">
+                                            Efectivo {formatBs(pagoSel.monto || 0)} · Credito a favor {formatBs(pagoSel.creditoAplicado)}
+                                        </Typography>
+                                    )}
                                 </Box>
                                 <Box sx={{ p: 2, bgcolor: pagoSel.saldoPosterior > 0 ? '#FDE7E6' : '#E4F4EE', borderRadius: 2, textAlign: 'center' }}>
                                     <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>Saldo posterior</Typography>
