@@ -12,6 +12,8 @@ const contabilidad = require('./controllers/contabilidad.controller');
 const configuracion = require('./controllers/configuracion.controller');
 const mora = require('./controllers/mora.controller');
 const vistas = require('./controllers/vistas.controller');
+const reportes = require('./controllers/reportes.controller');
+const apertura = require('./controllers/apertura.controller');
 const dashboard = require('./controllers/dashboard.controller');
 
 const router = Router();
@@ -77,6 +79,15 @@ router.get('/anticipos/:id', mora.anticipoPorId);
 router.get('/estado-cuenta/:unidadId', vistas.estadoCuenta);           // ?anio&mes
 router.get('/movimientos', vistas.movimientos);                         // ?anio&mes&tipo&categoriaId
 
+// Reportes financieros base (HU-RE-01 · sección 8). Solo lectura; ?formato=csv descarga el archivo.
+router.get('/reportes', reportes.indice);
+router.get('/reportes/estado-financiero', reportes.estadoFinanciero);          // 8.1 ?anio&mes
+router.get('/reportes/balance-mensual', reportes.balanceMensual);              // 8.2 ?anio&mes
+router.get('/reportes/flujo-caja', reportes.flujoCaja);                        // 8.3 ?anio&mes
+router.get('/reportes/morosos', reportes.morosos);                             // 8.4 (critico) ?minDias
+router.get('/reportes/ingresos-gastos', reportes.ingresosGastos);              // 8.5 ?anio&mes
+router.get('/reportes/historial-pagos/:unidadId', reportes.historialPagos);    // 8.6 (critico)
+
 // Caja y bancos
 router.get('/cuentas', cuentas.listar);
 router.get('/cuentas/:id/movimientos', cuentas.movimientos);
@@ -86,5 +97,7 @@ router.get('/contabilidad/plan-cuentas', contabilidad.planCuentas);          // 
 router.get('/contabilidad/asientos', contabilidad.asientos);                 // ?desde&hasta&origenTipo&limite
 router.get('/contabilidad/asientos/:id', contabilidad.asientoPorId);
 router.get('/contabilidad/balance-comprobacion', contabilidad.balanceComprobacion); // ?desde&hasta
+router.get('/contabilidad/apertura', apertura.estado);                       // ¿saldos iniciales en la contabilidad?
+router.post('/contabilidad/apertura', soloAdmin, apertura.registrar);        // asiento de apertura (una sola vez)
 
 module.exports = router;
