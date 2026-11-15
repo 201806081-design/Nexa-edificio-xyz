@@ -1985,6 +1985,392 @@
           "response": []
         }
       ]
+    },
+    {
+      "name": "Reportes financieros base (HU-RE-01 · seccion 8)",
+      "item": [
+        {
+          "name": "Indice de reportes",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/financiero/reportes",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "financiero",
+                "reportes"
+              ]
+            },
+            "description": ""
+          },
+          "response": []
+        },
+        {
+          "name": "8.1 Estado financiero · anual 2026",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/financiero/reportes/estado-financiero?anio=2026",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "financiero",
+                "reportes",
+                "estado-financiero"
+              ],
+              "query": [
+                {
+                  "key": "anio",
+                  "value": "2026"
+                }
+              ]
+            },
+            "description": "Estado de resultados + balance general, corte al fin del periodo"
+          },
+          "response": []
+        },
+        {
+          "name": "8.1 Estado financiero · noviembre",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/financiero/reportes/estado-financiero?anio=2026&mes=11",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "financiero",
+                "reportes",
+                "estado-financiero"
+              ],
+              "query": [
+                {
+                  "key": "anio",
+                  "value": "2026"
+                },
+                {
+                  "key": "mes",
+                  "value": "11"
+                }
+              ]
+            },
+            "description": ""
+          },
+          "response": []
+        },
+        {
+          "name": "8.1 Estado financiero · CSV",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/financiero/reportes/estado-financiero?anio=2026&formato=csv",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "financiero",
+                "reportes",
+                "estado-financiero"
+              ],
+              "query": [
+                {
+                  "key": "anio",
+                  "value": "2026"
+                },
+                {
+                  "key": "formato",
+                  "value": "csv"
+                }
+              ]
+            },
+            "description": ""
+          },
+          "response": []
+        },
+        {
+          "name": "8.2 Balance mensual · noviembre",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/financiero/reportes/balance-mensual?anio=2026&mes=11",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "financiero",
+                "reportes",
+                "balance-mensual"
+              ],
+              "query": [
+                {
+                  "key": "anio",
+                  "value": "2026"
+                },
+                {
+                  "key": "mes",
+                  "value": "11"
+                }
+              ]
+            },
+            "description": ""
+          },
+          "response": []
+        },
+        {
+          "name": "8.3 Flujo de caja · anual 2026",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/financiero/reportes/flujo-caja?anio=2026",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "financiero",
+                "reportes",
+                "flujo-caja"
+              ],
+              "query": [
+                {
+                  "key": "anio",
+                  "value": "2026"
+                }
+              ]
+            },
+            "description": ""
+          },
+          "response": []
+        },
+        {
+          "name": "8.3 Flujo de caja · CSV",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/financiero/reportes/flujo-caja?anio=2026&formato=csv",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "financiero",
+                "reportes",
+                "flujo-caja"
+              ],
+              "query": [
+                {
+                  "key": "anio",
+                  "value": "2026"
+                },
+                {
+                  "key": "formato",
+                  "value": "csv"
+                }
+              ]
+            },
+            "description": ""
+          },
+          "response": []
+        },
+        {
+          "name": "8.4 Lista de morosos (critico)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/financiero/reportes/morosos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "financiero",
+                "reportes",
+                "morosos"
+              ]
+            },
+            "description": ""
+          },
+          "response": []
+        },
+        {
+          "name": "8.4 Lista de morosos · CSV",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/financiero/reportes/morosos?formato=csv",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "financiero",
+                "reportes",
+                "morosos"
+              ],
+              "query": [
+                {
+                  "key": "formato",
+                  "value": "csv"
+                }
+              ]
+            },
+            "description": ""
+          },
+          "response": []
+        },
+        {
+          "name": "8.5 Ingresos y gastos · anual 2026",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/financiero/reportes/ingresos-gastos?anio=2026",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "financiero",
+                "reportes",
+                "ingresos-gastos"
+              ],
+              "query": [
+                {
+                  "key": "anio",
+                  "value": "2026"
+                }
+              ]
+            },
+            "description": ""
+          },
+          "response": []
+        },
+        {
+          "name": "8.5 Ingresos y gastos · septiembre",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/financiero/reportes/ingresos-gastos?anio=2026&mes=9",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "financiero",
+                "reportes",
+                "ingresos-gastos"
+              ],
+              "query": [
+                {
+                  "key": "anio",
+                  "value": "2026"
+                },
+                {
+                  "key": "mes",
+                  "value": "9"
+                }
+              ]
+            },
+            "description": ""
+          },
+          "response": []
+        },
+        {
+          "name": "8.6 Historial de pagos · Depto. 101 (critico)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/financiero/reportes/historial-pagos/1",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "financiero",
+                "reportes",
+                "historial-pagos",
+                "1"
+              ]
+            },
+            "description": ""
+          },
+          "response": []
+        },
+        {
+          "name": "8.6 Historial de pagos · CSV",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/financiero/reportes/historial-pagos/1?formato=csv",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "financiero",
+                "reportes",
+                "historial-pagos",
+                "1"
+              ],
+              "query": [
+                {
+                  "key": "formato",
+                  "value": "csv"
+                }
+              ]
+            },
+            "description": ""
+          },
+          "response": []
+        },
+        {
+          "name": "Apertura · estado",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/financiero/contabilidad/apertura",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "financiero",
+                "contabilidad",
+                "apertura"
+              ]
+            },
+            "description": ""
+          },
+          "response": []
+        },
+        {
+          "name": "Apertura · registrar (409 si ya existe)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/financiero/contabilidad/apertura",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "financiero",
+                "contabilidad",
+                "apertura"
+              ]
+            },
+            "description": ""
+          },
+          "response": []
+        }
+      ]
     }
   ],
   "auth": {
@@ -2000,7 +2386,7 @@
   "variable": [
     {
       "key": "baseUrl",
-      "value": "http://localhost:8000/api"
+      "value": "https://nexa-backend-onrender-com.onrender.com/api"
     },
     {
       "key": "token",
