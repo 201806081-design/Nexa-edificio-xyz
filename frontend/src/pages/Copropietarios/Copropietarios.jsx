@@ -14,7 +14,7 @@ import ApartmentIcon from '@mui/icons-material/Apartment';
 import HomeIcon from '@mui/icons-material/Home';
 import { useNavigate } from 'react-router-dom';
 import DashboardLayout from '../../layouts/DashboardLayout';
-import { COPROPIETARIOS_MOCK, eliminarPersona, inmueblesDePersona } from '../../constants/copropietariosMock';
+import { COPROPIETARIOS_MOCK, eliminarPersona } from '../../constants/copropietariosMock';
 import { usuarioDePersona, eliminarCuentaDePersona } from '../../constants/usuariosMock';
 
 // Color del chip segun el tipo (como el mockup: Propietario verde, Inquilino azul)
@@ -48,8 +48,8 @@ function Acciones({ persona, onEliminar }) {
   );
 }
 
-// Lo que pierde la persona al eliminarla: "Depto. 101, Parqueo P-01"
-const unidadesTexto = (p) => [p.unidad, ...inmueblesDePersona(p.id).map((u) => u.identificador)].filter(Boolean).join(', ');
+// Depto que deja la persona al eliminarla (su parqueo y baulera siguen siendo del depto)
+const unidadesTexto = (p) => p.unidad;
 
 export default function Copropietarios() {
   const navigate = useNavigate();
@@ -167,7 +167,7 @@ export default function Copropietarios() {
           </Typography>
           {eliminando && unidadesTexto(eliminando) && (
             <Typography variant="body2" sx={{ mb: 1 }}>
-              Quedaran libres: <strong>{unidadesTexto(eliminando)}</strong>.
+              Dejara su lugar en el <strong>{unidadesTexto(eliminando)}</strong> (el parqueo y la baulera siguen siendo del departamento).
             </Typography>
           )}
           {eliminando && usuarioDePersona(eliminando.id) && (

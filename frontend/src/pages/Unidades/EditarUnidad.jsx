@@ -2,19 +2,19 @@ import { useNavigate, useParams } from 'react-router-dom';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import UnidadForm from './UnidadForm';
 import { UNIDADES_MOCK, datosDepto } from '../../constants/unidadesMock';
-import { sincronizarPersonas, cambiarOcupante, actualizarDepto } from '../../constants/edificioMock';
+import { sincronizarPersonas, vincularAnexo, actualizarDepto, anexosDe } from '../../constants/edificioMock';
 import { sincronizarDepartamentosActivos } from '../../constants/expensasMock';
 
 const CAMPOS_DEPTO = ['propietarioId', 'inquilinoId', 'propietarioViveAhi', 'pagaPropietario'];
-const CAMPOS_OTROS = ['nivel', 'techado', 'personaId'];
+const CAMPOS_OTROS = ['nivel', 'techado', 'deptoId', 'enUso'];
 
 // Aplica los cambios del formulario sobre la unidad existente
 function aplicarCambios(unidad, form) {
-    // Primero se liberan las personas del tipo anterior (registra el historial del depto)
+    // Si deja de ser departamento, primero se liberan sus personas (registra el historial)
     if (unidad.tipo === 'Departamento' && form.tipo !== 'Departamento') {
         actualizarDepto(unidad, { propietarioId: null, inquilinoId: null });
+        anexosDe(unidad).forEach((a) => vincularAnexo(a, null)); // su parqueo y baulera quedan libres
     }
-    if (unidad.tipo !== 'Departamento') cambiarOcupante(unidad, null);
 
     unidad.identificador = form.identificador.trim();
     // Limpia los campos que no aplican al tipo nuevo y setea los que si
@@ -28,7 +28,7 @@ function aplicarCambios(unidad, form) {
     } else {
         unidad.nivel = form.nivel;
         if (form.tipo === 'Parqueo') unidad.techado = form.techado === 'Si';
-        cambiarOcupante(unidad, form.personaId || null);
+        vincularAnexo(unidad, form.deptoId || null, form.enUso);
     }
 }
 

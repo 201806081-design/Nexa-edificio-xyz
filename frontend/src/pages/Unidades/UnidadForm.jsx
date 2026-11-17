@@ -4,10 +4,10 @@ import {
     Select, MenuItem, Alert, InputAdornment, FormControlLabel, Switch,
 } from '@mui/material';
 import {
-    TIPOS_UNIDAD, CATEGORIAS_DEPTO, NIVELES, UNIDADES_MOCK, personasDisponibles,
+    TIPOS_UNIDAD, CATEGORIAS_DEPTO, NIVELES, UNIDADES_MOCK, personasDisponibles, deptosParaAnexo,
 } from '../../constants/unidadesMock';
 import { nombreCompleto } from '../../constants/copropietariosMock';
-import { etiquetaTipoDepto } from '../../constants/edificioMock';
+import { etiquetaTipoDepto, ocupanteDe } from '../../constants/edificioMock';
 
 const VACIO = {
     tipo: 'Departamento',
@@ -16,7 +16,9 @@ const VACIO = {
     categoria: '', // tipo de departamento: 'A' | 'B' | 'C'
     nivel: '',
     techado: '', // 'Si' | 'No'
-    personaId: '', // parqueo y baulera
+    // Parqueo y baulera: depto al que pertenecen y si se usan
+    deptoId: '',
+    enUso: true,
     // Departamento
     propietarioId: '',
     inquilinoId: '',
@@ -50,12 +52,20 @@ function desdeUnidad(u) {
         categoria: u.categoria ?? '',
         nivel: u.nivel ?? '',
         techado: u.techado === undefined ? '' : (u.techado ? 'Si' : 'No'),
-        personaId: u.personaId ?? '',
+        deptoId: u.deptoId ?? '',
+        enUso: u.enUso ?? true,
         propietarioId: u.propietarioId ?? '',
         inquilinoId: u.inquilinoId ?? '',
         propietarioViveAhi: u.propietarioViveAhi ?? true,
         pagaPropietario: u.pagaPropietario ?? false,
     };
+}
+
+// Texto de quien usara el parqueo o baulera segun el depto elegido
+function usuarioPrevisto(form) {
+    if (!form.enUso) return 'Sigue siendo del departamento, pero queda sin uso.';
+    const ocupante = ocupanteDe(UNIDADES_MOCK.find((u) => u.id === form.deptoId));
+    return ocupante ? `Lo usa ${nombreCompleto(ocupante)} (${ocupante.tipo.toLowerCase()}).` : 'Nadie vive hoy en ese departamento.';
 }
 
 // Selector de persona con etiqueta arriba (asociacion de la unidad)
@@ -262,7 +272,7 @@ export default function UnidadForm({ titulo, subtitulo, valorInicial, textoBoton
                 {form.tipo === 'Departamento' ? (
                     <>
                         <SelectorPersona label="Propietario" value={form.propietarioId} vacio="Sin propietario"
-                            opciones={personasDisponibles('Departamento', valorInicial?.id ?? null, 'Propietario')}
+                            opciones={personasDisponibles(valorInicial?.id ?? null, 'Propietario')}
                             onChange={(e) => cambiar('propietarioId', e.target.value)} />
                         {form.propietarioId && (
                             <Box sx={{ mt: -1, mb: 2 }}>
@@ -273,7 +283,7 @@ export default function UnidadForm({ titulo, subtitulo, valorInicial, textoBoton
                         )}
                         <SelectorPersona label="Inquilino" value={form.inquilinoId} vacio="Sin inquilino"
                             disabled={!!form.propietarioId && form.propietarioViveAhi}
-                            opciones={personasDisponibles('Departamento', valorInicial?.id ?? null, 'Inquilino')}
+                            opciones={personasDisponibles(valorInicial?.id ?? null, 'Inquilino')}
                             onChange={(e) => cambiar('inquilinoId', e.target.value)} />
                         {errores.inquilinoId && (
                             <Typography sx={{ color: '#d64545', fontSize: '0.76rem', mt: -1.5, mb: 2 }}>{errores.inquilinoId}</Typography>
@@ -295,12 +305,25 @@ export default function UnidadForm({ titulo, subtitulo, valorInicial, textoBoton
                     </>
                 ) : (
                     <>
-                        <SelectorPersona label="Persona asociada" value={form.personaId} vacio="Sin asociacion"
-                            opciones={personasDisponibles(form.tipo, valorInicial?.id ?? null)}
-                            onChange={(e) => cambiar('personaId', e.target.value)} />
-                        <Typography variant="body2" color="text.secondary">
-                            Cada persona puede tener un parqueo y una baulera: solo aparecen las personas
-                            que todavia no tienen {form.tipo.toLowerCase()}.
+                        <Typography variant="body2" sx={{ fontWeight: 500, mb: 0.5 }}>Departamento al que pertenece</Typography>
+                        <Select fullWidth displayEmpty value={form.deptoId} onChange={(e) => cambiar('deptoId', e.target.value)}>
+                            <MenuItem value=""><em>Libre (sin departamento)</em></MenuItem>
+                            {deptosParaAnexo(form.tipo, valorInicial?.id ?? null).map((d) => (
+                                <MenuItem key={d.id} value={d.id}>{d.identificador}</MenuItem>
+                            ))}
+                        </Select>
+                        {form.deptoId && (
+                            <Box sx={{ mt: 1 }}>
+                                <FormControlLabel label="En uso"
+                                    control={<Switch checked={form.enUso} onChange={(e) => cambiar('enUso', e.target.checked)} />} />
+                                <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                                    {usuarioPrevisto(form)}
+                                </Typography>
+                            </Box>
+                        )}
+                        <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                            El {form.tipo.toLowerCase()} viene con el departamento y lo usa quien vive en el (propietario o
+                            inquilino). Cada departamento tiene como maximo un parqueo y una baulera.
                         </Typography>
                     </>
                 )}

@@ -4,7 +4,9 @@ import HistoryIcon from '@mui/icons-material/History';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import { UNIDADES_MOCK } from '../../constants/unidadesMock';
-import { etiquetaTipoDepto, personaPorId, estadoDepto, responsablePagoDe } from '../../constants/edificioMock';
+import {
+    etiquetaTipoDepto, personaPorId, estadoDepto, responsablePagoDe, estadoAnexo, usuarioDeAnexo,
+} from '../../constants/edificioMock';
 import { nombreCompleto } from '../../constants/copropietariosMock';
 
 function Dato({ etiqueta, valor }) {
@@ -94,7 +96,15 @@ export default function DetalleUnidad() {
                         </Box>
                     </Box>
                 ) : (
-                    <Dato etiqueta="Persona asociada" valor={nombreDe(unidad.personaId, 'Sin asociación')} />
+                    <Box sx={{ display: 'flex', flexWrap: 'wrap' }}>
+                        <Box sx={{ width: { xs: '100%', md: '50%' } }}>
+                            <Dato etiqueta="Departamento" valor={UNIDADES_MOCK.find((d) => d.id === unidad.deptoId)?.identificador ?? 'Libre (sin departamento)'} />
+                        </Box>
+                        <Box sx={{ width: { xs: '100%', md: '50%' } }}><Dato etiqueta="Estado" valor={estadoAnexo(unidad)} /></Box>
+                        <Box sx={{ width: { xs: '100%', md: '50%' } }}>
+                            <Dato etiqueta="Lo usa" valor={usuarioDeAnexo(unidad) ? nombreCompleto(usuarioDeAnexo(unidad)) : 'Nadie'} />
+                        </Box>
+                    </Box>
                 )}
 
                 <Box sx={{

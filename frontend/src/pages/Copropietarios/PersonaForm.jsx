@@ -4,7 +4,7 @@ import {
   Select, MenuItem, Alert, FormControlLabel, Switch,
 } from '@mui/material';
 import {
-  ESTADOS_CIVILES, unidadDePersona, unidadesDisponibles, nombreCompleto,
+  ESTADOS_CIVILES, unidadDePersona, deptosDisponibles, anexosDisponibles, anexoDeDepto, nombreCompleto,
 } from '../../constants/copropietariosMock';
 import { etiquetaUnidad } from '../../constants/unidadesMock';
 import { personaPorId } from '../../constants/edificioMock';
@@ -19,31 +19,38 @@ const VACIO = {
   estadoCivil: '',
   hijos: '',
   habitantes: '',
-  // Unidades relacionadas (ids de UNIDADES). Las tres son opcionales.
+  // Unidades relacionadas (ids de UNIDADES). Todas son opcionales.
   deptoId: '',
-  parqueoId: '',
-  bauleraId: '',
   viveAhi: true, // solo propietarios: si no vive, el depto queda disponible para alquilar
+  // Parqueo y baulera son del departamento (anexos): se eligen para el depto elegido
+  parqueoId: '',
+  parqueoEnUso: true,
+  bauleraId: '',
+  bauleraEnUso: true,
 };
 
-// Unidades relacionadas: una de cada tipo como maximo
-const UNIDADES_RELACIONADAS = [
-  { campo: 'deptoId', tipo: 'Departamento', label: 'Departamento', vacio: 'Sin departamento' },
-  { campo: 'parqueoId', tipo: 'Parqueo', label: 'Parqueo (opcional)', vacio: 'Sin parqueo' },
-  { campo: 'bauleraId', tipo: 'Baulera', label: 'Baulera (opcional)', vacio: 'Sin baulera' },
+const ANEXOS = [
+  { tipo: 'Parqueo', campo: 'parqueoId', usa: 'parqueoEnUso', label: 'Parqueo (opcional)', vacio: 'Sin parqueo', textoUsa: 'Usa el parqueo' },
+  { tipo: 'Baulera', campo: 'bauleraId', usa: 'bauleraEnUso', label: 'Baulera (opcional)', vacio: 'Sin baulera', textoUsa: 'Usa la baulera' },
 ];
 
 // Campos del formulario que no son de la persona (se guardan en las unidades)
-const CAMPOS_UNIDAD = ['deptoId', 'parqueoId', 'bauleraId', 'viveAhi'];
+const CAMPOS_UNIDAD = ['deptoId', 'viveAhi', ...ANEXOS.flatMap((a) => [a.campo, a.usa])];
 
-// Datos de la persona para el formulario (en editar se cargan sus unidades actuales)
+// Parqueo y baulera que ya tiene un depto (se cargan al elegir el depto)
+const anexosDelDepto = (deptoId) => Object.fromEntries(ANEXOS.flatMap(({ tipo, campo, usa }) => {
+  const anexo = anexoDeDepto(deptoId || null, tipo);
+  return [[campo, anexo?.id ?? ''], [usa, anexo ? anexo.enUso : true]];
+}));
+
+// Datos de la persona para el formulario (en editar se cargan su depto y sus anexos)
 function formInicial(persona) {
   if (!persona) return VACIO;
   const datos = Object.fromEntries(Object.keys(VACIO).map((k) => [k, persona[k] ?? VACIO[k]]));
-  UNIDADES_RELACIONADAS.forEach(({ campo, tipo }) => { datos[campo] = unidadDePersona(persona.id, tipo)?.id ?? ''; });
   const depto = unidadDePersona(persona.id, 'Departamento');
+  datos.deptoId = depto?.id ?? '';
   datos.viveAhi = depto?.propietarioId === persona.id ? depto.propietarioViveAhi : true;
-  return datos;
+  return { ...datos, ...anexosDelDepto(depto?.id) };
 }
 
 // Etiqueta de un depto en el selector, con quien mas esta relacionado:
@@ -75,14 +82,21 @@ export default function PersonaForm({
   const [mostrarAviso, setMostrarAviso] = useState(false);
 
   const cambiar = (campo, valor) => {
-    // Propietarios e inquilinos ven deptos distintos: al cambiar el tipo se limpia el depto
-    setForm((f) => ({ ...f, [campo]: valor, ...(campo === 'tipo' ? { deptoId: '' } : {}) }));
+    setForm((f) => {
+      // Propietarios e inquilinos ven deptos distintos: al cambiar el tipo se limpia el depto
+      if (campo === 'tipo') return { ...f, tipo: valor, deptoId: '', ...anexosDelDepto(null) };
+      // Al elegir un depto se cargan su parqueo y su baulera
+      if (campo === 'deptoId') return { ...f, deptoId: valor, ...anexosDelDepto(valor) };
+      return { ...f, [campo]: valor };
+    });
     setErrores((e) => ({ ...e, [campo]: '' }));
   };
 
   const personaId = valorInicial?.id ?? null;
   const esPropietario = form.tipo === 'Propietario';
-  const deptoElegido = unidadesDisponibles('Departamento', personaId, form.tipo).find((d) => d.id === form.deptoId);
+  const deptoElegido = deptosDisponibles(personaId, form.tipo).find((d) => d.id === form.deptoId);
+  // El parqueo y la baulera los define el dueño del depto (o el inquilino si el depto no tiene dueño)
+  const defineAnexos = !!deptoElegido && (esPropietario || !deptoElegido.propietarioId);
   // Si el depto ya esta alquilado a otra persona, el propietario no puede vivir ahi
   const alquiladoA = esPropietario && deptoElegido?.inquilinoId && deptoElegido.inquilinoId !== personaId
     ? personaPorId(deptoElegido.inquilinoId) : null;
@@ -116,7 +130,12 @@ export default function PersonaForm({
     const persona = Object.fromEntries(Object.entries(form).filter(([k]) => !CAMPOS_UNIDAD.includes(k)));
     onGuardar(
       { ...persona, hijos: Number(form.hijos), habitantes: Number(form.habitantes) },
-      { deptoId: form.deptoId || null, parqueoId: form.parqueoId || null, bauleraId: form.bauleraId || null, viveAhi },
+      {
+        deptoId: form.deptoId || null,
+        viveAhi,
+        parqueo: form.deptoId ? { id: form.parqueoId || null, enUso: form.parqueoEnUso } : null,
+        baulera: form.deptoId ? { id: form.bauleraId || null, enUso: form.bauleraEnUso } : null,
+      },
     );
   };
 
@@ -220,33 +239,64 @@ export default function PersonaForm({
           {esPropietario
             ? 'Aparecen los departamentos que todavia no tienen dueño.'
             : 'Aparecen los departamentos sin inquilino cuyo dueño no vive ahi (disponibles para alquilar).'}
-          {' '}Si cambias una unidad, la anterior queda libre.
+          {' '}El parqueo y la baulera vienen con el departamento; si eliges &quot;Sin parqueo&quot; queda libre para otro depto.
         </Typography>
-        {UNIDADES_RELACIONADAS.map(({ campo, tipo, label, vacio }) => {
-          const opciones = unidadesDisponibles(tipo, personaId, form.tipo);
-          const etiqueta = (u) => (tipo === 'Departamento' ? etiquetaDepto(u, form.tipo, personaId) : etiquetaUnidad(u));
+        {/* Departamento */}
+        <Box sx={{ mb: 2 }}>
+          <Typography variant="body2" sx={{ fontWeight: 500, mb: 0.5 }}>Departamento</Typography>
+          <Select fullWidth displayEmpty value={form.deptoId} onChange={(e) => cambiar('deptoId', e.target.value)}>
+            <MenuItem value="">
+              <em>{deptosDisponibles(personaId, form.tipo).length ? 'Sin departamento' : 'No hay departamentos disponibles'}</em>
+            </MenuItem>
+            {deptosDisponibles(personaId, form.tipo).map((u) => (
+              <MenuItem key={u.id} value={u.id}>{etiquetaDepto(u, form.tipo, personaId)}</MenuItem>
+            ))}
+          </Select>
+          {/* El propietario indica si usa su depto; si no, queda disponible para alquilar */}
+          {esPropietario && form.deptoId && (
+            <Box sx={{ mt: 1 }}>
+              <FormControlLabel label="Vive en el departamento"
+                control={<Switch checked={viveAhi} disabled={!!alquiladoA} onChange={(e) => cambiar('viveAhi', e.target.checked)} />} />
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                {alquiladoA
+                  ? `Esta alquilado a ${nombreCompleto(alquiladoA)}: el departamento queda como alquilado.`
+                  : viveAhi
+                    ? 'El departamento queda ocupado por el propietario.'
+                    : 'El departamento queda disponible para alquilar a un inquilino.'}
+              </Typography>
+            </Box>
+          )}
+        </Box>
+
+        {/* Parqueo y baulera: vienen con el departamento (incluidos en la expensa) */}
+        {deptoElegido && !defineAnexos && (
+          <Alert severity="info" sx={{ mb: 2 }}>
+            El parqueo y la baulera son del departamento y los define su propietario.
+            Aqui solo indicas si el inquilino los usa.
+          </Alert>
+        )}
+        {ANEXOS.map(({ tipo, campo, usa, label, vacio, textoUsa }) => {
+          const opciones = anexosDisponibles(tipo, form.deptoId || null);
+          let textoVacio = vacio;
+          if (!form.deptoId) textoVacio = 'Elige primero un departamento';
+          else if (!opciones.length) textoVacio = `No hay ${tipo.toLowerCase()}s libres`;
           return (
             <Box key={campo} sx={{ mb: 2 }}>
               <Typography variant="body2" sx={{ fontWeight: 500, mb: 0.5 }}>{label}</Typography>
-              <Select fullWidth displayEmpty value={form[campo]} onChange={(e) => cambiar(campo, e.target.value)}>
-                <MenuItem value=""><em>{opciones.length ? vacio : `No hay ${tipo.toLowerCase()}s disponibles`}</em></MenuItem>
-                {opciones.map((u) => <MenuItem key={u.id} value={u.id}>{etiqueta(u)}</MenuItem>)}
+              <Select fullWidth displayEmpty value={form[campo]} disabled={!defineAnexos}
+                onChange={(e) => cambiar(campo, e.target.value)}>
+                <MenuItem value=""><em>{textoVacio}</em></MenuItem>
+                {opciones.map((u) => <MenuItem key={u.id} value={u.id}>{etiquetaUnidad(u)}</MenuItem>)}
               </Select>
-              {/* El propietario indica si usa su depto; si no, queda disponible para alquilar */}
-              {campo === 'deptoId' && esPropietario && form.deptoId && (
-                <Box sx={{ mt: 1 }}>
-                  <FormControlLabel
-                    control={<Switch checked={viveAhi} disabled={!!alquiladoA}
-                      onChange={(e) => cambiar('viveAhi', e.target.checked)} />}
-                    label="Vive en el departamento"
-                  />
-                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-                    {alquiladoA
-                      ? `Esta alquilado a ${nombreCompleto(alquiladoA)}: el departamento queda como alquilado.`
-                      : viveAhi
-                        ? 'El departamento queda ocupado por el propietario.'
-                        : 'El departamento queda disponible para alquilar a un inquilino.'}
-                  </Typography>
+              {form[campo] && (
+                <Box sx={{ mt: 0.5 }}>
+                  <FormControlLabel label={textoUsa}
+                    control={<Switch checked={form[usa]} onChange={(e) => cambiar(usa, e.target.checked)} />} />
+                  {!form[usa] && (
+                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                      Sigue siendo del departamento, pero queda sin uso.
+                    </Typography>
+                  )}
                 </Box>
               )}
             </Box>

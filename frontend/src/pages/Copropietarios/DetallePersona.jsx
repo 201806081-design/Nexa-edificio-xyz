@@ -3,7 +3,7 @@ import EditIcon from '@mui/icons-material/Edit';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import { COPROPIETARIOS_MOCK, inmueblesDePersona } from '../../constants/copropietariosMock';
-import { deptoDePersona, estadoDepto, responsablePagoDe, nombreCompleto } from '../../constants/edificioMock';
+import { deptoDePersona, estadoDepto, responsablePagoDe, nombreCompleto, estadoAnexo } from '../../constants/edificioMock';
 
 function Dato({ etiqueta, valor }) {
   return (
@@ -109,14 +109,14 @@ export default function DetallePersona() {
         )}
 
         {/* Otros inmuebles de la persona: parqueos y bauleras (se asignan en Unidades) */}
-        <Typography variant="body2" color="text.secondary" sx={{ mt: 1, mb: 0.5 }}>Parqueos y bauleras</Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mt: 1, mb: 0.5 }}>Parqueo y baulera del departamento</Typography>
         {inmueblesDePersona(persona.id).length === 0 ? (
-          <Typography variant="body1">Sin parqueo ni baulera asignados</Typography>
+          <Typography variant="body1">El departamento no tiene parqueo ni baulera</Typography>
         ) : (
           <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
             {inmueblesDePersona(persona.id).map((u) => (
               <Chip key={u.id} size="small"
-                label={`${u.identificador} · ${u.nivel}${u.tipo === 'Parqueo' ? (u.techado ? ' · Techado' : ' · Sin techo') : ''}`}
+                label={`${u.identificador} · ${u.nivel}${u.tipo === 'Parqueo' ? (u.techado ? ' · Techado' : ' · Sin techo') : ''} · ${estadoAnexo(u)}`}
                 sx={u.tipo === 'Parqueo' ? { bgcolor: '#C5E0F2', color: '#1F5F8B' } : { bgcolor: '#FCE7CB', color: '#C06E00' }} />
             ))}
           </Box>

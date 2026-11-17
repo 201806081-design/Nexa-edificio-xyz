@@ -2,7 +2,8 @@
 // No escribir personas aqui: agregarlas o editarlas en edificioMock.js.
 import { PERSONAS, nombreCompleto as nombreCompletoBase } from './edificioMock';
 export {
-  ESTADOS_CIVILES, inmueblesDePersona, unidadDePersona, unidadesDisponibles, asignarUnidades, eliminarPersona,
+  ESTADOS_CIVILES, inmueblesDePersona, unidadDePersona, deptosDisponibles, anexosDisponibles, anexoDeDepto,
+  estadoAnexo, asignarUnidades, eliminarPersona,
 } from './edificioMock';
 
 // Lista de copropietarios (es el mismo arreglo que PERSONAS: registrar o editar

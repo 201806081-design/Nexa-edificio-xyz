@@ -1,10 +1,11 @@
 // Catalogo de unidades del edificio: se lee de la fuente unica (edificioMock).
 // tipo: 'Departamento' | 'Parqueo' | 'Baulera'
-// Departamento: propietarioId + inquilinoId (ver edificioMock). Parqueo y Baulera: personaId.
+// Departamento: propietarioId + inquilinoId. Parqueo y Baulera: deptoId + enUso (ver edificioMock).
 import {
     UNIDADES, PERSONAS, OCUPANTES_ANTERIORES, INICIO_OCUPACION,
     TIPOS_UNIDAD as TIPOS_U, NIVELES as NIV, CATEGORIAS_DEPTO as CATEGORIAS,
     nombreCompleto, numeroDe, tipoDeptoDe, unidadDePersona, sincronizarPersonas, ocupanteDe,
+    departamentos as deptosEdificio, anexoDeDepto, anexosDe, vincularAnexo,
 } from './edificioMock';
 import { EXPENSAS_MOCK, sincronizarDepartamentosActivos } from './expensasMock';
 
@@ -43,7 +44,7 @@ export const ocupantesAnteriores = (unidadId) =>
 export const historialDe = (unidadId) => ocupantesDe(unidadId).sort(porFechaDesc);
 
 // Solo departamentos (para el selector del historial)
-export const departamentos = () => UNIDADES_MOCK.filter((u) => u.tipo === 'Departamento');
+export const departamentos = deptosEdificio;
 
 // Etiqueta legible de una unidad segun su tipo
 export function etiquetaUnidad(u) {
@@ -52,14 +53,19 @@ export function etiquetaUnidad(u) {
     return `${u.identificador} -- ${u.nivel}`; // Baulera
 }
 
-// Personas que se pueden asociar a una unidad de este tipo: las que todavia no tienen
-// una unidad de ese tipo + la persona que ya la tiene (al editar).
-// tipoPersona filtra por 'Propietario' o 'Inquilino' (para los departamentos).
-// Cada persona tiene como maximo 1 departamento, 1 parqueo y 1 baulera.
-export const personasDisponibles = (tipo, unidadId = null, tipoPersona = null) => PERSONAS.filter((p) => {
+// Propietarios o inquilinos que se pueden asociar a un depto: los que todavia no tienen
+// depto + el que ya lo tiene (al editar). Cada persona tiene como maximo 1 departamento.
+export const personasDisponibles = (deptoId = null, tipoPersona = null) => PERSONAS.filter((p) => {
     if (tipoPersona && p.tipo !== tipoPersona) return false;
-    const suya = unidadDePersona(p.id, tipo);
-    return !suya || suya.id === unidadId;
+    const suyo = unidadDePersona(p.id, 'Departamento');
+    return !suyo || suyo.id === deptoId;
+});
+
+// Deptos a los que se puede dar un parqueo o baulera: los que no tienen uno de ese tipo
+// + el depto al que ya pertenece (al editar). Cada depto tiene como maximo 1 de cada uno.
+export const deptosParaAnexo = (tipo, unidadId = null) => deptosEdificio().filter((d) => {
+    const actual = anexoDeDepto(d.id, tipo);
+    return !actual || actual.id === unidadId;
 });
 
 // Propietario, inquilino y responsable de pago a partir del formulario de unidad
@@ -77,10 +83,15 @@ export const eliminarUnidad = (unidadId) => {
     const i = UNIDADES.findIndex((u) => u.id === unidadId);
     if (i === -1) return 'Unidad no encontrada';
     const u = UNIDADES[i];
-    if (u.personaId || u.propietarioId || u.inquilinoId) return `${u.identificador} tiene personas asociadas: quitalas primero.`;
+    if (u.propietarioId || u.inquilinoId) return `${u.identificador} tiene personas asociadas: quitalas primero.`;
+    if (u.deptoId != null) {
+        const d = deptosEdificio().find((x) => x.id === u.deptoId);
+        return `${u.identificador} pertenece al ${d?.identificador ?? 'departamento'}: dejalo libre primero.`;
+    }
     if (u.tipo === 'Departamento' && EXPENSAS_MOCK.some((e) => String(e.depto) === numeroDe(u))) {
         return `${u.identificador} tiene expensas registradas: no se puede eliminar para no perder su historial financiero.`;
     }
+    anexosDe(u).forEach((a) => vincularAnexo(a, null)); // su parqueo y baulera quedan libres
     UNIDADES.splice(i, 1);
     sincronizarPersonas();
     sincronizarDepartamentosActivos(); // deja de aparecer en Finanzas y Comunicados

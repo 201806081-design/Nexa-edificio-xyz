@@ -2,7 +2,7 @@ import { useNavigate } from 'react-router-dom';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import UnidadForm from './UnidadForm';
 import { UNIDADES_MOCK, datosDepto } from '../../constants/unidadesMock';
-import { sincronizarPersonas, cambiarOcupante, actualizarDepto } from '../../constants/edificioMock';
+import { sincronizarPersonas, vincularAnexo, actualizarDepto } from '../../constants/edificioMock';
 import { sincronizarDepartamentosActivos } from '../../constants/expensasMock';
 
 // Arma el objeto de unidad segun su tipo a partir de los datos del formulario
@@ -12,7 +12,7 @@ function construirUnidad(form) {
         tipo: form.tipo,
         identificador: form.identificador.trim(),
     };
-    // Las personas se asignan despues (actualizarDepto / cambiarOcupante)
+    // Las personas y el depto se asignan despues (actualizarDepto / vincularAnexo)
     if (form.tipo === 'Departamento') {
         return {
             ...base, piso: Number(form.piso), categoria: form.categoria,
@@ -20,9 +20,9 @@ function construirUnidad(form) {
         };
     }
     if (form.tipo === 'Parqueo') {
-        return { ...base, nivel: form.nivel, techado: form.techado === 'Si', personaId: null };
+        return { ...base, nivel: form.nivel, techado: form.techado === 'Si', deptoId: null, enUso: false };
     }
-    return { ...base, nivel: form.nivel, personaId: null }; // Baulera
+    return { ...base, nivel: form.nivel, deptoId: null, enUso: false }; // Baulera
 }
 
 export default function RegistrarUnidad() {
@@ -33,7 +33,7 @@ export default function RegistrarUnidad() {
         const unidad = construirUnidad(form);
         UNIDADES_MOCK.push(unidad);
         if (unidad.tipo === 'Departamento') actualizarDepto(unidad, datosDepto(form));
-        else cambiarOcupante(unidad, form.personaId || null);
+        else vincularAnexo(unidad, form.deptoId || null, form.enUso);
         sincronizarPersonas(); // la persona asociada ve su nueva unidad
         sincronizarDepartamentosActivos(); // el depto nuevo aparece en Finanzas y Comunicados
         navigate('/unidades', { state: { mensaje: 'Unidad registrada correctamente' } });

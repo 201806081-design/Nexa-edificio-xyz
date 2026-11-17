@@ -20,6 +20,7 @@ import { UNIDADES_MOCK, CATEGORIAS_DEPTO, eliminarUnidad } from '../../constants
 import { nombreCompleto } from '../../constants/copropietariosMock';
 import {
     TIPO_DEPTO_POR_CATEGORIA, tipoDeptoDe, renombrarTiposDepartamento, personaPorId, estadoDepto,
+    estadoAnexo, usuarioDeAnexo,
 } from '../../constants/edificioMock';
 import { EXPENSA_BASE } from '../../constants/configuracionMock';
 import { formatBs } from '../../constants/finanzasMock';
@@ -37,11 +38,13 @@ function chipSx(tipo) {
 const tipoDepto = (u) => (u.tipo === 'Departamento' ? `Tipo ${u.categoria} · ${tipoDeptoDe(u)}` : 'No aplica');
 const ubicacion = (u) => (u.tipo === 'Departamento' ? `Piso ${u.piso}` : u.nivel);
 
-// Personas asociadas: en deptos el propietario y el inquilino; en parqueos y bauleras una persona
+// Asociacion: en deptos el propietario y el inquilino; en parqueos y bauleras su depto y quien lo usa
 function personaAsociada(u) {
     if (u.tipo !== 'Departamento') {
-        const p = personaPorId(u.personaId);
-        return p ? nombreCompleto(p) : 'Sin asociación';
+        const depto = UNIDADES_MOCK.find((d) => d.id === u.deptoId);
+        if (!depto) return 'Sin asociación';
+        const usuario = usuarioDeAnexo(u);
+        return usuario ? `${depto.identificador} · ${nombreCompleto(usuario)}` : depto.identificador;
     }
     const partes = [
         u.propietarioId && `${nombreCompleto(personaPorId(u.propietarioId))} (propietario)`,
@@ -50,14 +53,14 @@ function personaAsociada(u) {
     return partes.length ? partes.join(' · ') : 'Sin asociación';
 }
 
-// Estado del depto debajo de las personas: "Alquilado", "Disponible para alquilar"...
+// Estado debajo de la asociacion: "Alquilado", "Disponible para alquilar", "En uso", "Libre"...
 function Asociacion({ unidad }) {
     return (
         <>
             <Typography variant="body2">{personaAsociada(unidad)}</Typography>
-            {unidad.tipo === 'Departamento' && (
-                <Typography variant="caption" color="text.secondary">{estadoDepto(unidad)}</Typography>
-            )}
+            <Typography variant="caption" color="text.secondary">
+                {unidad.tipo === 'Departamento' ? estadoDepto(unidad) : estadoAnexo(unidad)}
+            </Typography>
         </>
     );
 }
