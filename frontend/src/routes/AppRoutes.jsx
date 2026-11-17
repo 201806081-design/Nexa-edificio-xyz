@@ -43,6 +43,7 @@ import Elaborar from '../pages/Comunicados/Elaborar';
 import Enviados from '../pages/Comunicados/Enviados';
 import Borradores from '../pages/Comunicados/Borradores';
 import ProtectedRoute from './ProtectedRoute';
+import { ROLES_GESTION } from '../constants/permisos';
 
 export default function AppRoutes() {
   return (
@@ -59,39 +60,39 @@ export default function AppRoutes() {
       <Route path="/usuarios" element={<ProtectedRoute rolesPermitidos={['Administrador']}><Usuarios /></ProtectedRoute>} />
       <Route path="/permisos" element={<ProtectedRoute rolesPermitidos={['Administrador']}><Permisos /></ProtectedRoute>} />
 
-      <Route path="/copropietarios" element={<ProtectedRoute><Copropietarios /></ProtectedRoute>} />
-      <Route path="/copropietarios/registrar" element={<ProtectedRoute><RegistrarPersona /></ProtectedRoute>} />
-      <Route path="/copropietarios/:id" element={<ProtectedRoute><DetallePersona /></ProtectedRoute>} />
-      <Route path="/copropietarios/:id/editar" element={<ProtectedRoute><EditarPersona /></ProtectedRoute>} />
+      <Route path="/copropietarios" element={<ProtectedRoute rolesPermitidos={ROLES_GESTION}><Copropietarios /></ProtectedRoute>} />
+      <Route path="/copropietarios/registrar" element={<ProtectedRoute rolesPermitidos={ROLES_GESTION}><RegistrarPersona /></ProtectedRoute>} />
+      <Route path="/copropietarios/:id" element={<ProtectedRoute rolesPermitidos={ROLES_GESTION}><DetallePersona /></ProtectedRoute>} />
+      <Route path="/copropietarios/:id/editar" element={<ProtectedRoute rolesPermitidos={ROLES_GESTION}><EditarPersona /></ProtectedRoute>} />
 
-      <Route path="/unidades" element={<ProtectedRoute><Unidades /></ProtectedRoute>} />
-      <Route path="/unidades/registrar" element={<ProtectedRoute><RegistrarUnidad /></ProtectedRoute>} />
-      <Route path="/unidades/historial" element={<ProtectedRoute><HistorialOcupantes /></ProtectedRoute>} />
-      <Route path="/unidades/:id" element={<ProtectedRoute><DetalleUnidad /></ProtectedRoute>} />
-      <Route path="/unidades/:id/editar" element={<ProtectedRoute><EditarUnidad /></ProtectedRoute>} />
+      <Route path="/unidades" element={<ProtectedRoute rolesPermitidos={ROLES_GESTION}><Unidades /></ProtectedRoute>} />
+      <Route path="/unidades/registrar" element={<ProtectedRoute rolesPermitidos={ROLES_GESTION}><RegistrarUnidad /></ProtectedRoute>} />
+      <Route path="/unidades/historial" element={<ProtectedRoute rolesPermitidos={ROLES_GESTION}><HistorialOcupantes /></ProtectedRoute>} />
+      <Route path="/unidades/:id" element={<ProtectedRoute rolesPermitidos={ROLES_GESTION}><DetalleUnidad /></ProtectedRoute>} />
+      <Route path="/unidades/:id/editar" element={<ProtectedRoute rolesPermitidos={ROLES_GESTION}><EditarUnidad /></ProtectedRoute>} />
 
-      <Route path="/finanzas" element={<ProtectedRoute><GestionFinanciera /></ProtectedRoute>} />
-      <Route path="/finanzas/dashboard" element={<ProtectedRoute><DashboardFinanciero /></ProtectedRoute>} />
-      <Route path="/finanzas/expensas" element={<ProtectedRoute><Expensas /></ProtectedRoute>} />
-      <Route path="/finanzas/pagos" element={<ProtectedRoute><Pagos /></ProtectedRoute>} />
-      <Route path="/finanzas/pagos/registrar" element={<ProtectedRoute><RegistrarPago /></ProtectedRoute>} />
-      <Route path="/finanzas/pagos/registrado" element={<ProtectedRoute><PagoRegistrado /></ProtectedRoute>} />
-      <Route path="/finanzas/pagos/conciliacion" element={<ProtectedRoute><ConciliacionBancaria /></ProtectedRoute>} />
-      <Route path="/finanzas/pagos/anticipo" element={<ProtectedRoute><RegistrarAnticipo /></ProtectedRoute>} />
-      <Route path="/finanzas/pagos/anticipo/registrado" element={<ProtectedRoute><AnticipoRegistrado /></ProtectedRoute>} />
-      <Route path="/finanzas/configuracion" element={<ProtectedRoute><ConfiguracionFinanciera /></ProtectedRoute>} />
-      <Route path="/finanzas/expensas/generar" element={<ProtectedRoute><GenerarExpensas /></ProtectedRoute>} />
+      <Route path="/finanzas" element={<ProtectedRoute rolesPermitidos={ROLES_GESTION}><GestionFinanciera /></ProtectedRoute>} />
+      <Route path="/finanzas/dashboard" element={<ProtectedRoute rolesPermitidos={ROLES_GESTION}><DashboardFinanciero /></ProtectedRoute>} />
+      <Route path="/finanzas/expensas" element={<ProtectedRoute rolesPermitidos={ROLES_GESTION}><Expensas /></ProtectedRoute>} />
+      <Route path="/finanzas/pagos" element={<ProtectedRoute rolesPermitidos={ROLES_GESTION}><Pagos /></ProtectedRoute>} />
+      <Route path="/finanzas/pagos/registrar" element={<ProtectedRoute rolesPermitidos={ROLES_GESTION}><RegistrarPago /></ProtectedRoute>} />
+      <Route path="/finanzas/pagos/registrado" element={<ProtectedRoute rolesPermitidos={ROLES_GESTION}><PagoRegistrado /></ProtectedRoute>} />
+      <Route path="/finanzas/pagos/conciliacion" element={<ProtectedRoute rolesPermitidos={ROLES_GESTION}><ConciliacionBancaria /></ProtectedRoute>} />
+      <Route path="/finanzas/pagos/anticipo" element={<ProtectedRoute rolesPermitidos={ROLES_GESTION}><RegistrarAnticipo /></ProtectedRoute>} />
+      <Route path="/finanzas/pagos/anticipo/registrado" element={<ProtectedRoute rolesPermitidos={ROLES_GESTION}><AnticipoRegistrado /></ProtectedRoute>} />
+      <Route path="/finanzas/configuracion" element={<ProtectedRoute rolesPermitidos={ROLES_GESTION}><ConfiguracionFinanciera /></ProtectedRoute>} />
+      <Route path="/finanzas/expensas/generar" element={<ProtectedRoute rolesPermitidos={ROLES_GESTION}><GenerarExpensas /></ProtectedRoute>} />
       <Route path="/finanzas/estado-cuenta" element={<ProtectedRoute><EstadoCuenta /></ProtectedRoute>} />
-      <Route path="/finanzas/ingresos-gastos" element={<ProtectedRoute><IngresosGastos /></ProtectedRoute>} />
-      <Route path="/finanzas/ingresos-gastos/registrar" element={<ProtectedRoute><RegistrarMovimiento /></ProtectedRoute>} />
-      <Route path="/finanzas/ingresos-gastos/:id" element={<ProtectedRoute><DetalleMovimiento /></ProtectedRoute>} />
-      <Route path="/finanzas/flujo-caja" element={<ProtectedRoute><FlujoCaja /></ProtectedRoute>} />
-      <Route path="/finanzas/mora" element={<ProtectedRoute><Mora /></ProtectedRoute>} />
+      <Route path="/finanzas/ingresos-gastos" element={<ProtectedRoute rolesPermitidos={ROLES_GESTION}><IngresosGastos /></ProtectedRoute>} />
+      <Route path="/finanzas/ingresos-gastos/registrar" element={<ProtectedRoute rolesPermitidos={ROLES_GESTION}><RegistrarMovimiento /></ProtectedRoute>} />
+      <Route path="/finanzas/ingresos-gastos/:id" element={<ProtectedRoute rolesPermitidos={ROLES_GESTION}><DetalleMovimiento /></ProtectedRoute>} />
+      <Route path="/finanzas/flujo-caja" element={<ProtectedRoute rolesPermitidos={ROLES_GESTION}><FlujoCaja /></ProtectedRoute>} />
+      <Route path="/finanzas/mora" element={<ProtectedRoute rolesPermitidos={ROLES_GESTION}><Mora /></ProtectedRoute>} />
 
       {/* HU-AP-01 Administracion de personal */}
-      <Route path="/personal/empleados" element={<ProtectedRoute><Empleados /></ProtectedRoute>} />
-      <Route path="/personal/planilla" element={<ProtectedRoute><Planilla /></ProtectedRoute>} />
-      <Route path="/personal/historial-pagos" element={<ProtectedRoute><HistorialPagos /></ProtectedRoute>} />
+      <Route path="/personal/empleados" element={<ProtectedRoute rolesPermitidos={ROLES_GESTION}><Empleados /></ProtectedRoute>} />
+      <Route path="/personal/planilla" element={<ProtectedRoute rolesPermitidos={ROLES_GESTION}><Planilla /></ProtectedRoute>} />
+      <Route path="/personal/historial-pagos" element={<ProtectedRoute rolesPermitidos={ROLES_GESTION}><HistorialPagos /></ProtectedRoute>} />
 
       {/* HU-CO-01 Comunicados */}
       <Route path="/comunicados/elaborar" element={<ProtectedRoute rolesPermitidos={['Administrador']}><Elaborar /></ProtectedRoute>} />

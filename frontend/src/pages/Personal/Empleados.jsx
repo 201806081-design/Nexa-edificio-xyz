@@ -7,7 +7,6 @@ import {
 } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
-import KeyIcon from '@mui/icons-material/Key';
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
 import EmpleadoForm from './EmpleadoForm';
 import SearchIcon from '@mui/icons-material/Search';
@@ -19,6 +18,7 @@ import SwapHorizIcon from '@mui/icons-material/SwapHoriz';
 import PaidIcon from '@mui/icons-material/Paid';
 import BadgeIcon from '@mui/icons-material/Badge';
 import DashboardLayout from '../../layouts/DashboardLayout';
+import CredencialesDialog from '../../components/CredencialesDialog';
 import {
     EMPLEADOS_MOCK, CARGOS, ESTADOS_EMPLEADO, TARIFAS_CARGO,
     PLANILLA_MOCK, PAGOS_PERSONAL_MOCK, RESUMEN_PLANILLA, RESUMEN_PAGOS_PERSONAL,
@@ -108,7 +108,7 @@ export default function Empleados() {
     // Modales
     const [formAbierto, setFormAbierto] = useState(false);
     const [empEditar, setEmpEditar] = useState(null);      // null = nuevo empleado
-    const [credenciales, setCredenciales] = useState(null); // { usuario } cuenta recien creada
+    const [credenciales, setCredenciales] = useState(null); // { usuario, password } cuenta recien creada
     const [eliminarAbierto, setEliminarAbierto] = useState(false);
     const [motivoBaja, setMotivoBaja] = useState({ motivo: 'Renuncia', detalle: '' });
 
@@ -431,30 +431,9 @@ export default function Empleados() {
             )}
 
             {/* Cuenta creada para el Administrador */}
-            <Dialog open={!!credenciales} onClose={() => setCredenciales(null)} maxWidth="xs" fullWidth>
-                <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1.5, fontWeight: 700 }}>
-                    <KeyIcon color="primary" /> Cuenta de usuario creada
-                </DialogTitle>
-                <DialogContent dividers>
-                    <Typography variant="body2" sx={{ mb: 2 }}>
-                        Como es <strong>Administrador</strong>, se le creo una cuenta para entrar al sistema.
-                    </Typography>
-                    <Box sx={{ bgcolor: '#F3F6FA', borderRadius: 2, p: 2, mb: 2 }}>
-                        <Typography variant="body2">Usuario: <strong>{credenciales?.usuario.username}</strong></Typography>
-                        <Typography variant="body2">Correo: <strong>{credenciales?.usuario.email}</strong></Typography>
-                    </Box>
-                    <Alert severity="success" icon={false} sx={{ bgcolor: '#E4F4EE', color: 'text.primary' }}>
-                        <Typography variant="body2">
-                            Se envio a su correo un enlace para activar la cuenta y crear su contraseña.
-                            Nadie mas la conoce, ni el administrador.
-                        </Typography>
-                        <Typography variant="caption" color="text.secondary">(Envio simulado: lo hara el backend.)</Typography>
-                    </Alert>
-                </DialogContent>
-                <DialogActions sx={{ p: 2 }}>
-                    <Button variant="contained" onClick={() => setCredenciales(null)}>Entendido</Button>
-                </DialogActions>
-            </Dialog>
+            <CredencialesDialog credenciales={credenciales} titulo="Cuenta de usuario creada"
+                descripcion="Como es Administrador, se le creo una cuenta para entrar al sistema."
+                onClose={() => setCredenciales(null)} />
 
             {/* Eliminar empleado (solo registrado por error) */}
             <Dialog open={eliminarAbierto} onClose={() => setEliminarAbierto(false)} maxWidth="xs" fullWidth>

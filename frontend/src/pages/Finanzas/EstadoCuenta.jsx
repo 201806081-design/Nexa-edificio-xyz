@@ -22,6 +22,9 @@ import { PAGOS_MOCK, HISTORIAL_ANTICIPOS, totalPago } from '../../constants/pago
 import { CONFIG_MORA } from '../../constants/moraMock';
 import { historialDepto, round2 } from '../../constants/deudasMock';
 import { responsableDe } from '../../constants/edificioMock';
+import { deptoDeUsuario } from '../../constants/usuariosMock';
+import { ROLES } from '../../constants/permisos';
+import { useAuth } from '../../hooks/useAuth';
 
 const MES_IDX = {
     enero: 1, febrero: 2, marzo: 3, abril: 4, mayo: 5, junio: 6,
@@ -199,10 +202,15 @@ const chipEstadoMovimientoSx = (m) => {
 };
 
 export default function EstadoCuenta() {
+    // El Residente solo ve el estado de cuenta de su departamento
+    const { user } = useAuth();
+    const esResidente = user?.rol === ROLES.RESIDENTE;
+    const miDepto = esResidente ? deptoDeUsuario(user) : null;
+
     // Periodos dinamicos (igual que Conciliacion): meses cerrados + mes en curso + "Todos"
     const [tick, setTick] = useState(0);
     const periodosOptions = useMemo(() => periodosParaCuenta(), [tick]);
-    const [seleccion, setSeleccion] = useState('');
+    const [seleccion, setSeleccion] = useState(miDepto ?? '');
     const [periodo, setPeriodo] = useState('Todos los periodos');
     const [snack, setSnack] = useState(false);
 
@@ -216,7 +224,10 @@ export default function EstadoCuenta() {
         }
     }, [periodosOptions, periodo]);
 
-    const deptosDisponibles = useMemo(() => buildDeptosDelSistema(), []);
+    const deptosDisponibles = useMemo(
+        () => buildDeptosDelSistema().filter((d) => !esResidente || d.id === miDepto),
+        [esResidente, miDepto],
+    );
 
     const consultado = useMemo(() => {
         if (!seleccion) return null;
@@ -237,20 +248,26 @@ export default function EstadoCuenta() {
 
     return (
         <DashboardLayout>
-            <Typography variant="h1" color="primary.main" sx={{ mb: 0.5 }}>Estado de cuenta por departamento</Typography>
+            <Typography variant="h1" color="primary.main" sx={{ mb: 0.5 }}>
+                {esResidente ? 'Mi estado de cuenta' : 'Estado de cuenta por departamento'}
+            </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                Consulta las expensas, pagos, anticipos y saldos de una unidad.
+                {esResidente
+                    ? 'Consulta tus expensas, pagos, anticipos y deudas pendientes.'
+                    : 'Consulta las expensas, pagos, anticipos y saldos de una unidad.'}
             </Typography>
 
             <Paper sx={{ p: 3, borderRadius: 2, mb: 3 }}>
                 <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', md: 'row' }, alignItems: { md: 'flex-end' } }}>
-                    <Box sx={{ flex: 1, minWidth: 0 }}>
-                        <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Departamento</Typography>
-                        <Select fullWidth displayEmpty value={seleccion} onChange={(e) => setSeleccion(e.target.value)}>
-                            <MenuItem value=""><em>Seleccionar departamento</em></MenuItem>
-                            {deptosDisponibles.map((d) => <MenuItem key={d.id} value={d.id}>{d.etiqueta}</MenuItem>)}
-                        </Select>
-                    </Box>
+                    {!esResidente && (
+                        <Box sx={{ flex: 1, minWidth: 0 }}>
+                            <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Departamento</Typography>
+                            <Select fullWidth displayEmpty value={seleccion} onChange={(e) => setSeleccion(e.target.value)}>
+                                <MenuItem value=""><em>Seleccionar departamento</em></MenuItem>
+                                {deptosDisponibles.map((d) => <MenuItem key={d.id} value={d.id}>{d.etiqueta}</MenuItem>)}
+                            </Select>
+                        </Box>
+                    )}
                     <Box sx={{ flex: 1, minWidth: 0 }}>
                         <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Periodo</Typography>
                         <Select fullWidth value={periodo} onChange={(e) => setPeriodo(e.target.value)}>
@@ -268,8 +285,17 @@ export default function EstadoCuenta() {
             {!consultado && (
                 <Paper sx={{ p: 8, borderRadius: 2, textAlign: 'center', color: 'text.secondary' }}>
                     <ApartmentIcon sx={{ fontSize: 72, color: '#9aa8b6', mb: 1 }} />
-                    <Typography variant="h6" sx={{ fontWeight: 600 }}>Seleccione un departamento</Typography>
-                    <Typography variant="body2">Elige una unidad para consultar su informacion financiera</Typography>
+                    {esResidente ? (
+                        <>
+                            <Typography variant="h6" sx={{ fontWeight: 600 }}>No tienes un departamento asignado</Typography>
+                            <Typography variant="body2">Comunicate con la administracion del edificio.</Typography>
+                        </>
+                    ) : (
+                        <>
+                            <Typography variant="h6" sx={{ fontWeight: 600 }}>Seleccione un departamento</Typography>
+                            <Typography variant="body2">Elige una unidad para consultar su informacion financiera</Typography>
+                        </>
+                    )}
                 </Paper>
             )}
 

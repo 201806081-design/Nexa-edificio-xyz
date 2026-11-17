@@ -3,7 +3,16 @@ export const ROLES = {
   ADMINISTRADOR: 'Administrador',
   DIRECTORIO: 'Directorio',
   CONSULTA: 'Consulta',
+  // Copropietarios e inquilinos: un solo rol con dos tipos (ver TIPOS_RESIDENTE).
+  // Los dos tienen los mismos permisos; el tipo sale de su registro en Copropietarios.
+  RESIDENTE: 'Residente',
 };
+
+// Roles del personal que administra el edificio (todo menos Residente)
+export const ROLES_GESTION = [ROLES.ADMINISTRADOR, ROLES.DIRECTORIO, ROLES.CONSULTA];
+
+// Tipos de residente. En edificioMock la persona guarda tipo 'Propietario' | 'Inquilino'.
+export const TIPOS_RESIDENTE = { Propietario: 'Copropietario', Inquilino: 'Inquilino' };
 
 // Modulos del sistema (salen del documento de requerimientos)
 export const MODULOS = [
@@ -54,6 +63,18 @@ export const PERMISOS_POR_ROL = {
     'Gestion documental': 'consulta',
     Auditoria: 'ninguno',
   },
+  // Solo ve el estado de cuenta de SU departamento
+  [ROLES.RESIDENTE]: {
+    Copropietarios: 'ninguno',
+    'Gestion de expensas': 'consulta',
+    'Ingresos y egresos': 'ninguno',
+    'Caja y bancos': 'ninguno',
+    Reportes: 'ninguno',
+    'Administracion de personal': 'ninguno',
+    Comunicados: 'ninguno',
+    'Gestion documental': 'ninguno',
+    Auditoria: 'ninguno',
+  },
 };
 
 // Opciones del menu lateral que ve cada rol
@@ -67,4 +88,5 @@ export const MENU_POR_ROL = {
   [ROLES.ADMINISTRADOR]: ['Inicio', 'Usuarios y roles', 'Permisos por rol', 'Copropietarios', 'Unidades', 'Finanzas', 'Personal', 'Comunicados'],
   [ROLES.DIRECTORIO]: ['Inicio', 'Copropietarios', 'Unidades', 'Finanzas'],
   [ROLES.CONSULTA]: ['Inicio', 'Copropietarios', 'Unidades', 'Finanzas'],
+  [ROLES.RESIDENTE]: ['Inicio', 'Estado de cuenta'],
 };

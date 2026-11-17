@@ -39,6 +39,8 @@ const OPCIONES = {
   'Permisos por rol': { icon: <ShieldIcon />, ruta: '/permisos' },
   Copropietarios: { icon: <PeopleIcon />, ruta: '/copropietarios' },
   Unidades: { icon: <DomainIcon />, ruta: '/unidades' },
+  // Residente: solo su estado de cuenta
+  'Estado de cuenta': { icon: <ReceiptLongIcon />, ruta: '/finanzas/estado-cuenta' },
   // Opciones con submenu desplegable (fieles al mockup).
   // 'prefijo' se usa para marcar la opcion como activa cuando la ruta actual
   // esta dentro de ese prefijo (ej: /finanzas/pagos -> Finanzas activo).

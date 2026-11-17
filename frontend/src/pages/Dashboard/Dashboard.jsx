@@ -9,11 +9,12 @@ import DomainIcon from '@mui/icons-material/Domain';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 import WorkIcon from '@mui/icons-material/Work';
 import CampaignIcon from '@mui/icons-material/Campaign';
+import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import EdificioAnimado from './EdificioAnimado';
 import { useAuth } from '../../hooks/useAuth';
-import { MENU_POR_ROL } from '../../constants/permisos';
+import { MENU_POR_ROL, ROLES } from '../../constants/permisos';
 import { UNIDADES } from '../../constants/edificioMock';
 
 // Accesos rapidos: mismas opciones del menu lateral (MENU_POR_ROL) con una descripcion corta
@@ -25,6 +26,7 @@ const ACCESOS = {
   Finanzas: { icon: <AccountBalanceWalletIcon />, ruta: '/finanzas', descripcion: 'Expensas, pagos y mora' },
   Personal: { icon: <WorkIcon />, ruta: '/personal/empleados', descripcion: 'Empleados y planilla' },
   Comunicados: { icon: <CampaignIcon />, ruta: '/comunicados/elaborar', descripcion: 'Avisos a los residentes' },
+  'Estado de cuenta': { icon: <ReceiptLongIcon />, ruta: '/finanzas/estado-cuenta', descripcion: 'Tus expensas, pagos y deudas' },
 };
 
 const aparecer = keyframes`
@@ -81,6 +83,7 @@ export default function Dashboard() {
   const { user } = useAuth();
   const rol = user?.rol ?? 'Consulta';
   const nombre = user?.nombre || rol;
+  const esResidente = rol === ROLES.RESIDENTE;
   const accesos = (MENU_POR_ROL[rol] ?? []).filter((op) => ACCESOS[op]);
 
   return (
@@ -113,33 +116,35 @@ export default function Dashboard() {
             Bienvenido al Sistema Integral de Administración del Edificio XYZ.
           </Typography>
           <Chip
-            label={`Rol: ${rol}`}
+            label={`Rol: ${rol}${user?.tipoResidente ? ` · ${user.tipoResidente}` : ''}`}
             sx={{ bgcolor: 'rgba(255,255,255,0.18)', color: '#fff', fontWeight: 600 }}
           />
         </Box>
         <EdificioAnimado />
       </Box>
 
-      {/* Resumen del edificio */}
-      <Box
-        sx={{
-          display: 'grid',
-          gridTemplateColumns: { xs: 'repeat(2, 1fr)', md: 'repeat(4, 1fr)' },
-          gap: 2,
-          mt: 3,
-        }}
-      >
-        {resumenEdificio().map((dato, i) => (
-          <Paper key={dato.etiqueta} elevation={1} sx={{ ...entrada(i + 1), p: 2.5, borderRadius: 3 }}>
-            <Typography variant="h2" color="primary.main">
-              <Contador valor={dato.valor} />
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              {dato.etiqueta}
-            </Typography>
-          </Paper>
-        ))}
-      </Box>
+      {/* Resumen del edificio (solo para el personal que lo administra) */}
+      {!esResidente && (
+        <Box
+          sx={{
+            display: 'grid',
+            gridTemplateColumns: { xs: 'repeat(2, 1fr)', md: 'repeat(4, 1fr)' },
+            gap: 2,
+            mt: 3,
+          }}
+        >
+          {resumenEdificio().map((dato, i) => (
+            <Paper key={dato.etiqueta} elevation={1} sx={{ ...entrada(i + 1), p: 2.5, borderRadius: 3 }}>
+              <Typography variant="h2" color="primary.main">
+                <Contador valor={dato.valor} />
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                {dato.etiqueta}
+              </Typography>
+            </Paper>
+          ))}
+        </Box>
+      )}
 
       {/* Accesos rapidos segun el rol */}
       <Typography variant="h3" sx={{ mt: 4, mb: 2 }}>
