@@ -10,9 +10,9 @@
 //     Solo ven el estado de cuenta de su departamento.
 //   - El resto del personal (portero, limpieza...) no tiene cuenta.
 //
-// CREDENCIALES: el usuario es el nombre de la persona en minusculas y la
-// contraseña inicial es 1234. Se envian a su correo (envio simulado) y despues
-// la persona puede cambiarla desde "¿Olvidaste tu contraseña?".
+// CREDENCIALES: usuario = nombre en minusculas (los residentes con su numero de
+// depto adelante: "101ana") y contraseña inicial 1234. Se muestran UNA sola vez,
+// al crear la cuenta, y se envian a su correo. Despues nadie las ve, ni el administrador.
 //
 // enBackend: la cuenta existe en el seed del backend y se autentica contra la API.
 // Las demas se autentican aqui (autenticarLocal) hasta que el backend las tenga.
@@ -58,15 +58,18 @@ const administradoresActivos = () => USUARIOS_MOCK.filter((u) => u.rol === ROLES
 const sinTildes = (t) => String(t || '').normalize('NFD').replace(/[̀-ͯ]/g, '');
 const limpiar = (t) => sinTildes(t).toLowerCase().split(/\s+/)[0].replace(/[^a-z0-9]/g, '');
 
-// Usuario = primer nombre en minusculas: "Ana Lopez" -> "ana".
-// Si ya existe se agrega la inicial del apellido ("luisp") y despues un numero ("luisp2").
-export const generarUsername = (nombres, apellidos) => {
+// Residente: numero de depto + primer nombre. Ana Lopez (Depto. 101) -> "101ana".
+// Personal y externos: primer nombre. Oscar Montenegro -> "oscar".
+// Si ya existe se agrega el primer apellido ("101analopez") y despues un numero ("101analopez2").
+// Se usa tambien para mostrar el usuario en el formulario ANTES de crear la cuenta.
+export const generarUsername = ({ nombres, apellidos, personaId = null }) => {
     const existe = (u) => USUARIOS_MOCK.some((x) => x.username === u);
-    const base = limpiar(nombres) || 'usuario';
+    const depto = personaId ? deptoDeUsuario({ personaId }) ?? '' : '';
+    const base = `${depto}${limpiar(nombres) || 'usuario'}`;
     if (!existe(base)) return base;
-    const conInicial = `${base}${limpiar(apellidos).charAt(0)}`;
-    let u = conInicial; let i = 2;
-    while (existe(u)) { u = `${conInicial}${i}`; i += 1; }
+    const conApellido = `${base}${limpiar(apellidos)}`;
+    let u = conApellido; let i = 2;
+    while (existe(u)) { u = `${conApellido}${i}`; i += 1; }
     return u;
 };
 
@@ -76,7 +79,7 @@ export const crearUsuario = ({ nombres, apellidos, email = '', celular = '', rol
     const id = USUARIOS_MOCK.reduce((m, u) => Math.max(m, u.id), 0) + 1;
     const usuario = {
         id,
-        username: generarUsername(nombres, apellidos),
+        username: generarUsername({ nombres, apellidos, personaId }),
         nombre: `${nombres} ${apellidos}`.trim(),
         email, celular, rol, empleadoId, personaId,
         activo: true, enBackend: false, password: PASSWORD_INICIAL,
@@ -147,8 +150,10 @@ export const restablecerPassword = (id) => {
 //  Devuelve null si la cuenta se valida en el backend, o
 //  { estado: 'ok' | 'inactivo' | 'incorrecto', user? }.
 // ------------------------------------------------------------
-export const autenticarLocal = (username, password) => {
-    const u = USUARIOS_MOCK.find((x) => x.username === String(username ?? '').trim().toLowerCase());
+// Se puede entrar con el usuario o con el correo (igual que en el backend)
+export const autenticarLocal = (identificador, password) => {
+    const id = String(identificador ?? '').trim().toLowerCase();
+    const u = USUARIOS_MOCK.find((x) => x.username === id || (x.email && x.email.toLowerCase() === id));
     if (!u) return null;
     if (!u.activo) return { estado: 'inactivo' };
     if (u.enBackend) return null;

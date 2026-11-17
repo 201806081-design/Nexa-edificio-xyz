@@ -12,10 +12,12 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import CredencialesDialog from '../../components/CredencialesDialog';
 import { useAuth } from '../../hooks/useAuth';
+import { useEnvioCredenciales } from '../../hooks/useEnvioCredenciales';
 import { ROLES, ROLES_GESTION, TIPOS_RESIDENTE } from '../../constants/permisos';
 import {
   USUARIOS_MOCK, empleadoDeUsuario, usuarioDeEmpleado, tipoResidente, deptoDeUsuario, personasSinCuenta,
   crearUsuario, crearCuentaResidente, cambiarRol, cambiarEstado, eliminarUsuario, restablecerPassword,
+  generarUsername, PASSWORD_INICIAL,
 } from '../../constants/usuariosMock';
 import { EMPLEADOS_MOCK } from '../../constants/personalMock';
 import { PERSONAS, departamentos, nombreCompleto } from '../../constants/edificioMock';
@@ -56,12 +58,7 @@ function Vinculo({ usuario }) {
   }
   if (usuario.rol === ROLES.RESIDENTE) {
     const depto = deptoDeUsuario(usuario);
-    return (
-      <>
-        <Typography variant="body2" sx={{ fontWeight: 600 }}>{tipoResidente(usuario)}</Typography>
-        <Typography variant="caption" color="text.secondary">{depto ? `Depto. ${depto}` : 'Sin depto asignado'}</Typography>
-      </>
-    );
+    return <Typography variant="body2">{depto ? `Depto. ${depto}` : 'Sin depto asignado'}</Typography>;
   }
   return <Typography variant="body2" color="text.secondary">Externo</Typography>;
 }
@@ -72,7 +69,7 @@ export default function Usuarios() {
   const refrescar = () => setUsuarios(USUARIOS_MOCK.map((u) => ({ ...u }))); // tambien se ve en Personal > Empleados
   const [filtroRol, setFiltroRol] = useState(TODOS);
   const [aviso, setAviso] = useState(''); // error de una accion (ej. ultimo Administrador)
-  const [credenciales, setCredenciales] = useState(null); // { usuario, password, titulo }
+  const { credenciales, mostrar: mostrarCredenciales, cerrar: cerrarCredenciales } = useEnvioCredenciales();
 
   const esYo = (u) => u.username === user?.usuario;
   const visibles = filtroRol === TODOS ? usuarios : usuarios.filter((u) => u.rol === filtroRol);
@@ -143,12 +140,26 @@ export default function Usuarios() {
     }
     setErrores(e);
     if (Object.keys(e).length) return;
-    setCredenciales({ ...cuenta(), titulo: 'Usuario creado' });
+    mostrarCredenciales(cuenta(), { titulo: 'Usuario creado' });
     refrescar();
     setNuevoAbierto(false);
   };
 
   const errProps = (c) => ({ error: !!errores[c], helperText: errores[c] || ' ' });
+
+  // Datos de la persona elegida en el formulario, para mostrar su usuario ANTES de crear la cuenta
+  const personaDelFormulario = () => {
+    if (nuevo.rol === ROLES.ADMINISTRADOR) {
+      const emp = EMPLEADOS_MOCK.find((x) => x.id === nuevo.empleadoId);
+      return emp ? { nombres: emp.nombres, apellidos: emp.apellidos } : null;
+    }
+    if (nuevo.rol === ROLES.RESIDENTE) {
+      const p = PERSONAS.find((x) => x.id === nuevo.personaId);
+      return p ? { nombres: p.nombres, apellidos: p.apellidos, personaId: p.id } : null;
+    }
+    return nuevo.nombres.trim() ? { nombres: nuevo.nombres.trim(), apellidos: nuevo.apellidos.trim() } : null;
+  };
+  const datosNuevos = nuevoAbierto ? personaDelFormulario() : null;
 
   return (
     <DashboardLayout>
@@ -173,7 +184,7 @@ export default function Usuarios() {
         <Table sx={{ minWidth: 820 }}>
           <TableHead>
             <TableRow>
-              <TableCell><strong>Usuario</strong></TableCell>
+              <TableCell><strong>Correo</strong></TableCell>
               <TableCell><strong>Nombre</strong></TableCell>
               <TableCell><strong>Vinculo</strong></TableCell>
               <TableCell><strong>Rol asignado</strong></TableCell>
@@ -191,13 +202,17 @@ export default function Usuarios() {
             )}
             {visibles.map((u) => (
               <TableRow key={u.id}>
-                <TableCell>
-                  <Typography variant="body2" sx={{ fontWeight: 600 }}>{u.username}</Typography>
-                  <Typography variant="caption" color="text.secondary">{u.email}</Typography>
-                </TableCell>
-                <TableCell>{u.nombre}</TableCell>
+                <TableCell>{u.email || <Typography variant="body2" color="text.secondary">Sin correo</Typography>}</TableCell>
+                <TableCell sx={{ fontWeight: 600 }}>{u.nombre}</TableCell>
                 <TableCell><Vinculo usuario={u} /></TableCell>
-                <TableCell><Chip label={u.rol} size="small" sx={rolChipSx(u.rol)} /></TableCell>
+                <TableCell>
+                  <Chip label={u.rol} size="small" sx={rolChipSx(u.rol)} />
+                  {u.rol === ROLES.RESIDENTE && (
+                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+                      {tipoResidente(u)}
+                    </Typography>
+                  )}
+                </TableCell>
                 <TableCell sx={{ whiteSpace: 'nowrap' }}>
                   <Tooltip title={esYo(u) ? 'No puedes desactivar tu propia cuenta' : ''}>
                     <span>
@@ -220,7 +235,7 @@ export default function Usuarios() {
                   <Tooltip title="Restablecer contraseña y enviarla a su correo">
                     <span>
                       <IconButton color="primary" disabled={!u.activo}
-                        onClick={() => setCredenciales({ ...restablecerPassword(u.id), titulo: 'Contraseña restablecida' })}>
+                        onClick={() => mostrarCredenciales(restablecerPassword(u.id), { titulo: 'Contraseña restablecida', motivo: 'restablecer' })}>
                         <KeyIcon />
                       </IconButton>
                     </span>
@@ -244,7 +259,7 @@ export default function Usuarios() {
         <DialogTitle>
           Cambiar rol
           <Typography variant="body2" color="text.secondary">
-            {editando?.username} · {editando?.nombre}
+            {editando?.nombre}
           </Typography>
         </DialogTitle>
         <DialogContent>
@@ -336,11 +351,25 @@ export default function Usuarios() {
             </>
           )}
 
-          <Alert severity="info" icon={false} sx={{ bgcolor: '#E4EEF5', color: 'text.primary', mt: 2 }}>
-            <Typography variant="body2">
-              Su usuario sera su nombre en minusculas y su contraseña inicial 1234. Se le enviaran a su correo.
-            </Typography>
-          </Alert>
+          {/* Unica vez que se ven el usuario y la contraseña: para dictarselos a la persona */}
+          {datosNuevos ? (
+            <Alert severity="info" icon={false} sx={{ bgcolor: '#E4EEF5', color: 'text.primary', mt: 2 }}>
+              <Typography variant="body2">Usuario: <strong>{generarUsername(datosNuevos)}</strong></Typography>
+              <Typography variant="body2">Contraseña inicial: <strong>{PASSWORD_INICIAL}</strong></Typography>
+              <Typography variant="caption" color="text.secondary">
+                Dictaselos ahora: al crear la cuenta se envian a su correo y ya no se vuelven a mostrar.
+              </Typography>
+            </Alert>
+          ) : (
+            <Alert severity="info" icon={false} sx={{ bgcolor: '#E4EEF5', color: 'text.primary', mt: 2 }}>
+              <Typography variant="body2">
+                {nuevo.rol === ROLES.RESIDENTE
+                  ? 'Su usuario sera su numero de departamento y su nombre en minusculas (ej. 101ana)'
+                  : 'Su usuario sera su nombre en minusculas'} y su contraseña inicial {PASSWORD_INICIAL}.
+                Se le enviaran a su correo.
+              </Typography>
+            </Alert>
+          )}
         </DialogContent>
         <DialogActions sx={{ p: 2 }}>
           <Button variant="outlined" onClick={() => setNuevoAbierto(false)}>Cancelar</Button>
@@ -353,7 +382,7 @@ export default function Usuarios() {
         <DialogTitle sx={{ fontWeight: 700 }}>Eliminar usuario</DialogTitle>
         <DialogContent dividers>
           <Typography variant="body2">
-            Se eliminara la cuenta <strong>{eliminando?.username}</strong> ({eliminando?.nombre}).
+            Se eliminara la cuenta de <strong>{eliminando?.nombre}</strong>.
             La persona sigue registrada en el sistema, solo pierde el acceso.
           </Typography>
         </DialogContent>
@@ -363,8 +392,7 @@ export default function Usuarios() {
         </DialogActions>
       </Dialog>
 
-      <CredencialesDialog credenciales={credenciales} titulo={credenciales?.titulo}
-        onClose={() => setCredenciales(null)} />
+      <CredencialesDialog credenciales={credenciales} onClose={cerrarCredenciales} />
 
       <Snackbar open={!!aviso} autoHideDuration={4000} onClose={() => setAviso('')}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}>

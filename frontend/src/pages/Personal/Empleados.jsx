@@ -19,6 +19,7 @@ import PaidIcon from '@mui/icons-material/Paid';
 import BadgeIcon from '@mui/icons-material/Badge';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import CredencialesDialog from '../../components/CredencialesDialog';
+import { useEnvioCredenciales } from '../../hooks/useEnvioCredenciales';
 import {
     EMPLEADOS_MOCK, CARGOS, ESTADOS_EMPLEADO, TARIFAS_CARGO,
     PLANILLA_MOCK, PAGOS_PERSONAL_MOCK, RESUMEN_PLANILLA, RESUMEN_PAGOS_PERSONAL,
@@ -108,7 +109,14 @@ export default function Empleados() {
     // Modales
     const [formAbierto, setFormAbierto] = useState(false);
     const [empEditar, setEmpEditar] = useState(null);      // null = nuevo empleado
-    const [credenciales, setCredenciales] = useState(null); // { usuario, password } cuenta recien creada
+    // Cuenta creada al registrar un Administrador (se envia a su correo)
+    const { credenciales, mostrar: mostrarCredenciales, cerrar: cerrarCredenciales } = useEnvioCredenciales();
+    // Es el unico momento en que se muestran su usuario y contraseña (para dictarselos)
+    const avisarCuentaCreada = (cuenta) => mostrarCredenciales(cuenta, {
+        titulo: 'Cuenta de usuario creada',
+        descripcion: 'Como es Administrador, se le creo una cuenta para entrar al sistema.',
+        mostrarDatos: true,
+    });
     const [eliminarAbierto, setEliminarAbierto] = useState(false);
     const [motivoBaja, setMotivoBaja] = useState({ motivo: 'Renuncia', detalle: '' });
 
@@ -154,7 +162,7 @@ export default function Empleados() {
         recalcularResumenes();
         setFormAbierto(false);
         setTick((t) => t + 1);
-        if (cuenta) setCredenciales(cuenta);
+        avisarCuentaCreada(cuenta);
         setSnack({ open: true, msg: empEditar ? `Datos de ${emp.nombre} actualizados` : `Empleado ${emp.nombre} (${emp.id}) registrado`, sev: 'success' });
     };
 
@@ -282,7 +290,7 @@ export default function Empleados() {
             // Si tenia cuenta (Administrador), se desactiva o reactiva con el empleado
             sincronizarCuentaConEmpleado(emp);
             const cuenta = asegurarCuentaAdministrador(emp);
-            if (cuenta) setCredenciales(cuenta);
+            avisarCuentaCreada(cuenta);
         }
         setEditarEstadoAbierto(false);
         setTick((t) => t + 1);
@@ -378,7 +386,7 @@ export default function Empleados() {
                                         {e.nombre}
                                         {usuarioDeEmpleado(e.id) && (
                                             <Typography variant="caption" color="primary.main" sx={{ display: 'block', fontWeight: 600 }}>
-                                                Usuario del sistema: {usuarioDeEmpleado(e.id).username}
+                                                Tiene usuario del sistema
                                             </Typography>
                                         )}
                                     </TableCell>
@@ -431,9 +439,7 @@ export default function Empleados() {
             )}
 
             {/* Cuenta creada para el Administrador */}
-            <CredencialesDialog credenciales={credenciales} titulo="Cuenta de usuario creada"
-                descripcion="Como es Administrador, se le creo una cuenta para entrar al sistema."
-                onClose={() => setCredenciales(null)} />
+            <CredencialesDialog credenciales={credenciales} onClose={cerrarCredenciales} />
 
             {/* Eliminar empleado (solo registrado por error) */}
             <Dialog open={eliminarAbierto} onClose={() => setEliminarAbierto(false)} maxWidth="xs" fullWidth>
@@ -586,7 +592,7 @@ export default function Empleados() {
                                     ['Contacto de emergencia', empDet.contactoEmergencia
                                         ? `${empDet.contactoEmergencia.nombre} · +591 ${empDet.contactoEmergencia.celular}` : '—'],
                                     ['Usuario del sistema', usuarioDeEmpleado(empDet.id)
-                                        ? `${usuarioDeEmpleado(empDet.id).username} (${usuarioDeEmpleado(empDet.id).activo ? 'activo' : 'desactivado'})` : 'No tiene'],
+                                        ? (usuarioDeEmpleado(empDet.id).activo ? 'Activo' : 'Desactivado') : 'No tiene'],
                                     ...(empDet.motivoBaja ? [['Baja', `${empDet.fechaBaja} · ${empDet.motivoBaja.motivo}${empDet.motivoBaja.detalle ? ` — ${empDet.motivoBaja.detalle}` : ''}`]] : []),
                                 ].map(([k, v]) => (
                                     <Box key={k} sx={{ borderBottom: '1px solid #EEF2F6', py: 0.5 }}>
@@ -690,7 +696,7 @@ export default function Empleados() {
                                 onChange={(e) => setMotivoBaja((m) => ({ ...m, detalle: e.target.value }))} />
                             {usuarioDeEmpleado(filaSel?.id) && (
                                 <Alert severity="warning" sx={{ mt: 1.5 }}>
-                                    Su cuenta <strong>{usuarioDeEmpleado(filaSel.id).username}</strong> quedara desactivada.
+                                    Su cuenta del sistema quedara desactivada.
                                 </Alert>
                             )}
                         </>

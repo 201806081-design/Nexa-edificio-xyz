@@ -2,15 +2,16 @@ import { useState } from 'react';
 import { enviarCredenciales } from '../services/correoService';
 
 // Muestra el aviso de credenciales y las envia al correo del usuario.
-// credenciales = { usuario, password, titulo, descripcion, envio: { estado, mensaje } } | null
+// credenciales = { usuario, password, titulo, descripcion, mostrarDatos, envio: { estado, mensaje } } | null
+// mostrarDatos: true solo al crear la cuenta (unica vez que se ven usuario y contraseña).
 // envio.estado: 'enviando' | 'enviado' | 'error' | 'sin-correo'
 export function useEnvioCredenciales() {
   const [credenciales, setCredenciales] = useState(null);
 
-  const mostrar = (cuenta, { titulo, descripcion = '', motivo = 'alta' }) => {
+  const mostrar = (cuenta, { titulo, descripcion = '', motivo = 'alta', mostrarDatos = false }) => {
     if (!cuenta) return;
     const tieneCorreo = Boolean(cuenta.usuario.email);
-    setCredenciales({ ...cuenta, titulo, descripcion, envio: { estado: tieneCorreo ? 'enviando' : 'sin-correo' } });
+    setCredenciales({ ...cuenta, titulo, descripcion, mostrarDatos, envio: { estado: tieneCorreo ? 'enviando' : 'sin-correo' } });
     if (!tieneCorreo) return;
 
     enviarCredenciales(cuenta, motivo)

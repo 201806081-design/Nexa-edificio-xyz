@@ -1,30 +1,64 @@
 import {
-  Box, Typography, Button, Dialog, DialogTitle, DialogContent, DialogActions, Alert,
+  Box, Typography, Button, Dialog, DialogTitle, DialogContent, DialogActions, Alert, CircularProgress,
 } from '@mui/material';
 import KeyIcon from '@mui/icons-material/Key';
 
-// Aviso de credenciales enviadas al correo (alta de cuenta o restablecer contraseña).
-// credenciales = { usuario, password } | null
-export default function CredencialesDialog({ credenciales, titulo, descripcion, onClose }) {
+const OCULTO = '••••••';
+
+// Resultado del envio del correo (ver hooks/useEnvioCredenciales)
+function EstadoEnvio({ envio, correo }) {
+  if (envio?.estado === 'enviando') {
+    return (
+      <Alert severity="info" icon={<CircularProgress size={18} />}>
+        Enviando el usuario y la contraseña a {correo}...
+      </Alert>
+    );
+  }
+  if (envio?.estado === 'enviado') {
+    return (
+      <Alert severity="success">
+        Se enviaron el usuario y la contraseña a <strong>{correo}</strong>.
+      </Alert>
+    );
+  }
+  if (envio?.estado === 'sin-correo') {
+    return (
+      <Alert severity="warning">
+        No tiene correo registrado: registra su correo para poder enviarle sus datos.
+      </Alert>
+    );
+  }
+  return (
+    <Alert severity="warning">
+      Los datos se guardaron, pero el correo no se envio. {envio?.mensaje}
+    </Alert>
+  );
+}
+
+// Aviso de credenciales (alta de cuenta o restablecer contraseña).
+// El usuario y la contraseña solo se ven si credenciales.mostrarDatos es true (al crear la cuenta);
+// en cualquier otro caso quedan ocultos: solo los conoce el dueño de la cuenta.
+export default function CredencialesDialog({ credenciales, onClose }) {
+  const ver = !!credenciales?.mostrarDatos;
+
   return (
     <Dialog open={!!credenciales} onClose={onClose} maxWidth="xs" fullWidth>
       <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1.5, fontWeight: 700 }}>
-        <KeyIcon color="primary" /> {titulo}
+        <KeyIcon color="primary" /> {credenciales?.titulo}
       </DialogTitle>
       <DialogContent dividers>
-        {descripcion && <Typography variant="body2" sx={{ mb: 2 }}>{descripcion}</Typography>}
+        {credenciales?.descripcion && <Typography variant="body2" sx={{ mb: 2 }}>{credenciales.descripcion}</Typography>}
         <Box sx={{ bgcolor: '#F3F6FA', borderRadius: 2, p: 2, mb: 2 }}>
-          <Typography variant="body2">Usuario: <strong>{credenciales?.usuario.username}</strong></Typography>
-          <Typography variant="body2">Contraseña: <strong>{credenciales?.password}</strong></Typography>
+          <Typography variant="body2">Usuario: <strong>{ver ? credenciales?.usuario.username : OCULTO}</strong></Typography>
+          <Typography variant="body2">Contraseña: <strong>{ver ? credenciales?.password : OCULTO}</strong></Typography>
           <Typography variant="body2">Correo: <strong>{credenciales?.usuario.email || 'Sin correo registrado'}</strong></Typography>
         </Box>
-        <Alert severity="success" icon={false} sx={{ bgcolor: '#E4F4EE', color: 'text.primary' }}>
-          <Typography variant="body2">
-            Se enviaron el usuario y la contraseña a su correo. Puede cambiar su contraseña
-            desde "¿Olvidaste tu contraseña?" en el inicio de sesión.
+        {ver && (
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 2 }}>
+            Es la unica vez que se muestran estos datos.
           </Typography>
-          <Typography variant="caption" color="text.secondary">(Envio simulado: lo hara el backend.)</Typography>
-        </Alert>
+        )}
+        <EstadoEnvio envio={credenciales?.envio} correo={credenciales?.usuario.email} />
       </DialogContent>
       <DialogActions sx={{ p: 2 }}>
         <Button variant="contained" onClick={onClose}>Entendido</Button>
