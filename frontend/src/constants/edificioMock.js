@@ -15,31 +15,33 @@
 //  Categoria del depto (A/B/C) = tipo de expensa (ver configuracionMock.EXPENSA_BASE).
 // ============================================================
 
-// Tipo de departamento segun su categoria de expensa
+// Tipos de departamento: son las 3 categorias de expensa (A/B/C), que son FIJAS
+// (ver configuracionMock.EXPENSA_BASE). El administrador solo cambia el nombre de
+// cada tipo desde Unidades > Tipos de departamento.
+export const CATEGORIAS_DEPTO = ['A', 'B', 'C'];
+
 export const TIPO_DEPTO_POR_CATEGORIA = {
-    A: 'Monoambiente',
-    B: '1 dormitorio',
-    C: '2 dormitorios',
+    A: '1 dormitorio',
+    B: '2 dormitorios',
+    C: 'Monoambiente',
 };
 
-// Categoria de expensa (A/B/C) de cada tipo de departamento.
-// El administrador puede registrar tipos nuevos desde Unidades > Tipos de departamento;
-// cada tipo nuevo se asocia a una categoria para saber cuanto paga de expensa.
-export const CATEGORIA_POR_TIPO = Object.fromEntries(
-    Object.entries(TIPO_DEPTO_POR_CATEGORIA).map(([cat, tipo]) => [tipo, cat]),
-);
+// Nombre del tipo de un depto: tipoDeptoDe(depto101) -> '1 dormitorio'
+export const tipoDeptoDe = (u) => TIPO_DEPTO_POR_CATEGORIA[u?.categoria] ?? '';
 
-export const TIPOS_DEPARTAMENTO = ['Monoambiente', '1 dormitorio', '2 dormitorios'];
+// Texto para selectores: 'Tipo A · 1 dormitorio'
+export const etiquetaTipoDepto = (categoria) => `Tipo ${categoria} · ${TIPO_DEPTO_POR_CATEGORIA[categoria] ?? ''}`;
 
-// Registra un tipo de departamento nuevo (ej. '3 dormitorios', 'Duplex') con su categoria.
-// Devuelve un mensaje de error o null si se registro.
-export const registrarTipoDepartamento = (nombre, categoria) => {
-    const n = String(nombre || '').trim();
-    if (!n) return 'Escribe el nombre del tipo';
-    if (TIPOS_DEPARTAMENTO.some((t) => t.toLowerCase() === n.toLowerCase())) return 'Ese tipo ya existe';
-    if (!['A', 'B', 'C'].includes(categoria)) return 'Elige la categoria de expensa';
-    TIPOS_DEPARTAMENTO.push(n);
-    CATEGORIA_POR_TIPO[n] = categoria;
+// Cambia el nombre de los tipos: renombrarTiposDepartamento({ A: '...', B: '...', C: '...' }).
+// Valida todo antes de guardar. Devuelve un mensaje de error o null si se guardo.
+export const renombrarTiposDepartamento = (nombres) => {
+    const nuevos = Object.fromEntries(CATEGORIAS_DEPTO.map((c) => [c, String(nombres?.[c] ?? '').trim()]));
+    const vacio = CATEGORIAS_DEPTO.find((c) => !nuevos[c]);
+    if (vacio) return `Escribe el nombre del tipo ${vacio}`;
+    const enMinuscula = CATEGORIAS_DEPTO.map((c) => nuevos[c].toLowerCase());
+    if (new Set(enMinuscula).size !== CATEGORIAS_DEPTO.length) return 'Cada tipo debe tener un nombre distinto';
+    Object.assign(TIPO_DEPTO_POR_CATEGORIA, nuevos);
+    sincronizarPersonas(); // Copropietarios muestra los nombres nuevos
     return null;
 };
 
@@ -54,6 +56,7 @@ export const NIVELES = ['Nivel 1', 'Nivel 2', 'Sótano 1', 'Sótano 2'];
 //  estadoCivil, hijos, habitantes = datos del hogar (cuantas personas viven en el depto)
 //  Los campos unidad / tipoDepartamento / piso se completan abajo
 //  a partir de UNIDADES (no se escriben a mano).
+//  Cada persona puede tener como maximo 1 departamento, 1 parqueo y 1 baulera.
 // ------------------------------------------------------------
 export const PERSONAS = [
     { id: 1, nombres: 'Ana', apellidos: 'Lopez', tipo: 'Propietario', documento: '7453821', telefono: '71234501', correo: 'ana.lopez@gmail.com',
@@ -78,7 +81,7 @@ export const PERSONAS = [
 
 // ------------------------------------------------------------
 //  UNIDADES
-//  Departamento: identificador ('Depto. 101'), categoria (A/B/C), piso, tipoDepartamento.
+//  Departamento: identificador ('Depto. 101'), categoria (A/B/C = tipo de depto), piso.
 //  El numero ('101') se obtiene del identificador con numeroDe(unidad).
 //  personaId = persona asociada (o null si esta libre).
 // ------------------------------------------------------------
@@ -88,7 +91,6 @@ const depto = (id, numero, categoria, personaId) => ({
     identificador: `Depto. ${numero}`,
     categoria,
     piso: Number(numero.charAt(0)),
-    tipoDepartamento: TIPO_DEPTO_POR_CATEGORIA[categoria],
     personaId,
 });
 
@@ -147,9 +149,8 @@ export const deptoPorNumero = (numero) => {
     return departamentos().find((u) => numeroDe(u) === n) ?? null;
 };
 
-// Categoria de expensa (A/B/C) de un depto. Sale de su tipo de departamento,
-// asi un depto registrado o editado desde Unidades ya sabe cuanto pagar.
-export const categoriaDe = (u) => CATEGORIA_POR_TIPO[u?.tipoDepartamento] ?? u?.categoria ?? 'A';
+// Categoria de expensa (A/B/C) de un depto = su tipo de departamento
+export const categoriaDe = (u) => u?.categoria ?? 'A';
 
 // Parqueos y bauleras de una persona (ademas de su departamento):
 // ej. Rafael Cruz -> Depto. 303 + Baulera B-06
@@ -200,20 +201,59 @@ export const sincronizarPersonas = () => {
     PERSONAS.forEach((p) => {
         const u = departamentos().find((d) => d.personaId === p.id);
         p.unidad = u ? u.identificador : '';
-        p.tipoDepartamento = u ? u.tipoDepartamento : '';
+        p.tipoDepartamento = u ? tipoDeptoDe(u) : '';
         p.piso = u ? u.piso : '';
     });
 };
 
-// Asocia una persona a un departamento ('Depto. 101'). Si la persona tenia
-// otro depto, lo libera; si el depto tenia otra persona, la reemplaza.
+const hoy = () => new Date().toISOString().slice(0, 10);
+
+// Unidad de un tipo ('Departamento' | 'Parqueo' | 'Baulera') que tiene la persona (o null)
+export const unidadDePersona = (personaId, tipo) =>
+    UNIDADES.find((u) => u.tipo === tipo && personaId != null && u.personaId === personaId) ?? null;
+
+// Unidades de un tipo que se pueden asignar a una persona: las libres + la que ya tiene
+export const unidadesDisponibles = (tipo, personaId = null) =>
+    UNIDADES.filter((u) => u.tipo === tipo && (u.personaId == null || u.personaId === personaId));
+
+// Cambia la persona de una unidad (personaId o null para liberarla).
+// En departamentos deja registrado al ocupante anterior en el historial.
+export const cambiarOcupante = (unidad, personaId) => {
+    const nuevo = personaId ?? null;
+    if (!unidad || unidad.personaId === nuevo) return;
+    if (unidad.tipo === 'Departamento' && unidad.personaId) {
+        const anterior = personaPorId(unidad.personaId);
+        OCUPANTES_ANTERIORES.push({
+            unidadId: unidad.id, nombre: nombreCompleto(anterior), tipo: anterior?.tipo ?? '',
+            fechaInicio: INICIO_OCUPACION[unidad.id] ?? hoy(), fechaFin: hoy(),
+        });
+    }
+    unidad.personaId = nuevo;
+    if (unidad.tipo === 'Departamento') {
+        if (nuevo) INICIO_OCUPACION[unidad.id] = hoy();
+        else delete INICIO_OCUPACION[unidad.id];
+    }
+};
+
+// Asigna a una persona su departamento, parqueo y baulera (ids de UNIDADES o null).
+// La unidad que tenia antes de cada tipo queda libre ("Sin asociacion").
 // Llamar despues de registrar o editar una persona.
-export const asignarDepto = (personaId, identificador) => {
-    departamentos().forEach((u) => {
-        if (u.personaId === personaId && u.identificador !== identificador) u.personaId = null;
+export const asignarUnidades = (personaId, { deptoId = null, parqueoId = null, bauleraId = null }) => {
+    [['Departamento', deptoId], ['Parqueo', parqueoId], ['Baulera', bauleraId]].forEach(([tipo, id]) => {
+        const actual = unidadDePersona(personaId, tipo);
+        if (actual && actual.id !== id) cambiarOcupante(actual, null);
+        const destino = UNIDADES.find((u) => u.id === id && u.tipo === tipo);
+        if (destino) cambiarOcupante(destino, personaId);
     });
-    const destino = departamentos().find((u) => u.identificador === identificador);
-    if (destino) destino.personaId = personaId;
+    sincronizarPersonas();
+};
+
+// Elimina a una persona del edificio: sus unidades quedan libres.
+// (Su cuenta del sistema se elimina aparte: usuariosMock.eliminarCuentaDePersona)
+export const eliminarPersona = (personaId) => {
+    UNIDADES.filter((u) => u.personaId === personaId).forEach((u) => cambiarOcupante(u, null));
+    const i = PERSONAS.findIndex((p) => p.id === personaId);
+    if (i !== -1) PERSONAS.splice(i, 1);
     sincronizarPersonas();
 };
 

@@ -4,6 +4,7 @@ import HistoryIcon from '@mui/icons-material/History';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import { UNIDADES_MOCK } from '../../constants/unidadesMock';
+import { etiquetaTipoDepto } from '../../constants/edificioMock';
 import { COPROPIETARIOS_MOCK, nombreCompleto } from '../../constants/copropietariosMock';
 
 function Dato({ etiqueta, valor }) {
@@ -68,7 +69,7 @@ export default function DetalleUnidad() {
                     {esDepto ? (
                         <>
                             <Box sx={{ width: { xs: '100%', md: '50%' } }}><Dato etiqueta="Piso" valor={`Piso ${unidad.piso}`} /></Box>
-                            <Box sx={{ width: { xs: '100%', md: '50%' } }}><Dato etiqueta="Tipo de departamento" valor={unidad.tipoDepartamento} /></Box>
+                            <Box sx={{ width: { xs: '100%', md: '50%' } }}><Dato etiqueta="Tipo de departamento" valor={etiquetaTipoDepto(unidad.categoria)} /></Box>
                         </>
                     ) : (
                         <>

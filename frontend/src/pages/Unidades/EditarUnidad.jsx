@@ -2,19 +2,19 @@ import { useNavigate, useParams } from 'react-router-dom';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import UnidadForm from './UnidadForm';
 import { UNIDADES_MOCK } from '../../constants/unidadesMock';
-import { sincronizarPersonas } from '../../constants/edificioMock';
+import { sincronizarPersonas, cambiarOcupante } from '../../constants/edificioMock';
 import { sincronizarDepartamentosActivos } from '../../constants/expensasMock';
 
 // Aplica los cambios del formulario sobre la unidad existente
 function aplicarCambios(unidad, form) {
     unidad.tipo = form.tipo;
     unidad.identificador = form.identificador.trim();
-    unidad.personaId = form.personaId === '' ? null : form.personaId;
+    cambiarOcupante(unidad, form.personaId || null); // registra el historial si cambia la persona
     // Limpia campos que no aplican al tipo y setea los que si
-    delete unidad.piso; delete unidad.tipoDepartamento; delete unidad.nivel; delete unidad.techado;
+    delete unidad.piso; delete unidad.categoria; delete unidad.nivel; delete unidad.techado;
     if (form.tipo === 'Departamento') {
         unidad.piso = Number(form.piso);
-        unidad.tipoDepartamento = form.tipoDepartamento;
+        unidad.categoria = form.categoria;
     } else {
         unidad.nivel = form.nivel;
         if (form.tipo === 'Parqueo') unidad.techado = form.techado === 'Si';

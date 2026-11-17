@@ -137,6 +137,12 @@ export const eliminarUsuario = (id) => {
     return null;
 };
 
+// Si se elimina a un copropietario o inquilino, su cuenta tambien se elimina
+export const eliminarCuentaDePersona = (personaId) => {
+    const i = USUARIOS_MOCK.findIndex((u) => u.personaId === personaId);
+    if (i !== -1) USUARIOS_MOCK.splice(i, 1);
+};
+
 // Vuelve la contraseña a la inicial y la "envia" a su correo. Devuelve { usuario, password }.
 export const restablecerPassword = (id) => {
     const u = buscar(id);

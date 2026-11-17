@@ -3,7 +3,8 @@ import {
   Box, Typography, TextField, Button, ToggleButton, ToggleButtonGroup,
   Select, MenuItem, Alert,
 } from '@mui/material';
-import { deptosParaSelector, ESTADOS_CIVILES } from '../../constants/copropietariosMock';
+import { ESTADOS_CIVILES, unidadDePersona, unidadesDisponibles } from '../../constants/copropietariosMock';
+import { etiquetaUnidad } from '../../constants/unidadesMock';
 
 const VACIO = {
   tipo: 'Propietario',
@@ -15,13 +16,26 @@ const VACIO = {
   estadoCivil: '',
   hijos: '',
   habitantes: '',
-  unidad: '',
-  tipoDepartamento: '',
-  piso: '',
+  // Unidades relacionadas (ids de UNIDADES). Las tres son opcionales.
+  deptoId: '',
+  parqueoId: '',
+  bauleraId: '',
 };
 
-// Etiqueta de la unidad para el selector: "Depto. 302 -- 2 dormitorios -- piso 3"
-const etiquetaUnidad = (d) => `${d.identificador} -- ${d.tipoDepartamento} -- piso ${d.piso}`;
+// Unidades relacionadas: una de cada tipo como maximo
+const UNIDADES_RELACIONADAS = [
+  { campo: 'deptoId', tipo: 'Departamento', label: 'Departamento', vacio: 'Sin departamento' },
+  { campo: 'parqueoId', tipo: 'Parqueo', label: 'Parqueo (opcional)', vacio: 'Sin parqueo' },
+  { campo: 'bauleraId', tipo: 'Baulera', label: 'Baulera (opcional)', vacio: 'Sin baulera' },
+];
+
+// Datos de la persona para el formulario (en editar se cargan sus unidades actuales)
+function formInicial(persona) {
+  if (!persona) return VACIO;
+  const datos = Object.fromEntries(Object.keys(VACIO).map((k) => [k, persona[k] ?? VACIO[k]]));
+  UNIDADES_RELACIONADAS.forEach(({ campo, tipo }) => { datos[campo] = unidadDePersona(persona.id, tipo)?.id ?? ''; });
+  return datos;
+}
 
 // Un campo con su etiqueta arriba
 function Campo({ label, ...props }) {
@@ -37,21 +51,12 @@ export default function PersonaForm({
   titulo, subtitulo, valorInicial, textoBoton, onGuardar, onCancelar,
   tipoEditable = true, // en editar se pasa false: el tipo queda bloqueado
 }) {
-  const [form, setForm] = useState({ ...VACIO, ...(valorInicial ?? {}) });
-  // Deptos registrados en Unidades (incluye los agregados despues de cargar la app)
-  const deptos = deptosParaSelector();
+  const [form, setForm] = useState(() => formInicial(valorInicial));
   const [errores, setErrores] = useState({});
   const [mostrarAviso, setMostrarAviso] = useState(false);
 
   const cambiar = (campo, valor) => {
-    if (campo === 'unidad') {
-      // Al elegir unidad, se autocompletan tipo de departamento y piso
-      const d = deptos.find((x) => x.identificador === valor);
-      const info = d ? { tipoDepartamento: d.tipoDepartamento, piso: d.piso } : { tipoDepartamento: '', piso: '' };
-      setForm((f) => ({ ...f, unidad: valor, ...info }));
-    } else {
-      setForm((f) => ({ ...f, [campo]: valor }));
-    }
+    setForm((f) => ({ ...f, [campo]: valor }));
     setErrores((e) => ({ ...e, [campo]: '' }));
   };
 
@@ -77,7 +82,12 @@ export default function PersonaForm({
       return;
     }
     setMostrarAviso(false);
-    onGuardar({ ...form, hijos: Number(form.hijos), habitantes: Number(form.habitantes) });
+    // Se separan los datos de la persona de sus unidades (las unidades se asignan aparte)
+    const { deptoId, parqueoId, bauleraId, ...persona } = form;
+    onGuardar(
+      { ...persona, hijos: Number(form.hijos), habitantes: Number(form.habitantes) },
+      { deptoId: deptoId || null, parqueoId: parqueoId || null, bauleraId: bauleraId || null },
+    );
   };
 
   return (
@@ -173,17 +183,24 @@ export default function PersonaForm({
             error={!!errores.habitantes} helperText={errores.habitantes} />
         </Box>
 
-        <Typography variant="h3" sx={{ fontSize: '1.1rem', fontWeight: 600, mt: 3, mb: 1 }}>
-          Unidad relacionada
+        <Typography variant="h3" sx={{ fontSize: '1.1rem', fontWeight: 600, mt: 3, mb: 0.5 }}>
+          Unidades relacionadas
         </Typography>
-        <Typography variant="body2" sx={{ fontWeight: 500, mb: 0.5 }}>Departamento</Typography>
-        <Select fullWidth displayEmpty value={form.unidad}
-          onChange={(e) => cambiar('unidad', e.target.value)}>
-          <MenuItem value=""><em>Seleccione unidad</em></MenuItem>
-          {deptos.map((d) => (
-            <MenuItem key={d.identificador} value={d.identificador}>{etiquetaUnidad(d)}</MenuItem>
-          ))}
-        </Select>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+          Solo aparecen las unidades libres. Si cambias una unidad, la anterior queda libre.
+        </Typography>
+        {UNIDADES_RELACIONADAS.map(({ campo, tipo, label, vacio }) => {
+          const opciones = unidadesDisponibles(tipo, valorInicial?.id ?? null);
+          return (
+            <Box key={campo} sx={{ mb: 2 }}>
+              <Typography variant="body2" sx={{ fontWeight: 500, mb: 0.5 }}>{label}</Typography>
+              <Select fullWidth displayEmpty value={form[campo]} onChange={(e) => cambiar(campo, e.target.value)}>
+                <MenuItem value=""><em>{opciones.length ? vacio : `No hay ${tipo.toLowerCase()}s libres`}</em></MenuItem>
+                {opciones.map((u) => <MenuItem key={u.id} value={u.id}>{etiquetaUnidad(u)}</MenuItem>)}
+              </Select>
+            </Box>
+          );
+        })}
 
         {mostrarAviso && (
           <Alert severity="error" sx={{ mt: 3 }}>

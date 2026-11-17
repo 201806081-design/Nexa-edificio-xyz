@@ -3,9 +3,10 @@ import {
     Box, Typography, Table, TableHead, TableBody, TableRow, TableCell,
     Button, Chip, Paper, IconButton, Divider, Alert, Tooltip,
     ToggleButton, ToggleButtonGroup,
-    Dialog, DialogTitle, DialogContent, DialogActions, TextField, Select, MenuItem,
+    Dialog, DialogTitle, DialogContent, DialogActions, TextField,
 } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
+import DeleteIcon from '@mui/icons-material/Delete';
 import CategoryIcon from '@mui/icons-material/Category';
 import AddIcon from '@mui/icons-material/Add';
 import VisibilityIcon from '@mui/icons-material/Visibility';
@@ -15,9 +16,9 @@ import PlaceIcon from '@mui/icons-material/Place';
 import PersonIcon from '@mui/icons-material/Person';
 import { useNavigate, useLocation } from 'react-router-dom';
 import DashboardLayout from '../../layouts/DashboardLayout';
-import { UNIDADES_MOCK } from '../../constants/unidadesMock';
+import { UNIDADES_MOCK, CATEGORIAS_DEPTO, eliminarUnidad } from '../../constants/unidadesMock';
 import { COPROPIETARIOS_MOCK, nombreCompleto } from '../../constants/copropietariosMock';
-import { TIPOS_DEPARTAMENTO, CATEGORIA_POR_TIPO, registrarTipoDepartamento } from '../../constants/edificioMock';
+import { TIPO_DEPTO_POR_CATEGORIA, tipoDeptoDe, renombrarTiposDepartamento } from '../../constants/edificioMock';
 import { EXPENSA_BASE } from '../../constants/configuracionMock';
 import { formatBs } from '../../constants/finanzasMock';
 
@@ -31,7 +32,7 @@ function chipSx(tipo) {
     return { bgcolor: '#FCE7CB', color: '#C06E00' }; // Baulera (naranja)
 }
 
-const tipoDepto = (u) => (u.tipo === 'Departamento' ? u.tipoDepartamento : 'No aplica');
+const tipoDepto = (u) => (u.tipo === 'Departamento' ? `Tipo ${u.categoria} · ${tipoDeptoDe(u)}` : 'No aplica');
 const ubicacion = (u) => (u.tipo === 'Departamento' ? `Piso ${u.piso}` : u.nivel);
 
 // Nombre del copropietario asociado (o texto por defecto si no tiene)
@@ -43,8 +44,10 @@ function personaAsociada(personaId) {
 export default function Unidades() {
     const navigate = useNavigate();
     const location = useLocation();
-    const mensaje = location.state?.mensaje; // alerta tras registrar
+    const [aviso, setAviso] = useState(() => (location.state?.mensaje ? { tipo: 'success', texto: location.state.mensaje } : null));
     const [pestana, setPestana] = useState('Todas');
+    const [, setTick] = useState(0);
+    const refrescar = () => setTick((t) => t + 1);
 
     const unidades = pestana === 'Todas'
         ? UNIDADES_MOCK
@@ -54,17 +57,27 @@ export default function Unidades() {
     const verDetalle = (id) => navigate(`/unidades/${id}`);
     const editar = (id) => navigate(`/unidades/${id}/editar`);
 
-    // --- Tipos de departamento (el administrador puede registrar nuevos) ---
+    // --- Eliminar unidad ---
+    const [eliminando, setEliminando] = useState(null);
+    const confirmarEliminar = () => {
+        // MOCK: se elimina de la lista. Con backend, aqui iria el DELETE.
+        const error = eliminarUnidad(eliminando.id);
+        setAviso(error ? { tipo: 'error', texto: error } : { tipo: 'success', texto: `${eliminando.identificador} fue eliminada` });
+        setEliminando(null);
+        refrescar();
+    };
+
+    // --- Tipos de departamento: las categorias A/B/C son fijas, solo se cambia su nombre ---
     const [tiposAbierto, setTiposAbierto] = useState(false);
-    const [nuevoTipo, setNuevoTipo] = useState({ nombre: '', categoria: '' });
+    const [nombresTipo, setNombresTipo] = useState({});
     const [errorTipo, setErrorTipo] = useState('');
-    const [, setTick] = useState(0);
-    const guardarTipo = () => {
-        const err = registrarTipoDepartamento(nuevoTipo.nombre, nuevoTipo.categoria);
-        if (err) { setErrorTipo(err); return; }
-        setNuevoTipo({ nombre: '', categoria: '' });
-        setErrorTipo('');
-        setTick((t) => t + 1);
+    const abrirTipos = () => { setNombresTipo({ ...TIPO_DEPTO_POR_CATEGORIA }); setErrorTipo(''); setTiposAbierto(true); };
+    const guardarTipos = () => {
+        const error = renombrarTiposDepartamento(nombresTipo);
+        if (error) { setErrorTipo(error); return; }
+        setTiposAbierto(false);
+        setAviso({ tipo: 'success', texto: 'Tipos de departamento actualizados' });
+        refrescar();
     };
 
     return (
@@ -77,7 +90,7 @@ export default function Unidades() {
             </Typography>
 
             <Box sx={{ display: 'flex', gap: 1.5, justifyContent: { xs: 'stretch', md: 'flex-end' }, flexDirection: { xs: 'column', md: 'row' }, mb: 2 }}>
-                <Button variant="outlined" startIcon={<CategoryIcon />} onClick={() => setTiposAbierto(true)}
+                <Button variant="outlined" startIcon={<CategoryIcon />} onClick={abrirTipos}
                     sx={{ width: { xs: '100%', md: 'auto' } }}>
                     Tipos de departamento
                 </Button>
@@ -91,7 +104,7 @@ export default function Unidades() {
                 </Button>
             </Box>
 
-            {mensaje && <Alert severity="success" sx={{ mb: 2 }}>{mensaje}</Alert>}
+            {aviso && <Alert severity={aviso.tipo} onClose={() => setAviso(null)} sx={{ mb: 2 }}>{aviso.texto}</Alert>}
 
             {/* Pestañas de filtro por tipo: barra segmentada (como el mockup) */}
             <ToggleButtonGroup
@@ -160,6 +173,11 @@ export default function Unidades() {
                                             <HistoryIcon />
                                         </IconButton>
                                     )}
+                                    <Tooltip title="Eliminar">
+                                        <IconButton color="error" onClick={() => setEliminando(u)}>
+                                            <DeleteIcon />
+                                        </IconButton>
+                                    </Tooltip>
                                 </TableCell>
                             </TableRow>
                         ))}
@@ -181,7 +199,7 @@ export default function Unidades() {
                         {u.tipo === 'Departamento' && (
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5, color: 'text.secondary' }}>
                                 <ApartmentIcon fontSize="small" color="primary" />
-                                <Typography variant="body2">{u.tipoDepartamento}</Typography>
+                                <Typography variant="body2">{tipoDepto(u)}</Typography>
                             </Box>
                         )}
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5, color: 'text.secondary' }}>
@@ -205,6 +223,9 @@ export default function Unidades() {
                                     <HistoryIcon />
                                 </IconButton>
                             )}
+                            <IconButton color="error" onClick={() => setEliminando(u)} title="Eliminar">
+                                <DeleteIcon />
+                            </IconButton>
                         </Box>
                     </Paper>
                 ))}
@@ -213,51 +234,55 @@ export default function Unidades() {
                 </Typography>
             </Box>
 
-            {/* Dialogo: tipos de departamento */}
+            {/* Dialogo: tipos de departamento (solo se edita el nombre) */}
             <Dialog open={tiposAbierto} onClose={() => setTiposAbierto(false)} maxWidth="sm" fullWidth>
                 <DialogTitle sx={{ fontWeight: 700 }}>Tipos de departamento</DialogTitle>
                 <DialogContent dividers>
                     <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                        Cada tipo se asocia a una categoria de expensa (A, B o C), que define cuanto paga el departamento cada mes.
-                        Los tipos nuevos aparecen al registrar o editar una unidad.
+                        Hay tres tipos, uno por cada categoria de expensa. La categoria define cuanto paga el
+                        departamento cada mes; aqui solo puedes cambiar el nombre de cada tipo.
                     </Typography>
-                    <Table size="small" sx={{ mb: 3 }}>
+                    <Table size="small">
                         <TableHead>
                             <TableRow sx={{ bgcolor: '#F3F6FA' }}>
-                                <TableCell><strong>Tipo</strong></TableCell>
                                 <TableCell><strong>Categoria</strong></TableCell>
+                                <TableCell><strong>Nombre del tipo</strong></TableCell>
                                 <TableCell align="right"><strong>Expensa base</strong></TableCell>
                             </TableRow>
                         </TableHead>
                         <TableBody>
-                            {TIPOS_DEPARTAMENTO.map((t) => (
-                                <TableRow key={t}>
-                                    <TableCell>{t}</TableCell>
-                                    <TableCell>Tipo {CATEGORIA_POR_TIPO[t]}</TableCell>
-                                    <TableCell align="right">{formatBs(EXPENSA_BASE[CATEGORIA_POR_TIPO[t]] ?? 0)}</TableCell>
+                            {CATEGORIAS_DEPTO.map((c) => (
+                                <TableRow key={c}>
+                                    <TableCell sx={{ fontWeight: 600, whiteSpace: 'nowrap' }}>Tipo {c}</TableCell>
+                                    <TableCell>
+                                        <TextField size="small" fullWidth value={nombresTipo[c] ?? ''}
+                                            slotProps={{ htmlInput: { maxLength: 40, 'aria-label': `Nombre del tipo ${c}` } }}
+                                            onChange={(e) => { setNombresTipo((n) => ({ ...n, [c]: e.target.value })); setErrorTipo(''); }} />
+                                    </TableCell>
+                                    <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>{formatBs(EXPENSA_BASE[c] ?? 0)}</TableCell>
                                 </TableRow>
                             ))}
                         </TableBody>
                     </Table>
-
-                    <Typography variant="body2" sx={{ fontWeight: 700, mb: 1 }}>Registrar nuevo tipo</Typography>
-                    <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', md: 'row' } }}>
-                        <TextField size="small" fullWidth label="Nombre" placeholder="Ej. 3 dormitorios"
-                            value={nuevoTipo.nombre} slotProps={{ htmlInput: { maxLength: 40 } }}
-                            onChange={(e) => { setNuevoTipo((n) => ({ ...n, nombre: e.target.value })); setErrorTipo(''); }} />
-                        <Select size="small" displayEmpty value={nuevoTipo.categoria} sx={{ minWidth: 200 }}
-                            onChange={(e) => { setNuevoTipo((n) => ({ ...n, categoria: e.target.value })); setErrorTipo(''); }}>
-                            <MenuItem value=""><em>Categoria de expensa</em></MenuItem>
-                            {['A', 'B', 'C'].map((c) => (
-                                <MenuItem key={c} value={c}>Tipo {c} · {formatBs(EXPENSA_BASE[c] ?? 0)}</MenuItem>
-                            ))}
-                        </Select>
-                        <Button variant="contained" onClick={guardarTipo} sx={{ whiteSpace: 'nowrap' }}>Agregar</Button>
-                    </Box>
                     {errorTipo && <Alert severity="error" sx={{ mt: 2 }}>{errorTipo}</Alert>}
                 </DialogContent>
                 <DialogActions sx={{ p: 2 }}>
-                    <Button variant="outlined" onClick={() => setTiposAbierto(false)}>Cerrar</Button>
+                    <Button variant="outlined" onClick={() => setTiposAbierto(false)}>Cancelar</Button>
+                    <Button variant="contained" onClick={guardarTipos}>Guardar nombres</Button>
+                </DialogActions>
+            </Dialog>
+
+            {/* Confirmar eliminar unidad */}
+            <Dialog open={!!eliminando} onClose={() => setEliminando(null)} maxWidth="xs" fullWidth>
+                <DialogTitle sx={{ fontWeight: 700 }}>Eliminar unidad</DialogTitle>
+                <DialogContent dividers>
+                    <Typography variant="body2">
+                        Se eliminara <strong>{eliminando?.identificador}</strong>. Esta accion no se puede deshacer.
+                    </Typography>
+                </DialogContent>
+                <DialogActions sx={{ p: 2 }}>
+                    <Button variant="outlined" onClick={() => setEliminando(null)}>Cancelar</Button>
+                    <Button variant="contained" color="error" onClick={confirmarEliminar}>Eliminar</Button>
                 </DialogActions>
             </Dialog>
         </DashboardLayout>

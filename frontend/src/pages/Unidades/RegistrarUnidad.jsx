@@ -2,7 +2,7 @@ import { useNavigate } from 'react-router-dom';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import UnidadForm from './UnidadForm';
 import { UNIDADES_MOCK } from '../../constants/unidadesMock';
-import { sincronizarPersonas } from '../../constants/edificioMock';
+import { sincronizarPersonas, cambiarOcupante } from '../../constants/edificioMock';
 import { sincronizarDepartamentosActivos } from '../../constants/expensasMock';
 
 // Arma el objeto de unidad segun su tipo a partir de los datos del formulario
@@ -11,10 +11,10 @@ function construirUnidad(form) {
         id: Date.now(),
         tipo: form.tipo,
         identificador: form.identificador.trim(),
-        personaId: form.personaId === '' ? null : form.personaId,
+        personaId: null, // se asigna con cambiarOcupante (registra el historial)
     };
     if (form.tipo === 'Departamento') {
-        return { ...base, piso: Number(form.piso), tipoDepartamento: form.tipoDepartamento };
+        return { ...base, piso: Number(form.piso), categoria: form.categoria };
     }
     if (form.tipo === 'Parqueo') {
         return { ...base, nivel: form.nivel, techado: form.techado === 'Si' };
@@ -27,7 +27,9 @@ export default function RegistrarUnidad() {
 
     const guardar = (form) => {
         // MOCK: se agrega a la lista. Con backend, aqui iria el POST.
-        UNIDADES_MOCK.push(construirUnidad(form));
+        const unidad = construirUnidad(form);
+        UNIDADES_MOCK.push(unidad);
+        cambiarOcupante(unidad, form.personaId || null);
         sincronizarPersonas(); // la persona asociada ve su nueva unidad
         sincronizarDepartamentosActivos(); // el depto nuevo aparece en Finanzas y Comunicados
         navigate('/unidades', { state: { mensaje: 'Unidad registrada correctamente' } });

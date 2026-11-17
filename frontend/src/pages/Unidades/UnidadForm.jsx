@@ -4,15 +4,16 @@ import {
     Select, MenuItem, Alert, InputAdornment,
 } from '@mui/material';
 import {
-    TIPOS_UNIDAD, TIPOS_DEPARTAMENTO, NIVELES, UNIDADES_MOCK,
+    TIPOS_UNIDAD, CATEGORIAS_DEPTO, NIVELES, UNIDADES_MOCK, personasDisponibles,
 } from '../../constants/unidadesMock';
-import { COPROPIETARIOS_MOCK, nombreCompleto } from '../../constants/copropietariosMock';
+import { nombreCompleto } from '../../constants/copropietariosMock';
+import { etiquetaTipoDepto } from '../../constants/edificioMock';
 
 const VACIO = {
     tipo: 'Departamento',
     identificador: '',
     piso: '',
-    tipoDepartamento: '',
+    categoria: '', // tipo de departamento: 'A' | 'B' | 'C'
     nivel: '',
     techado: '', // 'Si' | 'No'
     personaId: '',
@@ -41,7 +42,7 @@ function desdeUnidad(u) {
         tipo: u.tipo,
         identificador: limpiarCodigo(u.identificador ?? '', u.tipo),
         piso: u.piso ?? '',
-        tipoDepartamento: u.tipoDepartamento ?? '',
+        categoria: u.categoria ?? '',
         nivel: u.nivel ?? '',
         techado: u.techado === undefined ? '' : (u.techado ? 'Si' : 'No'),
         personaId: u.personaId ?? '',
@@ -83,7 +84,7 @@ export default function UnidadForm({ titulo, subtitulo, valorInicial, textoBoton
     const cambiar = (campo, valor) => {
         // Al cambiar el tipo se limpian los campos propios del tipo anterior
         if (campo === 'tipo') {
-            setForm((f) => ({ ...f, tipo: valor, identificador: '', piso: '', tipoDepartamento: '', nivel: '', techado: '' }));
+            setForm((f) => ({ ...f, tipo: valor, identificador: '', piso: '', categoria: '', nivel: '', techado: '', personaId: '' }));
         } else {
             setForm((f) => ({ ...f, [campo]: valor }));
         }
@@ -104,7 +105,7 @@ export default function UnidadForm({ titulo, subtitulo, valorInicial, textoBoton
         }
         if (form.tipo === 'Departamento') {
             if (!String(form.piso).trim()) err.piso = true;
-            if (!form.tipoDepartamento) err.tipoDepartamento = true;
+            if (!form.categoria) err.categoria = true;
         } else {
             if (!form.nivel) err.nivel = true;
             if (form.tipo === 'Parqueo' && !form.techado) err.techado = true;
@@ -186,10 +187,10 @@ export default function UnidadForm({ titulo, subtitulo, valorInicial, textoBoton
                                 error={!!errores.piso} helperText={errores.piso && 'Este campo es obligatorio'} />
                         </Box>
                         <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', mb: 2 }}>
-                            <CampoSelect label="Tipo de departamento *" value={form.tipoDepartamento}
-                                onChange={(e) => cambiar('tipoDepartamento', e.target.value)} error={!!errores.tipoDepartamento}>
+                            <CampoSelect label="Tipo de departamento *" value={form.categoria}
+                                onChange={(e) => cambiar('categoria', e.target.value)} error={!!errores.categoria}>
                                 <MenuItem value=""><em>Seleccione tipo</em></MenuItem>
-                                {TIPOS_DEPARTAMENTO.map((t) => <MenuItem key={t} value={t}>{t}</MenuItem>)}
+                                {CATEGORIAS_DEPTO.map((c) => <MenuItem key={c} value={c}>{etiquetaTipoDepto(c)}</MenuItem>)}
                             </CampoSelect>
                             <Box sx={{ flex: 1, minWidth: 220 }} />
                         </Box>
@@ -234,13 +235,14 @@ export default function UnidadForm({ titulo, subtitulo, valorInicial, textoBoton
                 <Typography variant="body2" sx={{ fontWeight: 500, mb: 0.5 }}>Persona asociada</Typography>
                 <Select fullWidth displayEmpty value={form.personaId}
                     onChange={(e) => cambiar('personaId', e.target.value)}>
-                    <MenuItem value=""><em>Seleccionar propietario o inquilino</em></MenuItem>
-                    {COPROPIETARIOS_MOCK.map((c) => (
+                    <MenuItem value=""><em>Sin asociacion</em></MenuItem>
+                    {personasDisponibles(form.tipo, valorInicial?.id ?? null).map((c) => (
                         <MenuItem key={c.id} value={c.id}>{nombreCompleto(c)} — {c.tipo}</MenuItem>
                     ))}
                 </Select>
                 <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                    Puede asociar la unidad con una persona registrada
+                    Cada persona puede tener un departamento, un parqueo y una baulera: solo aparecen
+                    las personas que todavia no tienen {form.tipo === 'Departamento' ? 'departamento' : `${form.tipo.toLowerCase()}`}.
                 </Typography>
 
                 {mostrarAviso && (
