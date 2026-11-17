@@ -306,11 +306,13 @@ export const deptosDisponibles = (personaId = null, tipoPersona = 'Propietario')
 
 // Aplica cambios a un depto ({ propietarioId, inquilinoId, propietarioViveAhi, pagaPropietario })
 // y, si cambia quien vive ahi, deja registrado al ocupante anterior en el historial.
+// Si el depto queda sin propietario ni inquilino, su parqueo y baulera quedan libres.
 export const actualizarDepto = (d, cambios) => {
     const antes = ocupanteDe(d);
     Object.assign(d, cambios);
     if (!d.propietarioId) d.propietarioViveAhi = false;
     if (!d.inquilinoId) d.pagaPropietario = false;
+    if (!d.propietarioId && !d.inquilinoId) anexosDe(d).forEach((a) => vincularAnexo(a, null));
     const despues = ocupanteDe(d);
     if (antes?.id === despues?.id) return;
     if (antes) {
@@ -346,8 +348,9 @@ export const asignarUnidades = (personaId, { deptoId = null, viveAhi = true, par
     sincronizarPersonas();
 };
 
-// Elimina a una persona del edificio: su lugar en el depto queda libre
-// (el parqueo y la baulera quedan reservados para el depto).
+// Elimina a una persona del edificio: su lugar en el depto queda libre.
+// Si el depto queda sin nadie (ni propietario ni inquilino), su parqueo y baulera quedan libres;
+// si queda el propietario (no vive ahi), siguen reservados para el proximo inquilino.
 // (Su cuenta del sistema se elimina aparte: usuariosMock.eliminarCuentaDePersona)
 export const eliminarPersona = (personaId) => {
     const d = deptoDePersona(personaId);

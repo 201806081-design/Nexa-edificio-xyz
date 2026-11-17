@@ -15,6 +15,7 @@ import HomeIcon from '@mui/icons-material/Home';
 import { useNavigate } from 'react-router-dom';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import { COPROPIETARIOS_MOCK, eliminarPersona } from '../../constants/copropietariosMock';
+import { deptoDePersona } from '../../constants/edificioMock';
 import { usuarioDePersona, eliminarCuentaDePersona } from '../../constants/usuariosMock';
 
 // Color del chip segun el tipo (como el mockup: Propietario verde, Inquilino azul)
@@ -48,8 +49,15 @@ function Acciones({ persona, onEliminar }) {
   );
 }
 
-// Depto que deja la persona al eliminarla (su parqueo y baulera siguen siendo del depto)
-const unidadesTexto = (p) => p.unidad;
+// Que pasa con el depto al eliminar a la persona
+function efectoEnDepto(p) {
+  const d = deptoDePersona(p.id);
+  if (!d) return '';
+  const otro = d.propietarioId === p.id ? d.inquilinoId : d.propietarioId;
+  return otro
+    ? `Dejara su lugar en el ${d.identificador}; el parqueo y la baulera siguen con el departamento.`
+    : `El ${d.identificador} quedara libre, junto con su parqueo y su baulera.`;
+}
 
 export default function Copropietarios() {
   const navigate = useNavigate();
@@ -165,10 +173,8 @@ export default function Copropietarios() {
           <Typography variant="body2" sx={{ mb: 1.5 }}>
             Se eliminara a <strong>{eliminando?.nombres} {eliminando?.apellidos}</strong> ({eliminando?.tipo}).
           </Typography>
-          {eliminando && unidadesTexto(eliminando) && (
-            <Typography variant="body2" sx={{ mb: 1 }}>
-              Dejara su lugar en el <strong>{unidadesTexto(eliminando)}</strong> (el parqueo y la baulera siguen siendo del departamento).
-            </Typography>
+          {eliminando && efectoEnDepto(eliminando) && (
+            <Typography variant="body2" sx={{ mb: 1 }}>{efectoEnDepto(eliminando)}</Typography>
           )}
           {eliminando && usuarioDePersona(eliminando.id) && (
             <Typography variant="body2">Tambien se eliminara su cuenta del sistema.</Typography>
