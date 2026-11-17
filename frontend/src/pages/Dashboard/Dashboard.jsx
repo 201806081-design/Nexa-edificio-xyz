@@ -9,7 +9,7 @@ import { ICONO_PANTALLA, ICONO_GRUPO } from '../../components/iconosPantallas';
 import { useAuth } from '../../hooks/useAuth';
 import { usePermisos } from '../../hooks/usePermisos';
 import { ROLES, armarMenu } from '../../constants/permisos';
-import { UNIDADES } from '../../constants/edificioMock';
+import { UNIDADES, ocupanteDe } from '../../constants/edificioMock';
 
 // Accesos rapidos: las mismas opciones del menu lateral (segun los permisos del rol)
 // con una descripcion corta. Clave = pantalla o grupo con submenu.
@@ -51,7 +51,7 @@ function resumenEdificio() {
   const deptos = UNIDADES.filter((u) => u.tipo === 'Departamento');
   return [
     { etiqueta: 'Departamentos', valor: deptos.length },
-    { etiqueta: 'Deptos ocupados', valor: deptos.filter((u) => u.personaId).length },
+    { etiqueta: 'Deptos ocupados', valor: deptos.filter((u) => ocupanteDe(u)).length },
     { etiqueta: 'Parqueos', valor: UNIDADES.filter((u) => u.tipo === 'Parqueo').length },
     { etiqueta: 'Bauleras', valor: UNIDADES.filter((u) => u.tipo === 'Baulera').length },
   ];

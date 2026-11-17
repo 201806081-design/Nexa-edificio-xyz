@@ -18,7 +18,7 @@
 // Las demas se autentican aqui (autenticarLocal) hasta que el backend las tenga.
 import { ROLES, TIPOS_RESIDENTE } from './permisos';
 import { EMPLEADOS_MOCK } from './personalMock';
-import { PERSONAS, departamentos, numeroDe, personaPorId } from './edificioMock';
+import { PERSONAS, deptoDePersona, numeroDe, personaPorId } from './edificioMock';
 
 export const PASSWORD_INICIAL = '1234';
 
@@ -43,7 +43,7 @@ export const tipoResidente = (u) => TIPOS_RESIDENTE[personaPorId(u?.personaId)?.
 
 // Numero del depto del residente ('101') o null
 export const deptoDeUsuario = (u) => {
-    const d = departamentos().find((x) => x.personaId === u?.personaId);
+    const d = deptoDePersona(u?.personaId);
     return d ? numeroDe(d) : null;
 };
 

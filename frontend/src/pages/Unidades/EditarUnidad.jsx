@@ -1,23 +1,34 @@
 import { useNavigate, useParams } from 'react-router-dom';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import UnidadForm from './UnidadForm';
-import { UNIDADES_MOCK } from '../../constants/unidadesMock';
-import { sincronizarPersonas, cambiarOcupante } from '../../constants/edificioMock';
+import { UNIDADES_MOCK, datosDepto } from '../../constants/unidadesMock';
+import { sincronizarPersonas, cambiarOcupante, actualizarDepto } from '../../constants/edificioMock';
 import { sincronizarDepartamentosActivos } from '../../constants/expensasMock';
+
+const CAMPOS_DEPTO = ['propietarioId', 'inquilinoId', 'propietarioViveAhi', 'pagaPropietario'];
+const CAMPOS_OTROS = ['nivel', 'techado', 'personaId'];
 
 // Aplica los cambios del formulario sobre la unidad existente
 function aplicarCambios(unidad, form) {
-    unidad.tipo = form.tipo;
+    // Primero se liberan las personas del tipo anterior (registra el historial del depto)
+    if (unidad.tipo === 'Departamento' && form.tipo !== 'Departamento') {
+        actualizarDepto(unidad, { propietarioId: null, inquilinoId: null });
+    }
+    if (unidad.tipo !== 'Departamento') cambiarOcupante(unidad, null);
+
     unidad.identificador = form.identificador.trim();
-    cambiarOcupante(unidad, form.personaId || null); // registra el historial si cambia la persona
-    // Limpia campos que no aplican al tipo y setea los que si
-    delete unidad.piso; delete unidad.categoria; delete unidad.nivel; delete unidad.techado;
+    // Limpia los campos que no aplican al tipo nuevo y setea los que si
+    const sobran = form.tipo === 'Departamento' ? CAMPOS_OTROS : [...CAMPOS_DEPTO, 'piso', 'categoria'];
+    sobran.forEach((campo) => delete unidad[campo]);
+    unidad.tipo = form.tipo;
     if (form.tipo === 'Departamento') {
         unidad.piso = Number(form.piso);
         unidad.categoria = form.categoria;
+        actualizarDepto(unidad, datosDepto(form)); // registra el historial si cambia quien vive
     } else {
         unidad.nivel = form.nivel;
         if (form.tipo === 'Parqueo') unidad.techado = form.techado === 'Si';
+        cambiarOcupante(unidad, form.personaId || null);
     }
 }
 

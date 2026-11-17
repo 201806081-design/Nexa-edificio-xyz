@@ -3,6 +3,7 @@ import EditIcon from '@mui/icons-material/Edit';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import { COPROPIETARIOS_MOCK, inmueblesDePersona } from '../../constants/copropietariosMock';
+import { deptoDePersona, estadoDepto, responsablePagoDe, nombreCompleto } from '../../constants/edificioMock';
 
 function Dato({ etiqueta, valor }) {
   return (
@@ -99,6 +100,13 @@ export default function DetallePersona() {
             <Dato etiqueta="Piso" valor={persona.piso} />
           </Box>
         </Box>
+
+        {deptoDePersona(persona.id) && (
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+            Estado del departamento: <strong>{estadoDepto(deptoDePersona(persona.id))}</strong>
+            {' · '}Responsable de pago: <strong>{nombreCompleto(responsablePagoDe(deptoDePersona(persona.id)))}</strong>
+          </Typography>
+        )}
 
         {/* Otros inmuebles de la persona: parqueos y bauleras (se asignan en Unidades) */}
         <Typography variant="body2" color="text.secondary" sx={{ mt: 1, mb: 0.5 }}>Parqueos y bauleras</Typography>

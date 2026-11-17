@@ -17,8 +17,10 @@ import PersonIcon from '@mui/icons-material/Person';
 import { useNavigate, useLocation } from 'react-router-dom';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import { UNIDADES_MOCK, CATEGORIAS_DEPTO, eliminarUnidad } from '../../constants/unidadesMock';
-import { COPROPIETARIOS_MOCK, nombreCompleto } from '../../constants/copropietariosMock';
-import { TIPO_DEPTO_POR_CATEGORIA, tipoDeptoDe, renombrarTiposDepartamento } from '../../constants/edificioMock';
+import { nombreCompleto } from '../../constants/copropietariosMock';
+import {
+    TIPO_DEPTO_POR_CATEGORIA, tipoDeptoDe, renombrarTiposDepartamento, personaPorId, estadoDepto,
+} from '../../constants/edificioMock';
 import { EXPENSA_BASE } from '../../constants/configuracionMock';
 import { formatBs } from '../../constants/finanzasMock';
 
@@ -35,10 +37,29 @@ function chipSx(tipo) {
 const tipoDepto = (u) => (u.tipo === 'Departamento' ? `Tipo ${u.categoria} · ${tipoDeptoDe(u)}` : 'No aplica');
 const ubicacion = (u) => (u.tipo === 'Departamento' ? `Piso ${u.piso}` : u.nivel);
 
-// Nombre del copropietario asociado (o texto por defecto si no tiene)
-function personaAsociada(personaId) {
-    const p = COPROPIETARIOS_MOCK.find((c) => c.id === personaId);
-    return p ? nombreCompleto(p) : 'Sin asociación';
+// Personas asociadas: en deptos el propietario y el inquilino; en parqueos y bauleras una persona
+function personaAsociada(u) {
+    if (u.tipo !== 'Departamento') {
+        const p = personaPorId(u.personaId);
+        return p ? nombreCompleto(p) : 'Sin asociación';
+    }
+    const partes = [
+        u.propietarioId && `${nombreCompleto(personaPorId(u.propietarioId))} (propietario)`,
+        u.inquilinoId && `${nombreCompleto(personaPorId(u.inquilinoId))} (inquilino)`,
+    ].filter(Boolean);
+    return partes.length ? partes.join(' · ') : 'Sin asociación';
+}
+
+// Estado del depto debajo de las personas: "Alquilado", "Disponible para alquilar"...
+function Asociacion({ unidad }) {
+    return (
+        <>
+            <Typography variant="body2">{personaAsociada(unidad)}</Typography>
+            {unidad.tipo === 'Departamento' && (
+                <Typography variant="caption" color="text.secondary">{estadoDepto(unidad)}</Typography>
+            )}
+        </>
+    );
 }
 
 export default function Unidades() {
@@ -156,7 +177,7 @@ export default function Unidades() {
                                 <TableCell>{u.identificador}</TableCell>
                                 <TableCell>{tipoDepto(u)}</TableCell>
                                 <TableCell>{ubicacion(u)}</TableCell>
-                                <TableCell>{personaAsociada(u.personaId)}</TableCell>
+                                <TableCell><Asociacion unidad={u} /></TableCell>
                                 <TableCell align="center">
                                     <Tooltip title="Ver detalle">
                                         <IconButton color="primary" onClick={() => verDetalle(u.id)}>
@@ -208,7 +229,7 @@ export default function Unidades() {
                         </Box>
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1, color: 'text.secondary' }}>
                             <PersonIcon fontSize="small" color="primary" />
-                            <Typography variant="body2">{personaAsociada(u.personaId)}</Typography>
+                            <Box><Asociacion unidad={u} /></Box>
                         </Box>
                         <Divider sx={{ mb: 1 }} />
                         <Box sx={{ display: 'flex', justifyContent: 'center', gap: 3 }}>

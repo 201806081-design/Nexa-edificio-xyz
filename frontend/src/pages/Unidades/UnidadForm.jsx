@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import {
     Box, Typography, TextField, Button, ToggleButton, ToggleButtonGroup,
-    Select, MenuItem, Alert, InputAdornment,
+    Select, MenuItem, Alert, InputAdornment, FormControlLabel, Switch,
 } from '@mui/material';
 import {
     TIPOS_UNIDAD, CATEGORIAS_DEPTO, NIVELES, UNIDADES_MOCK, personasDisponibles,
@@ -16,7 +16,12 @@ const VACIO = {
     categoria: '', // tipo de departamento: 'A' | 'B' | 'C'
     nivel: '',
     techado: '', // 'Si' | 'No'
-    personaId: '',
+    personaId: '', // parqueo y baulera
+    // Departamento
+    propietarioId: '',
+    inquilinoId: '',
+    propietarioViveAhi: true,
+    pagaPropietario: false,
 };
 
 // El prefijo de cada tipo ya viene escrito: el usuario solo pone el numero o codigo.
@@ -46,7 +51,24 @@ function desdeUnidad(u) {
         nivel: u.nivel ?? '',
         techado: u.techado === undefined ? '' : (u.techado ? 'Si' : 'No'),
         personaId: u.personaId ?? '',
+        propietarioId: u.propietarioId ?? '',
+        inquilinoId: u.inquilinoId ?? '',
+        propietarioViveAhi: u.propietarioViveAhi ?? true,
+        pagaPropietario: u.pagaPropietario ?? false,
     };
+}
+
+// Selector de persona con etiqueta arriba (asociacion de la unidad)
+function SelectorPersona({ label, value, onChange, opciones, vacio, disabled }) {
+    return (
+        <Box sx={{ mb: 2 }}>
+            <Typography variant="body2" sx={{ fontWeight: 500, mb: 0.5 }}>{label}</Typography>
+            <Select fullWidth displayEmpty value={value} onChange={onChange} disabled={disabled}>
+                <MenuItem value=""><em>{vacio}</em></MenuItem>
+                {opciones.map((c) => <MenuItem key={c.id} value={c.id}>{nombreCompleto(c)}</MenuItem>)}
+            </Select>
+        </Box>
+    );
 }
 
 // Campo de texto con etiqueta arriba
@@ -84,7 +106,7 @@ export default function UnidadForm({ titulo, subtitulo, valorInicial, textoBoton
     const cambiar = (campo, valor) => {
         // Al cambiar el tipo se limpian los campos propios del tipo anterior
         if (campo === 'tipo') {
-            setForm((f) => ({ ...f, tipo: valor, identificador: '', piso: '', categoria: '', nivel: '', techado: '', personaId: '' }));
+            setForm({ ...VACIO, tipo: valor });
         } else {
             setForm((f) => ({ ...f, [campo]: valor }));
         }
@@ -109,6 +131,10 @@ export default function UnidadForm({ titulo, subtitulo, valorInicial, textoBoton
         } else {
             if (!form.nivel) err.nivel = true;
             if (form.tipo === 'Parqueo' && !form.techado) err.techado = true;
+        }
+        // Si el propietario vive en el depto, no puede haber inquilino
+        if (form.tipo === 'Departamento' && form.inquilinoId && form.propietarioId && form.propietarioViveAhi) {
+            err.inquilinoId = 'Si el propietario vive en el departamento no puede tener inquilino';
         }
         setErrores(err);
         return Object.keys(err).length === 0;
@@ -232,18 +258,52 @@ export default function UnidadForm({ titulo, subtitulo, valorInicial, textoBoton
                 <Typography variant="h3" sx={{ fontSize: '1.1rem', fontWeight: 600, mt: 3, mb: 1 }}>
                     Asociacion (Opcional)
                 </Typography>
-                <Typography variant="body2" sx={{ fontWeight: 500, mb: 0.5 }}>Persona asociada</Typography>
-                <Select fullWidth displayEmpty value={form.personaId}
-                    onChange={(e) => cambiar('personaId', e.target.value)}>
-                    <MenuItem value=""><em>Sin asociacion</em></MenuItem>
-                    {personasDisponibles(form.tipo, valorInicial?.id ?? null).map((c) => (
-                        <MenuItem key={c.id} value={c.id}>{nombreCompleto(c)} — {c.tipo}</MenuItem>
-                    ))}
-                </Select>
-                <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                    Cada persona puede tener un departamento, un parqueo y una baulera: solo aparecen
-                    las personas que todavia no tienen {form.tipo === 'Departamento' ? 'departamento' : `${form.tipo.toLowerCase()}`}.
-                </Typography>
+
+                {form.tipo === 'Departamento' ? (
+                    <>
+                        <SelectorPersona label="Propietario" value={form.propietarioId} vacio="Sin propietario"
+                            opciones={personasDisponibles('Departamento', valorInicial?.id ?? null, 'Propietario')}
+                            onChange={(e) => cambiar('propietarioId', e.target.value)} />
+                        {form.propietarioId && (
+                            <Box sx={{ mt: -1, mb: 2 }}>
+                                <FormControlLabel label="El propietario vive en el departamento"
+                                    control={<Switch checked={form.propietarioViveAhi}
+                                        onChange={(e) => cambiar('propietarioViveAhi', e.target.checked)} />} />
+                            </Box>
+                        )}
+                        <SelectorPersona label="Inquilino" value={form.inquilinoId} vacio="Sin inquilino"
+                            disabled={!!form.propietarioId && form.propietarioViveAhi}
+                            opciones={personasDisponibles('Departamento', valorInicial?.id ?? null, 'Inquilino')}
+                            onChange={(e) => cambiar('inquilinoId', e.target.value)} />
+                        {errores.inquilinoId && (
+                            <Typography sx={{ color: '#d64545', fontSize: '0.76rem', mt: -1.5, mb: 2 }}>{errores.inquilinoId}</Typography>
+                        )}
+                        {form.inquilinoId && form.propietarioId && (
+                            <Box sx={{ mb: 2 }}>
+                                <Typography variant="body2" sx={{ fontWeight: 500, mb: 0.5 }}>Responsable de pago de expensas</Typography>
+                                <Select fullWidth value={form.pagaPropietario ? 'Propietario' : 'Inquilino'}
+                                    onChange={(e) => cambiar('pagaPropietario', e.target.value === 'Propietario')}>
+                                    <MenuItem value="Inquilino">Inquilino</MenuItem>
+                                    <MenuItem value="Propietario">Propietario</MenuItem>
+                                </Select>
+                            </Box>
+                        )}
+                        <Typography variant="body2" color="text.secondary">
+                            Para alquilar el departamento, el propietario no debe vivir en el. Solo aparecen
+                            las personas que todavia no tienen departamento.
+                        </Typography>
+                    </>
+                ) : (
+                    <>
+                        <SelectorPersona label="Persona asociada" value={form.personaId} vacio="Sin asociacion"
+                            opciones={personasDisponibles(form.tipo, valorInicial?.id ?? null)}
+                            onChange={(e) => cambiar('personaId', e.target.value)} />
+                        <Typography variant="body2" color="text.secondary">
+                            Cada persona puede tener un parqueo y una baulera: solo aparecen las personas
+                            que todavia no tienen {form.tipo.toLowerCase()}.
+                        </Typography>
+                    </>
+                )}
 
                 {mostrarAviso && (
                     <Alert severity="error" sx={{ mt: 3 }}>

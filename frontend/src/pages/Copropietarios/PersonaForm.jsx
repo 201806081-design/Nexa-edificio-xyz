@@ -1,10 +1,13 @@
 import { useState } from 'react';
 import {
   Box, Typography, TextField, Button, ToggleButton, ToggleButtonGroup,
-  Select, MenuItem, Alert,
+  Select, MenuItem, Alert, FormControlLabel, Switch,
 } from '@mui/material';
-import { ESTADOS_CIVILES, unidadDePersona, unidadesDisponibles } from '../../constants/copropietariosMock';
+import {
+  ESTADOS_CIVILES, unidadDePersona, unidadesDisponibles, nombreCompleto,
+} from '../../constants/copropietariosMock';
 import { etiquetaUnidad } from '../../constants/unidadesMock';
+import { personaPorId } from '../../constants/edificioMock';
 
 const VACIO = {
   tipo: 'Propietario',
@@ -20,6 +23,7 @@ const VACIO = {
   deptoId: '',
   parqueoId: '',
   bauleraId: '',
+  viveAhi: true, // solo propietarios: si no vive, el depto queda disponible para alquilar
 };
 
 // Unidades relacionadas: una de cada tipo como maximo
@@ -29,12 +33,27 @@ const UNIDADES_RELACIONADAS = [
   { campo: 'bauleraId', tipo: 'Baulera', label: 'Baulera (opcional)', vacio: 'Sin baulera' },
 ];
 
+// Campos del formulario que no son de la persona (se guardan en las unidades)
+const CAMPOS_UNIDAD = ['deptoId', 'parqueoId', 'bauleraId', 'viveAhi'];
+
 // Datos de la persona para el formulario (en editar se cargan sus unidades actuales)
 function formInicial(persona) {
   if (!persona) return VACIO;
   const datos = Object.fromEntries(Object.keys(VACIO).map((k) => [k, persona[k] ?? VACIO[k]]));
   UNIDADES_RELACIONADAS.forEach(({ campo, tipo }) => { datos[campo] = unidadDePersona(persona.id, tipo)?.id ?? ''; });
+  const depto = unidadDePersona(persona.id, 'Departamento');
+  datos.viveAhi = depto?.propietarioId === persona.id ? depto.propietarioViveAhi : true;
   return datos;
+}
+
+// Etiqueta de un depto en el selector, con quien mas esta relacionado:
+//   inquilino ve al dueño  -> "Depto. 102 -- 2 dormitorios -- piso 1 -- dueño: Hugo Salazar"
+//   propietario ve al inquilino que ya lo alquila (deptos sin dueño)
+function etiquetaDepto(u, tipoPersona, personaId) {
+  const otro = tipoPersona === 'Inquilino'
+    ? (u.propietarioId && `dueño: ${nombreCompleto(personaPorId(u.propietarioId))}`)
+    : (u.inquilinoId && u.inquilinoId !== personaId && `alquilado a ${nombreCompleto(personaPorId(u.inquilinoId))}`);
+  return otro ? `${etiquetaUnidad(u)} -- ${otro}` : etiquetaUnidad(u);
 }
 
 // Un campo con su etiqueta arriba
@@ -56,9 +75,18 @@ export default function PersonaForm({
   const [mostrarAviso, setMostrarAviso] = useState(false);
 
   const cambiar = (campo, valor) => {
-    setForm((f) => ({ ...f, [campo]: valor }));
+    // Propietarios e inquilinos ven deptos distintos: al cambiar el tipo se limpia el depto
+    setForm((f) => ({ ...f, [campo]: valor, ...(campo === 'tipo' ? { deptoId: '' } : {}) }));
     setErrores((e) => ({ ...e, [campo]: '' }));
   };
+
+  const personaId = valorInicial?.id ?? null;
+  const esPropietario = form.tipo === 'Propietario';
+  const deptoElegido = unidadesDisponibles('Departamento', personaId, form.tipo).find((d) => d.id === form.deptoId);
+  // Si el depto ya esta alquilado a otra persona, el propietario no puede vivir ahi
+  const alquiladoA = esPropietario && deptoElegido?.inquilinoId && deptoElegido.inquilinoId !== personaId
+    ? personaPorId(deptoElegido.inquilinoId) : null;
+  const viveAhi = esPropietario && !!form.deptoId && form.viveAhi && !alquiladoA;
 
   const validar = () => {
     const err = {};
@@ -69,8 +97,10 @@ export default function PersonaForm({
     if (!form.estadoCivil) err.estadoCivil = 'Seleccione el estado civil';
     const hijos = Number(form.hijos);
     if (form.hijos === '' || !Number.isInteger(hijos) || hijos < 0 || hijos > 20) err.hijos = 'Entre 0 y 20';
+    // Un propietario que no vive en su depto puede tener 0 personas viviendo
+    const minimo = esPropietario && !viveAhi ? 0 : 1;
     const hab = Number(form.habitantes);
-    if (form.habitantes === '' || !Number.isInteger(hab) || hab < 1 || hab > 30) err.habitantes = 'Entre 1 y 30';
+    if (form.habitantes === '' || !Number.isInteger(hab) || hab < minimo || hab > 30) err.habitantes = `Entre ${minimo} y 30`;
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.correo)) err.correo = 'Ingrese un correo valido';
     setErrores(err);
     return Object.keys(err).length === 0;
@@ -83,10 +113,10 @@ export default function PersonaForm({
     }
     setMostrarAviso(false);
     // Se separan los datos de la persona de sus unidades (las unidades se asignan aparte)
-    const { deptoId, parqueoId, bauleraId, ...persona } = form;
+    const persona = Object.fromEntries(Object.entries(form).filter(([k]) => !CAMPOS_UNIDAD.includes(k)));
     onGuardar(
       { ...persona, hijos: Number(form.hijos), habitantes: Number(form.habitantes) },
-      { deptoId: deptoId || null, parqueoId: parqueoId || null, bauleraId: bauleraId || null },
+      { deptoId: form.deptoId || null, parqueoId: form.parqueoId || null, bauleraId: form.bauleraId || null, viveAhi },
     );
   };
 
@@ -179,7 +209,7 @@ export default function PersonaForm({
             error={!!errores.hijos} helperText={errores.hijos} />
           <Campo label="Personas que viven en el depto *" type="number" placeholder="Ej. 4" value={form.habitantes}
             onChange={(e) => cambiar('habitantes', e.target.value)}
-            slotProps={{ htmlInput: { min: 1, max: 30 } }}
+            slotProps={{ htmlInput: { min: 0, max: 30 } }}
             error={!!errores.habitantes} helperText={errores.habitantes} />
         </Box>
 
@@ -187,17 +217,38 @@ export default function PersonaForm({
           Unidades relacionadas
         </Typography>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
-          Solo aparecen las unidades libres. Si cambias una unidad, la anterior queda libre.
+          {esPropietario
+            ? 'Aparecen los departamentos que todavia no tienen dueño.'
+            : 'Aparecen los departamentos sin inquilino cuyo dueño no vive ahi (disponibles para alquilar).'}
+          {' '}Si cambias una unidad, la anterior queda libre.
         </Typography>
         {UNIDADES_RELACIONADAS.map(({ campo, tipo, label, vacio }) => {
-          const opciones = unidadesDisponibles(tipo, valorInicial?.id ?? null);
+          const opciones = unidadesDisponibles(tipo, personaId, form.tipo);
+          const etiqueta = (u) => (tipo === 'Departamento' ? etiquetaDepto(u, form.tipo, personaId) : etiquetaUnidad(u));
           return (
             <Box key={campo} sx={{ mb: 2 }}>
               <Typography variant="body2" sx={{ fontWeight: 500, mb: 0.5 }}>{label}</Typography>
               <Select fullWidth displayEmpty value={form[campo]} onChange={(e) => cambiar(campo, e.target.value)}>
-                <MenuItem value=""><em>{opciones.length ? vacio : `No hay ${tipo.toLowerCase()}s libres`}</em></MenuItem>
-                {opciones.map((u) => <MenuItem key={u.id} value={u.id}>{etiquetaUnidad(u)}</MenuItem>)}
+                <MenuItem value=""><em>{opciones.length ? vacio : `No hay ${tipo.toLowerCase()}s disponibles`}</em></MenuItem>
+                {opciones.map((u) => <MenuItem key={u.id} value={u.id}>{etiqueta(u)}</MenuItem>)}
               </Select>
+              {/* El propietario indica si usa su depto; si no, queda disponible para alquilar */}
+              {campo === 'deptoId' && esPropietario && form.deptoId && (
+                <Box sx={{ mt: 1 }}>
+                  <FormControlLabel
+                    control={<Switch checked={viveAhi} disabled={!!alquiladoA}
+                      onChange={(e) => cambiar('viveAhi', e.target.checked)} />}
+                    label="Vive en el departamento"
+                  />
+                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                    {alquiladoA
+                      ? `Esta alquilado a ${nombreCompleto(alquiladoA)}: el departamento queda como alquilado.`
+                      : viveAhi
+                        ? 'El departamento queda ocupado por el propietario.'
+                        : 'El departamento queda disponible para alquilar a un inquilino.'}
+                  </Typography>
+                </Box>
+              )}
             </Box>
           );
         })}

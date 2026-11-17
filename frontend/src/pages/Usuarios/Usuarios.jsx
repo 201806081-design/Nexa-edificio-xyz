@@ -20,7 +20,7 @@ import {
   generarUsername, PASSWORD_INICIAL,
 } from '../../constants/usuariosMock';
 import { EMPLEADOS_MOCK } from '../../constants/personalMock';
-import { PERSONAS, departamentos, nombreCompleto } from '../../constants/edificioMock';
+import { PERSONAS, deptoDePersona, nombreCompleto } from '../../constants/edificioMock';
 
 // Reglas de cuentas:
 //  - Administrador: SIEMPRE es personal del edificio con cargo Administrador.
@@ -43,7 +43,7 @@ const NUEVO_VACIO = {
   nombres: '', apellidos: '', email: '', celular: '',
 };
 
-const deptoDePersona = (personaId) => departamentos().find((d) => d.personaId === personaId)?.identificador ?? 'Sin depto';
+const deptoTexto = (personaId) => deptoDePersona(personaId)?.identificador ?? 'Sin depto';
 
 // Con quien esta vinculada la cuenta: personal, residente o externo
 function Vinculo({ usuario }) {
@@ -317,7 +317,7 @@ export default function Usuarios() {
                 onChange={(e) => cambiarNuevo('personaId', e.target.value)}>
                 <MenuItem value=""><em>Elige una persona</em></MenuItem>
                 {personasSinCuenta(nuevo.tipoResidente).map((p) => (
-                  <MenuItem key={p.id} value={p.id}>{nombreCompleto(p)} · {deptoDePersona(p.id)} · {p.correo || 'sin correo'}</MenuItem>
+                  <MenuItem key={p.id} value={p.id}>{nombreCompleto(p)} · {deptoTexto(p.id)} · {p.correo || 'sin correo'}</MenuItem>
                 ))}
               </Select>
               {errores.personaId && <Typography variant="caption" color="error">{errores.personaId}</Typography>}

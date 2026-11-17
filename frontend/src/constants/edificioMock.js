@@ -77,33 +77,44 @@ export const PERSONAS = [
       estadoCivil: 'Viudo/a', hijos: 2, habitantes: 3 },
     { id: 9, nombres: 'Rafael', apellidos: 'Cruz', tipo: 'Propietario', documento: '9890173', telefono: '79012309', correo: 'rafael.cruz@gmail.com',
       estadoCivil: 'Casado/a', hijos: 3, habitantes: 5 },
+    // Dueño del Depto. 102: no vive ahi, se lo alquila a Luis Garcia
+    { id: 10, nombres: 'Hugo', apellidos: 'Salazar', tipo: 'Propietario', documento: '4901284', telefono: '70123410', correo: 'hugo.salazar@gmail.com',
+      estadoCivil: 'Casado/a', hijos: 2, habitantes: 0 },
 ];
 
 // ------------------------------------------------------------
 //  UNIDADES
-//  Departamento: identificador ('Depto. 101'), categoria (A/B/C = tipo de depto), piso.
+//  Departamento: identificador ('Depto. 101'), categoria (A/B/C = tipo de depto), piso y
+//    propietarioId       dueño del depto (o null)
+//    inquilinoId         quien lo alquila (o null). Solo si el propietario NO vive ahi.
+//    propietarioViveAhi  true si el dueño usa el depto (entonces no se puede alquilar)
+//    pagaPropietario     si hay inquilino, true = las expensas las paga el dueño
+//  (igual que la tabla Ocupacion del backend: varias personas por unidad + esResponsablePago)
+//  Parqueo y Baulera: personaId = persona asociada (o null si esta libre).
 //  El numero ('101') se obtiene del identificador con numeroDe(unidad).
-//  personaId = persona asociada (o null si esta libre).
 // ------------------------------------------------------------
-const depto = (id, numero, categoria, personaId) => ({
+const depto = (id, numero, categoria, { propietarioId = null, inquilinoId = null, viveAhi = true } = {}) => ({
     id,
     tipo: 'Departamento',
     identificador: `Depto. ${numero}`,
     categoria,
     piso: Number(numero.charAt(0)),
-    personaId,
+    propietarioId,
+    inquilinoId,
+    propietarioViveAhi: Boolean(propietarioId) && viveAhi,
+    pagaPropietario: false,
 });
 
 export const UNIDADES = [
-    depto(1, '101', 'A', 1),
-    depto(2, '102', 'B', 2),
-    depto(3, '103', 'A', 3),
-    depto(4, '201', 'A', 4),
-    depto(5, '202', 'B', 5),
-    depto(6, '203', 'B', 6),
-    depto(7, '301', 'C', 7),
-    depto(8, '302', 'C', 8),
-    depto(9, '303', 'C', 9),
+    depto(1, '101', 'A', { propietarioId: 1 }),
+    depto(2, '102', 'B', { propietarioId: 10, inquilinoId: 2, viveAhi: false }), // alquilado
+    depto(3, '103', 'A', { propietarioId: 3 }),
+    depto(4, '201', 'A', { propietarioId: 4 }),
+    depto(5, '202', 'B', { propietarioId: 5 }),
+    depto(6, '203', 'B', { propietarioId: 6 }),
+    depto(7, '301', 'C', { inquilinoId: 7 }), // sin dueño registrado
+    depto(8, '302', 'C', { propietarioId: 8 }),
+    depto(9, '303', 'C', { propietarioId: 9 }),
     { id: 10, tipo: 'Parqueo', identificador: 'Parqueo P-08', nivel: 'Nivel 1', techado: true, personaId: 8 },
     { id: 11, tipo: 'Parqueo', identificador: 'Parqueo P-12', nivel: 'Nivel 1', techado: false, personaId: null },
     { id: 12, tipo: 'Baulera', identificador: 'Baulera B-06', nivel: 'Nivel 1', personaId: 9 },
@@ -115,7 +126,7 @@ export const UNIDADES = [
 
 // ------------------------------------------------------------
 //  HISTORIAL DE OCUPANTES (personas que ya no viven en el depto)
-//  Los ocupantes ACTUALES no se escriben aqui: salen de UNIDADES.personaId.
+//  El ocupante ACTUAL no se escribe aqui: sale de UNIDADES (ver ocupanteDe).
 // ------------------------------------------------------------
 export const OCUPANTES_ANTERIORES = [
     { unidadId: 8, nombre: 'Jorge Vargas', tipo: 'Inquilino', fechaInicio: '2023-03-01', fechaFin: '2024-12-31' },
@@ -160,11 +171,39 @@ export const inmueblesDePersona = (personaId) =>
 // Numeros de todos los deptos: ['101', '102', ...]
 export const numerosDepto = () => departamentos().map(numeroDe);
 
-// Persona asociada a un depto (o null)
-export const personaDeDepto = (numero) => {
-    const u = deptoPorNumero(numero);
-    return u ? personaPorId(u.personaId) : null;
+// ---------- Departamento: propietario, inquilino y estado ----------
+
+// Quien vive en el depto: el inquilino, o el propietario si vive ahi (o null)
+export const ocupanteDe = (u) => personaPorId(u?.inquilinoId)
+    ?? (u?.propietarioViveAhi ? personaPorId(u.propietarioId) : null);
+
+// Responsable de pago: el inquilino (salvo que pague el dueño) o el propietario
+export const responsablePagoDe = (u) => {
+    const inquilino = personaPorId(u?.inquilinoId);
+    const propietario = personaPorId(u?.propietarioId);
+    if (inquilino && !(u.pagaPropietario && propietario)) return inquilino;
+    return propietario;
 };
+
+// Estado del depto
+export const ESTADOS_DEPTO = {
+    LIBRE: 'Libre',
+    PROPIETARIO: 'Ocupado por el propietario',
+    DISPONIBLE: 'Disponible para alquilar',
+    ALQUILADO: 'Alquilado',
+};
+export const estadoDepto = (u) => {
+    if (u?.inquilinoId) return ESTADOS_DEPTO.ALQUILADO;
+    if (u?.propietarioId) return u.propietarioViveAhi ? ESTADOS_DEPTO.PROPIETARIO : ESTADOS_DEPTO.DISPONIBLE;
+    return ESTADOS_DEPTO.LIBRE;
+};
+
+// Depto de una persona: el que es suyo (propietario) o el que alquila (inquilino)
+export const deptoDePersona = (personaId) => (personaId == null ? null
+    : departamentos().find((d) => d.propietarioId === personaId || d.inquilinoId === personaId) ?? null);
+
+// Responsable de pago de un depto a partir del numero ('101')
+export const personaDeDepto = (numero) => responsablePagoDe(deptoPorNumero(numero));
 
 // Nombre del responsable de pago de un depto.
 //   responsableDe('102')                    -> 'Luis Garcia'
@@ -191,15 +230,15 @@ export const vincularResponsable = (obj, campoDepto = 'depto') => {
 
 // ------------------------------------------------------------
 //  SINCRONIZACION persona <-> departamento
-//  La relacion se guarda en UNIDADES.personaId. Los campos unidad,
-//  tipoDepartamento y piso de cada persona se recalculan desde ahi.
+//  La relacion se guarda en UNIDADES (propietarioId / inquilinoId). Los campos
+//  unidad, tipoDepartamento y piso de cada persona se recalculan desde ahi.
 // ------------------------------------------------------------
 
 // Recalcula unidad / tipoDepartamento / piso de todas las personas.
 // Llamar despues de registrar o editar una unidad.
 export const sincronizarPersonas = () => {
     PERSONAS.forEach((p) => {
-        const u = departamentos().find((d) => d.personaId === p.id);
+        const u = deptoDePersona(p.id);
         p.unidad = u ? u.identificador : '';
         p.tipoDepartamento = u ? tipoDeptoDe(u) : '';
         p.piso = u ? u.piso : '';
@@ -209,41 +248,72 @@ export const sincronizarPersonas = () => {
 const hoy = () => new Date().toISOString().slice(0, 10);
 
 // Unidad de un tipo ('Departamento' | 'Parqueo' | 'Baulera') que tiene la persona (o null)
-export const unidadDePersona = (personaId, tipo) =>
-    UNIDADES.find((u) => u.tipo === tipo && personaId != null && u.personaId === personaId) ?? null;
+export const unidadDePersona = (personaId, tipo) => {
+    if (tipo === 'Departamento') return deptoDePersona(personaId);
+    return UNIDADES.find((u) => u.tipo === tipo && personaId != null && u.personaId === personaId) ?? null;
+};
 
-// Unidades de un tipo que se pueden asignar a una persona: las libres + la que ya tiene
-export const unidadesDisponibles = (tipo, personaId = null) =>
-    UNIDADES.filter((u) => u.tipo === tipo && (u.personaId == null || u.personaId === personaId));
+// ¿Se puede asignar este depto a una persona? (sin contar el que ya tiene)
+//  - Propietario: el depto no tiene dueño.
+//  - Inquilino: el depto no tiene inquilino y el dueño no vive ahi (o no tiene dueño).
+const deptoDisponiblePara = (d, tipoPersona, personaId) => {
+    if (tipoPersona === 'Propietario') return d.propietarioId == null || d.propietarioId === personaId;
+    if (d.inquilinoId === personaId && personaId != null) return true;
+    return d.inquilinoId == null && !d.propietarioViveAhi;
+};
 
-// Cambia la persona de una unidad (personaId o null para liberarla).
-// En departamentos deja registrado al ocupante anterior en el historial.
-export const cambiarOcupante = (unidad, personaId) => {
-    const nuevo = personaId ?? null;
-    if (!unidad || unidad.personaId === nuevo) return;
-    if (unidad.tipo === 'Departamento' && unidad.personaId) {
-        const anterior = personaPorId(unidad.personaId);
+// Unidades de un tipo que se pueden asignar a una persona: las libres + la que ya tiene.
+// En departamentos depende de si la persona es Propietario o Inquilino.
+export const unidadesDisponibles = (tipo, personaId = null, tipoPersona = 'Propietario') => {
+    if (tipo === 'Departamento') return departamentos().filter((d) => deptoDisponiblePara(d, tipoPersona, personaId));
+    return UNIDADES.filter((u) => u.tipo === tipo && (u.personaId == null || u.personaId === personaId));
+};
+
+// Aplica cambios a un depto ({ propietarioId, inquilinoId, propietarioViveAhi, pagaPropietario })
+// y, si cambia quien vive ahi, deja registrado al ocupante anterior en el historial.
+export const actualizarDepto = (d, cambios) => {
+    const antes = ocupanteDe(d);
+    Object.assign(d, cambios);
+    if (!d.propietarioId) d.propietarioViveAhi = false;
+    if (!d.inquilinoId) d.pagaPropietario = false;
+    const despues = ocupanteDe(d);
+    if (antes?.id === despues?.id) return;
+    if (antes) {
         OCUPANTES_ANTERIORES.push({
-            unidadId: unidad.id, nombre: nombreCompleto(anterior), tipo: anterior?.tipo ?? '',
-            fechaInicio: INICIO_OCUPACION[unidad.id] ?? hoy(), fechaFin: hoy(),
+            unidadId: d.id, nombre: nombreCompleto(antes), tipo: antes.tipo,
+            fechaInicio: INICIO_OCUPACION[d.id] ?? hoy(), fechaFin: hoy(),
         });
     }
-    unidad.personaId = nuevo;
-    if (unidad.tipo === 'Departamento') {
-        if (nuevo) INICIO_OCUPACION[unidad.id] = hoy();
-        else delete INICIO_OCUPACION[unidad.id];
-    }
+    if (despues) INICIO_OCUPACION[d.id] = hoy();
+    else delete INICIO_OCUPACION[d.id];
+};
+
+// Cambia la persona de un parqueo o una baulera (personaId o null para liberarla)
+export const cambiarOcupante = (unidad, personaId) => {
+    if (unidad && unidad.tipo !== 'Departamento') unidad.personaId = personaId ?? null;
 };
 
 // Asigna a una persona su departamento, parqueo y baulera (ids de UNIDADES o null).
-// La unidad que tenia antes de cada tipo queda libre ("Sin asociacion").
-// Llamar despues de registrar o editar una persona.
-export const asignarUnidades = (personaId, { deptoId = null, parqueoId = null, bauleraId = null }) => {
-    [['Departamento', deptoId], ['Parqueo', parqueoId], ['Baulera', bauleraId]].forEach(([tipo, id]) => {
+// viveAhi: solo para propietarios (si no vive, el depto queda disponible para alquilar).
+// La unidad que tenia antes de cada tipo queda libre. Llamar despues de registrar o editar una persona.
+export const asignarUnidades = (personaId, { deptoId = null, parqueoId = null, bauleraId = null, viveAhi = true }) => {
+    const esPropietario = personaPorId(personaId)?.tipo === 'Propietario';
+    const campo = esPropietario ? 'propietarioId' : 'inquilinoId';
+
+    const anterior = deptoDePersona(personaId);
+    if (anterior && anterior.id !== deptoId) actualizarDepto(anterior, { [campo]: null });
+    const destino = departamentos().find((d) => d.id === deptoId);
+    if (destino) {
+        actualizarDepto(destino, esPropietario
+            ? { propietarioId: personaId, propietarioViveAhi: viveAhi && !destino.inquilinoId }
+            : { inquilinoId: personaId });
+    }
+
+    [['Parqueo', parqueoId], ['Baulera', bauleraId]].forEach(([tipo, id]) => {
         const actual = unidadDePersona(personaId, tipo);
         if (actual && actual.id !== id) cambiarOcupante(actual, null);
-        const destino = UNIDADES.find((u) => u.id === id && u.tipo === tipo);
-        if (destino) cambiarOcupante(destino, personaId);
+        const nueva = UNIDADES.find((u) => u.id === id && u.tipo === tipo);
+        if (nueva) cambiarOcupante(nueva, personaId);
     });
     sincronizarPersonas();
 };
@@ -251,6 +321,8 @@ export const asignarUnidades = (personaId, { deptoId = null, parqueoId = null, b
 // Elimina a una persona del edificio: sus unidades quedan libres.
 // (Su cuenta del sistema se elimina aparte: usuariosMock.eliminarCuentaDePersona)
 export const eliminarPersona = (personaId) => {
+    const d = deptoDePersona(personaId);
+    if (d) actualizarDepto(d, d.propietarioId === personaId ? { propietarioId: null } : { inquilinoId: null });
     UNIDADES.filter((u) => u.personaId === personaId).forEach((u) => cambiarOcupante(u, null));
     const i = PERSONAS.findIndex((p) => p.id === personaId);
     if (i !== -1) PERSONAS.splice(i, 1);

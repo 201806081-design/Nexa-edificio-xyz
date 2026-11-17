@@ -1,10 +1,10 @@
 // Catalogo de unidades del edificio: se lee de la fuente unica (edificioMock).
 // tipo: 'Departamento' | 'Parqueo' | 'Baulera'
-// personaId referencia a un copropietario (o null si esta sin asociar).
+// Departamento: propietarioId + inquilinoId (ver edificioMock). Parqueo y Baulera: personaId.
 import {
     UNIDADES, PERSONAS, OCUPANTES_ANTERIORES, INICIO_OCUPACION,
     TIPOS_UNIDAD as TIPOS_U, NIVELES as NIV, CATEGORIAS_DEPTO as CATEGORIAS,
-    nombreCompleto, numeroDe, tipoDeptoDe, unidadDePersona, sincronizarPersonas,
+    nombreCompleto, numeroDe, tipoDeptoDe, unidadDePersona, sincronizarPersonas, ocupanteDe,
 } from './edificioMock';
 import { EXPENSAS_MOCK, sincronizarDepartamentosActivos } from './expensasMock';
 
@@ -17,11 +17,10 @@ export const CATEGORIAS_DEPTO = CATEGORIAS;
 export const NIVELES = NIV;
 
 // Historial de ocupantes de una unidad. fechaFin === null => ocupante actual.
-// Se arma en cada consulta con el ocupante actual (UNIDADES.personaId) + los anteriores,
+// Se arma en cada consulta con quien vive hoy en el depto (ocupanteDe) + los anteriores,
 // asi refleja los cambios hechos desde Copropietarios y Unidades.
 const ocupantesDe = (unidadId) => {
-    const u = UNIDADES.find((x) => x.id === unidadId);
-    const p = u?.personaId ? PERSONAS.find((x) => x.id === u.personaId) : null;
+    const p = ocupanteDe(UNIDADES.find((x) => x.id === unidadId));
     const actual = p ? [{
         personaId: p.id, nombre: nombreCompleto(p), tipo: p.tipo,
         fechaInicio: INICIO_OCUPACION[unidadId] ?? '2024-01-01', fechaFin: null,
@@ -54,11 +53,21 @@ export function etiquetaUnidad(u) {
 }
 
 // Personas que se pueden asociar a una unidad de este tipo: las que todavia no tienen
-// una unidad de ese tipo + la persona que ya la ocupa (al editar).
+// una unidad de ese tipo + la persona que ya la tiene (al editar).
+// tipoPersona filtra por 'Propietario' o 'Inquilino' (para los departamentos).
 // Cada persona tiene como maximo 1 departamento, 1 parqueo y 1 baulera.
-export const personasDisponibles = (tipo, unidadId = null) => PERSONAS.filter((p) => {
+export const personasDisponibles = (tipo, unidadId = null, tipoPersona = null) => PERSONAS.filter((p) => {
+    if (tipoPersona && p.tipo !== tipoPersona) return false;
     const suya = unidadDePersona(p.id, tipo);
     return !suya || suya.id === unidadId;
+});
+
+// Propietario, inquilino y responsable de pago a partir del formulario de unidad
+export const datosDepto = (form) => ({
+    propietarioId: form.propietarioId || null,
+    inquilinoId: form.inquilinoId || null,
+    propietarioViveAhi: Boolean(form.propietarioId) && form.propietarioViveAhi,
+    pagaPropietario: Boolean(form.inquilinoId && form.propietarioId) && form.pagaPropietario,
 });
 
 // Elimina una unidad. Devuelve un mensaje de error o null si se elimino.
@@ -68,7 +77,7 @@ export const eliminarUnidad = (unidadId) => {
     const i = UNIDADES.findIndex((u) => u.id === unidadId);
     if (i === -1) return 'Unidad no encontrada';
     const u = UNIDADES[i];
-    if (u.personaId) return `${u.identificador} tiene una persona asociada: quitala primero.`;
+    if (u.personaId || u.propietarioId || u.inquilinoId) return `${u.identificador} tiene personas asociadas: quitalas primero.`;
     if (u.tipo === 'Departamento' && EXPENSAS_MOCK.some((e) => String(e.depto) === numeroDe(u))) {
         return `${u.identificador} tiene expensas registradas: no se puede eliminar para no perder su historial financiero.`;
     }
