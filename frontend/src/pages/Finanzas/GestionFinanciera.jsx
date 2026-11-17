@@ -11,22 +11,24 @@ import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import { useNavigate } from 'react-router-dom';
 import DashboardLayout from '../../layouts/DashboardLayout';
+import { usePermisos } from '../../hooks/usePermisos';
 import { formatBs } from '../../constants/finanzasMock';
 import { periodosConTodos } from '../../constants/periodos';
 import { resumenFinanciero } from '../../constants/movimientosMock';
 import { saldoPendienteTotal } from '../../constants/deudasMock';
 
-// Accesos a sub-vistas
+// Accesos a sub-vistas (solo se muestran los que el rol tiene permitidos)
 const ACCESOS = [
-    { titulo: 'Expensas', desc: 'Genera y consulta las expensas mensuales', texto: 'Ir a expensas', icon: <DescriptionOutlinedIcon />, ruta: '/finanzas/expensas' },
-    { titulo: 'Pagos', desc: 'Registra pagos y consulta el historial', texto: 'Ir a pagos', icon: <CreditCardOutlinedIcon />, ruta: '/finanzas/pagos' },
-    { titulo: 'Estado de cuenta', desc: 'Consulta saldos por departamento', texto: 'Consultar estado', icon: <DescriptionOutlinedIcon />, ruta: '/finanzas/estado-cuenta' },
-    { titulo: 'Ingresos y gastos', desc: 'Controla los movimientos economicos', texto: 'Ver movimientos', icon: <BarChartIcon />, ruta: '/finanzas/ingresos-gastos' },
-    { titulo: 'Mora e intereses', desc: 'Configura intereses y actualiza deudas vencidas', texto: 'Gestionar mora', icon: <AccessTimeIcon />, ruta: '/finanzas/mora' },
+    { clave: 'finanzas.expensas', titulo: 'Expensas', desc: 'Genera y consulta las expensas mensuales', texto: 'Ir a expensas', icon: <DescriptionOutlinedIcon />, ruta: '/finanzas/expensas' },
+    { clave: 'finanzas.pagos', titulo: 'Pagos', desc: 'Registra pagos y consulta el historial', texto: 'Ir a pagos', icon: <CreditCardOutlinedIcon />, ruta: '/finanzas/pagos' },
+    { clave: 'finanzas.estadoCuenta', titulo: 'Estado de cuenta', desc: 'Consulta saldos por departamento', texto: 'Consultar estado', icon: <DescriptionOutlinedIcon />, ruta: '/finanzas/estado-cuenta' },
+    { clave: 'finanzas.ingresosGastos', titulo: 'Ingresos y gastos', desc: 'Controla los movimientos economicos', texto: 'Ver movimientos', icon: <BarChartIcon />, ruta: '/finanzas/ingresos-gastos' },
+    { clave: 'finanzas.mora', titulo: 'Mora e intereses', desc: 'Configura intereses y actualiza deudas vencidas', texto: 'Gestionar mora', icon: <AccessTimeIcon />, ruta: '/finanzas/mora' },
 ];
 
 export default function GestionFinanciera() {
     const navigate = useNavigate();
+    const { puede } = usePermisos();
     // Periodos: mes en curso + meses cerrados desde el inicio del sistema (periodos.js)
     // "Todos los periodos" (por defecto) muestra el acumulado; luego cada mes
     const periodos = useMemo(() => periodosConTodos(), []);
@@ -90,7 +92,7 @@ export default function GestionFinanciera() {
 
             {/* Accesos a sub-vistas */}
             <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(3, 1fr)' }, gap: 2 }}>
-                {ACCESOS.map((a) => (
+                {ACCESOS.filter((a) => puede(a.clave)).map((a) => (
                     <Paper key={a.titulo} sx={{ p: 3, borderRadius: 2, display: 'flex', flexDirection: 'column', gap: 1 }}>
                         <Box sx={{ width: 52, height: 52, borderRadius: '50%', bgcolor: '#E4EEF5', color: 'primary.main', display: 'grid', placeItems: 'center' }}>
                             {a.icon}

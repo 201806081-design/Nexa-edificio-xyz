@@ -2,32 +2,31 @@ import { useEffect, useState } from 'react';
 import { Box, Typography, Chip, Paper, ButtonBase } from '@mui/material';
 import { keyframes } from '@emotion/react';
 import { useNavigate } from 'react-router-dom';
-import GroupIcon from '@mui/icons-material/Group';
-import ShieldIcon from '@mui/icons-material/Shield';
-import PeopleIcon from '@mui/icons-material/People';
-import DomainIcon from '@mui/icons-material/Domain';
-import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
-import WorkIcon from '@mui/icons-material/Work';
-import CampaignIcon from '@mui/icons-material/Campaign';
-import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import EdificioAnimado from './EdificioAnimado';
+import { ICONO_PANTALLA, ICONO_GRUPO } from '../../components/iconosPantallas';
 import { useAuth } from '../../hooks/useAuth';
-import { MENU_POR_ROL, ROLES } from '../../constants/permisos';
+import { usePermisos } from '../../hooks/usePermisos';
+import { ROLES, armarMenu } from '../../constants/permisos';
 import { UNIDADES } from '../../constants/edificioMock';
 
-// Accesos rapidos: mismas opciones del menu lateral (MENU_POR_ROL) con una descripcion corta
-const ACCESOS = {
-  'Usuarios y roles': { icon: <GroupIcon />, ruta: '/usuarios', descripcion: 'Cuentas y roles del sistema' },
-  'Permisos por rol': { icon: <ShieldIcon />, ruta: '/permisos', descripcion: 'Que puede hacer cada rol' },
-  Copropietarios: { icon: <PeopleIcon />, ruta: '/copropietarios', descripcion: 'Propietarios e inquilinos' },
-  Unidades: { icon: <DomainIcon />, ruta: '/unidades', descripcion: 'Deptos, parqueos y bauleras' },
-  Finanzas: { icon: <AccountBalanceWalletIcon />, ruta: '/finanzas', descripcion: 'Expensas, pagos y mora' },
-  Personal: { icon: <WorkIcon />, ruta: '/personal/empleados', descripcion: 'Empleados y planilla' },
-  Comunicados: { icon: <CampaignIcon />, ruta: '/comunicados/elaborar', descripcion: 'Avisos a los residentes' },
-  'Estado de cuenta': { icon: <ReceiptLongIcon />, ruta: '/finanzas/estado-cuenta', descripcion: 'Tus expensas, pagos y deudas' },
+// Accesos rapidos: las mismas opciones del menu lateral (segun los permisos del rol)
+// con una descripcion corta. Clave = pantalla o grupo con submenu.
+const DESCRIPCIONES = {
+  usuarios: 'Cuentas y roles del sistema',
+  permisos: 'Que puede ver cada rol',
+  copropietarios: 'Propietarios e inquilinos',
+  unidades: 'Deptos, parqueos y bauleras',
+  'finanzas.estadoCuenta': 'Expensas, pagos y deudas',
+  Finanzas: 'Expensas, pagos y mora',
+  Personal: 'Empleados y planilla',
+  Comunicados: 'Avisos a los residentes',
 };
+
+const accesoDe = (m) => (m.tipo === 'grupo'
+  ? { clave: m.grupo, titulo: m.grupo, icon: ICONO_GRUPO[m.grupo], ruta: m.pantallas[0].ruta }
+  : { clave: m.pantalla.clave, titulo: m.pantalla.nombre, icon: ICONO_PANTALLA[m.pantalla.clave], ruta: m.pantalla.ruta });
 
 const aparecer = keyframes`
   from { opacity: 0; transform: translateY(12px); }
@@ -81,10 +80,13 @@ function Contador({ valor }) {
 export default function Dashboard() {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { puede } = usePermisos();
   const rol = user?.rol ?? 'Consulta';
   const nombre = user?.nombre || rol;
   const esResidente = rol === ROLES.RESIDENTE;
-  const accesos = (MENU_POR_ROL[rol] ?? []).filter((op) => ACCESOS[op]);
+  const accesos = armarMenu(puede)
+    .map(accesoDe)
+    .filter((a) => a.clave !== 'inicio');
 
   return (
     <DashboardLayout>
@@ -146,10 +148,12 @@ export default function Dashboard() {
         </Box>
       )}
 
-      {/* Accesos rapidos segun el rol */}
-      <Typography variant="h3" sx={{ mt: 4, mb: 2 }}>
-        Accesos rápidos
-      </Typography>
+      {/* Accesos rapidos segun los permisos del rol */}
+      {accesos.length > 0 && (
+        <Typography variant="h3" sx={{ mt: 4, mb: 2 }}>
+          Accesos rápidos
+        </Typography>
+      )}
       <Box
         sx={{
           display: 'grid',
@@ -157,10 +161,10 @@ export default function Dashboard() {
           gap: 2,
         }}
       >
-        {accesos.map((op, i) => {
-          const { icon, ruta, descripcion } = ACCESOS[op];
+        {accesos.map(({ clave, titulo, icon, ruta }, i) => {
+          const descripcion = DESCRIPCIONES[clave] ?? '';
           return (
-            <Paper key={op} elevation={1} sx={{ ...entrada(i + 5), borderRadius: 3, overflow: 'hidden' }}>
+            <Paper key={clave} elevation={1} sx={{ ...entrada(i + 5), borderRadius: 3, overflow: 'hidden' }}>
               <ButtonBase
                 onClick={() => navigate(ruta)}
                 sx={{
@@ -195,7 +199,7 @@ export default function Dashboard() {
                 </Box>
                 <Box sx={{ flexGrow: 1, minWidth: 0 }}>
                   <Typography variant="body1" sx={{ fontWeight: 600 }}>
-                    {op}
+                    {titulo}
                   </Typography>
                   <Typography variant="body2" color="text.secondary">
                     {descripcion}
