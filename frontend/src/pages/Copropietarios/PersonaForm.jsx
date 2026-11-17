@@ -40,7 +40,7 @@ const CAMPOS_UNIDAD = ['deptoId', 'viveAhi', ...ANEXOS.flatMap((a) => [a.campo, 
 // Parqueo y baulera que ya tiene un depto (se cargan al elegir el depto)
 const anexosDelDepto = (deptoId) => Object.fromEntries(ANEXOS.flatMap(({ tipo, campo, usa }) => {
   const anexo = anexoDeDepto(deptoId || null, tipo);
-  return [[campo, anexo?.id ?? ''], [usa, anexo ? anexo.enUso : true]];
+  return [[campo, anexo?.id ?? ''], [usa, true]];
 }));
 
 // Datos de la persona para el formulario (en editar se cargan su depto y sus anexos)
@@ -239,7 +239,7 @@ export default function PersonaForm({
           {esPropietario
             ? 'Aparecen los departamentos que todavia no tienen dueño.'
             : 'Aparecen los departamentos sin inquilino cuyo dueño no vive ahi (disponibles para alquilar).'}
-          {' '}El parqueo y la baulera vienen con el departamento; si eliges &quot;Sin parqueo&quot; queda libre para otro depto.
+          {' '}El parqueo y la baulera se usan con el departamento; si dejan de usarse quedan libres para otro depto.
         </Typography>
         {/* Departamento */}
         <Box sx={{ mb: 2 }}>
@@ -268,11 +268,11 @@ export default function PersonaForm({
           )}
         </Box>
 
-        {/* Parqueo y baulera: vienen con el departamento (incluidos en la expensa) */}
+        {/* Parqueo y baulera: se usan con el departamento (incluidos en la expensa) */}
         {deptoElegido && !defineAnexos && (
           <Alert severity="info" sx={{ mb: 2 }}>
-            El parqueo y la baulera son del departamento y los define su propietario.
-            Aqui solo indicas si el inquilino los usa.
+            El inquilino recibe el parqueo y la baulera que tenia el departamento. Si no los usa,
+            desactivalos y quedan libres.
           </Alert>
         )}
         {ANEXOS.map(({ tipo, campo, usa, label, vacio, textoUsa }) => {
@@ -294,7 +294,7 @@ export default function PersonaForm({
                     control={<Switch checked={form[usa]} onChange={(e) => cambiar(usa, e.target.checked)} />} />
                   {!form[usa] && (
                     <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-                      Sigue siendo del departamento, pero queda sin uso.
+                      Al guardar queda libre: se puede dar a otro departamento o eliminar.
                     </Typography>
                   )}
                 </Box>

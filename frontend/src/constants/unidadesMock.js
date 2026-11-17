@@ -1,6 +1,6 @@
 // Catalogo de unidades del edificio: se lee de la fuente unica (edificioMock).
 // tipo: 'Departamento' | 'Parqueo' | 'Baulera'
-// Departamento: propietarioId + inquilinoId. Parqueo y Baulera: deptoId + enUso (ver edificioMock).
+// Departamento: propietarioId + inquilinoId. Parqueo y Baulera: deptoId (ver edificioMock).
 import {
     UNIDADES, PERSONAS, OCUPANTES_ANTERIORES, INICIO_OCUPACION,
     TIPOS_UNIDAD as TIPOS_U, NIVELES as NIV, CATEGORIAS_DEPTO as CATEGORIAS,
@@ -77,21 +77,28 @@ export const datosDepto = (form) => ({
 });
 
 // Elimina una unidad. Devuelve un mensaje de error o null si se elimino.
-//  - Si tiene persona asociada, primero hay que quitarla (editar la unidad o la persona).
-//  - Un departamento con expensas registradas no se elimina para no perder su historial financiero.
+//  - Departamento: no se elimina si alguien vive ahi, ni si tiene expensas registradas
+//    (para no perder su historial financiero). Su parqueo y baulera quedan libres.
+//  - Parqueo / Baulera: no se elimina si esta en uso (alguien vive en su depto).
 export const eliminarUnidad = (unidadId) => {
     const i = UNIDADES.findIndex((u) => u.id === unidadId);
     if (i === -1) return 'Unidad no encontrada';
     const u = UNIDADES[i];
-    if (u.propietarioId || u.inquilinoId) return `${u.identificador} tiene personas asociadas: quitalas primero.`;
-    if (u.deptoId != null) {
-        const d = deptosEdificio().find((x) => x.id === u.deptoId);
-        return `${u.identificador} pertenece al ${d?.identificador ?? 'departamento'}: dejalo libre primero.`;
+    if (u.tipo === 'Departamento') {
+        const ocupante = ocupanteDe(u);
+        if (ocupante) {
+            return `En el ${u.identificador} vive ${nombreCompleto(ocupante)} (${ocupante.tipo.toLowerCase()}). `
+                + 'Primero, en Copropietarios, editalo y quitale el departamento (o marca que no vive ahi).';
+        }
+        if (EXPENSAS_MOCK.some((e) => String(e.depto) === numeroDe(u))) {
+            return `${u.identificador} tiene expensas registradas: no se puede eliminar para no perder su historial financiero.`;
+        }
+        anexosDe(u).forEach((a) => vincularAnexo(a, null)); // su parqueo y baulera quedan libres
+    } else if (ocupanteDe(UNIDADES.find((d) => d.id === u.deptoId))) {
+        const d = UNIDADES.find((x) => x.id === u.deptoId);
+        return `${u.identificador} esta en uso por el ${d.identificador}. Primero dejalo libre: `
+            + `edita la unidad y elige "Libre", o en Copropietarios desactiva "Usa el ${u.tipo.toLowerCase()}".`;
     }
-    if (u.tipo === 'Departamento' && EXPENSAS_MOCK.some((e) => String(e.depto) === numeroDe(u))) {
-        return `${u.identificador} tiene expensas registradas: no se puede eliminar para no perder su historial financiero.`;
-    }
-    anexosDe(u).forEach((a) => vincularAnexo(a, null)); // su parqueo y baulera quedan libres
     UNIDADES.splice(i, 1);
     sincronizarPersonas();
     sincronizarDepartamentosActivos(); // deja de aparecer en Finanzas y Comunicados

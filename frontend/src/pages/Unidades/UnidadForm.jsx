@@ -16,9 +16,7 @@ const VACIO = {
     categoria: '', // tipo de departamento: 'A' | 'B' | 'C'
     nivel: '',
     techado: '', // 'Si' | 'No'
-    // Parqueo y baulera: depto al que pertenecen y si se usan
-    deptoId: '',
-    enUso: true,
+    deptoId: '', // parqueo y baulera: depto que lo usa ('' = libre)
     // Departamento
     propietarioId: '',
     inquilinoId: '',
@@ -53,7 +51,6 @@ function desdeUnidad(u) {
         nivel: u.nivel ?? '',
         techado: u.techado === undefined ? '' : (u.techado ? 'Si' : 'No'),
         deptoId: u.deptoId ?? '',
-        enUso: u.enUso ?? true,
         propietarioId: u.propietarioId ?? '',
         inquilinoId: u.inquilinoId ?? '',
         propietarioViveAhi: u.propietarioViveAhi ?? true,
@@ -63,9 +60,10 @@ function desdeUnidad(u) {
 
 // Texto de quien usara el parqueo o baulera segun el depto elegido
 function usuarioPrevisto(form) {
-    if (!form.enUso) return 'Sigue siendo del departamento, pero queda sin uso.';
     const ocupante = ocupanteDe(UNIDADES_MOCK.find((u) => u.id === form.deptoId));
-    return ocupante ? `Lo usa ${nombreCompleto(ocupante)} (${ocupante.tipo.toLowerCase()}).` : 'Nadie vive hoy en ese departamento.';
+    return ocupante
+        ? `Lo usa ${nombreCompleto(ocupante)} (${ocupante.tipo.toLowerCase()}).`
+        : 'Nadie vive hoy en ese departamento: queda reservado para quien entre a vivir.';
 }
 
 // Selector de persona con etiqueta arriba (asociacion de la unidad)
@@ -305,7 +303,7 @@ export default function UnidadForm({ titulo, subtitulo, valorInicial, textoBoton
                     </>
                 ) : (
                     <>
-                        <Typography variant="body2" sx={{ fontWeight: 500, mb: 0.5 }}>Departamento al que pertenece</Typography>
+                        <Typography variant="body2" sx={{ fontWeight: 500, mb: 0.5 }}>Departamento que lo usa</Typography>
                         <Select fullWidth displayEmpty value={form.deptoId} onChange={(e) => cambiar('deptoId', e.target.value)}>
                             <MenuItem value=""><em>Libre (sin departamento)</em></MenuItem>
                             {deptosParaAnexo(form.tipo, valorInicial?.id ?? null).map((d) => (
@@ -314,16 +312,17 @@ export default function UnidadForm({ titulo, subtitulo, valorInicial, textoBoton
                         </Select>
                         {form.deptoId && (
                             <Box sx={{ mt: 1 }}>
+                                {/* Apagarlo lo deja libre: se puede dar a otro depto o eliminar */}
                                 <FormControlLabel label="En uso"
-                                    control={<Switch checked={form.enUso} onChange={(e) => cambiar('enUso', e.target.checked)} />} />
+                                    control={<Switch checked onChange={() => cambiar('deptoId', '')} />} />
                                 <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
                                     {usuarioPrevisto(form)}
                                 </Typography>
                             </Box>
                         )}
                         <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                            El {form.tipo.toLowerCase()} viene con el departamento y lo usa quien vive en el (propietario o
-                            inquilino). Cada departamento tiene como maximo un parqueo y una baulera.
+                            Lo usa quien vive en el departamento (propietario o inquilino). Si lo dejas Libre se puede
+                            dar a otro departamento o eliminar. Cada departamento tiene como maximo un parqueo y una baulera.
                         </Typography>
                     </>
                 )}

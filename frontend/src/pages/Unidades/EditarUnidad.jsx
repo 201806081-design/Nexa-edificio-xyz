@@ -6,7 +6,7 @@ import { sincronizarPersonas, vincularAnexo, actualizarDepto, anexosDe } from '.
 import { sincronizarDepartamentosActivos } from '../../constants/expensasMock';
 
 const CAMPOS_DEPTO = ['propietarioId', 'inquilinoId', 'propietarioViveAhi', 'pagaPropietario'];
-const CAMPOS_OTROS = ['nivel', 'techado', 'deptoId', 'enUso'];
+const CAMPOS_OTROS = ['nivel', 'techado', 'deptoId'];
 
 // Aplica los cambios del formulario sobre la unidad existente
 function aplicarCambios(unidad, form) {
@@ -28,7 +28,7 @@ function aplicarCambios(unidad, form) {
     } else {
         unidad.nivel = form.nivel;
         if (form.tipo === 'Parqueo') unidad.techado = form.techado === 'Si';
-        vincularAnexo(unidad, form.deptoId || null, form.enUso);
+        vincularAnexo(unidad, form.deptoId || null);
     }
 }
 
