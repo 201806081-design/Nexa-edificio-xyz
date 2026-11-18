@@ -56,13 +56,13 @@ export default function CuentaBancariaDialog({ open, cuentaActual, onClose, onGu
                 <Box sx={{ width: 36, height: 36, borderRadius: '50%', bgcolor: '#E4EEF5', color: 'primary.main', display: 'grid', placeItems: 'center' }}>
                     <AccountBalanceIcon fontSize="small" />
                 </Box>
-                {reemplaza ? 'Cambiar cuenta bancaria' : 'Registrar cuenta bancaria'}
+                Registrar cuenta bancaria
             </DialogTitle>
             <DialogContent dividers>
                 {reemplaza ? (
-                    <Alert severity="warning" sx={{ mb: 2 }}>
-                        <strong>{etiquetaCuenta(cuentaActual)}</strong> dejara de usarse desde la fecha que indiques.
-                        Sus movimientos anteriores se conservan.
+                    <Alert severity="info" sx={{ mb: 2 }}>
+                        El edificio usa una sola cuenta. Al registrar esta, <strong>{etiquetaCuenta(cuentaActual)}</strong> deja
+                        de usarse desde la fecha que indiques (sus movimientos anteriores se conservan).
                     </Alert>
                 ) : (
                     <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
@@ -122,7 +122,7 @@ export default function CuentaBancariaDialog({ open, cuentaActual, onClose, onGu
             </DialogContent>
             <DialogActions sx={{ p: 2 }}>
                 <Button variant="outlined" onClick={onClose}>Cancelar</Button>
-                <Button variant="contained" onClick={guardar}>{reemplaza ? 'Cambiar cuenta' : 'Registrar cuenta'}</Button>
+                <Button variant="contained" onClick={guardar}>Registrar cuenta</Button>
             </DialogActions>
         </Dialog>
     );

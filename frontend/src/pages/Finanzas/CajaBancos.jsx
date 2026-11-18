@@ -11,9 +11,9 @@ import RuleIcon from '@mui/icons-material/Rule';
 import FactCheckIcon from '@mui/icons-material/FactCheck';
 import MoveDownIcon from '@mui/icons-material/MoveDown';
 import AddIcon from '@mui/icons-material/Add';
-import SwapHorizIcon from '@mui/icons-material/SwapHoriz';
 import DeleteOutlinedIcon from '@mui/icons-material/DeleteOutlined';
 import SyncIcon from '@mui/icons-material/Sync';
+import FlagIcon from '@mui/icons-material/Flag';
 import { useNavigate, useLocation } from 'react-router-dom';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import { useAuth } from '../../hooks/useAuth';
@@ -21,9 +21,10 @@ import LibroCuenta from './cajaBancos/LibroCuenta';
 import CuentaBancariaDialog from './cajaBancos/CuentaBancariaDialog';
 import MovimientoBancarioDialog from './cajaBancos/MovimientoBancarioDialog';
 import ArqueoCajaDialog from './cajaBancos/ArqueoCajaDialog';
+import SaldoAperturaDialog from './cajaBancos/SaldoAperturaDialog';
 import {
-    CAJA, ARQUEOS, TIPOS_MOV_BANCARIO,
-    cuentaBancariaActiva, etiquetaCuenta, eliminarCuentaBancaria,
+    CAJA, ARQUEOS, TIPOS_MOV_BANCARIO, PRIMER_MES,
+    cuentaBancariaActiva, cuentaDeApertura, etiquetaCuenta, eliminarCuentaBancaria,
     movimientosCaja, movimientosBanco, saldoCaja, saldoBanco, libroDelPeriodo, resultadoArqueo,
 } from '../../constants/cajaBancosMock';
 import { movimientosConciliacion, porConciliar } from '../../constants/conciliacionMock';
@@ -102,6 +103,7 @@ export default function CajaBancos() {
     const [dialogoCuenta, setDialogoCuenta] = useState(false);
     const [dialogoMovimiento, setDialogoMovimiento] = useState(null); // tipo inicial
     const [dialogoArqueo, setDialogoArqueo] = useState(false);
+    const [dialogoApertura, setDialogoApertura] = useState(false);
     const [confirmarEliminar, setConfirmarEliminar] = useState(false);
     const [snack, setSnack] = useState({ open: false, msg: '', sev: 'success' });
     const avisar = (msg, sev = 'success') => setSnack({ open: true, msg, sev });
@@ -121,6 +123,9 @@ export default function CajaBancos() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [periodo, version]);
     const { cuenta } = datos;
+    // La cuenta en uso es la misma con la que arranco el sistema (su saldo inicial es de apertura)
+    const esCuentaDeApertura = !!cuenta && cuentaDeApertura()?.id === cuenta.id;
+    const esPrimerMes = periodo === PRIMER_MES;
 
     const KPIS = [
         { label: 'Efectivo en caja', valor: formatBs(datos.saldoCaja), nota: CAJA.nombre, icon: <PaymentsIcon />, color: '#2E9D78', bg: '#E4F4EE' },
@@ -154,6 +159,12 @@ export default function CajaBancos() {
         setDialogoMovimiento(null);
         refrescar();
         avisar(`${tipo} registrado.`);
+    };
+
+    const aperturaGuardada = () => {
+        setDialogoApertura(false);
+        refrescar();
+        avisar('Saldo de apertura actualizado. Los saldos de caja y banco se recalcularon.');
     };
 
     const arqueoGuardado = (arqueo) => {
@@ -193,6 +204,9 @@ export default function CajaBancos() {
             {tab === 'caja' && (
                 <Box>
                     <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', justifyContent: { sm: 'flex-end' }, mb: 2 }}>
+                        <Button variant="outlined" startIcon={<FlagIcon />} sx={botonSecundarioSx} onClick={() => setDialogoApertura(true)}>
+                            Saldo de apertura
+                        </Button>
                         <Button variant="outlined" startIcon={<MoveDownIcon />} sx={botonSecundarioSx}
                             disabled={!cuenta} onClick={() => setDialogoMovimiento(TIPOS_MOV_BANCARIO.DEPOSITO)}>
                             Depositar en banco
@@ -212,7 +226,7 @@ export default function CajaBancos() {
                     </Alert>
 
                     <LibroCuenta libro={datos.libroCaja} titulo={`Libro de caja — ${CAJA.nombre}`} periodo={periodo}
-                        vacio={`No hubo movimientos de caja en ${periodo}.`} />
+                        esApertura={esPrimerMes} vacio={`No hubo movimientos de caja en ${periodo}.`} />
 
                     <Paper sx={{ p: { xs: 2, md: 3 }, borderRadius: 2, mt: 2 }}>
                         <Typography variant="body2" sx={{ fontWeight: 600, mb: 1.5 }}>Arqueos de caja</Typography>
@@ -276,8 +290,8 @@ export default function CajaBancos() {
                                     </Box>
                                 </Box>
                                 <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', width: { xs: '100%', sm: 'auto' } }}>
-                                    <Button variant="outlined" startIcon={<SwapHorizIcon />} sx={botonSecundarioSx} onClick={() => setDialogoCuenta(true)}>
-                                        Cambiar cuenta
+                                    <Button variant="outlined" startIcon={<AddIcon />} sx={botonSecundarioSx} onClick={() => setDialogoCuenta(true)}>
+                                        Registrar cuenta bancaria
                                     </Button>
                                     <Button variant="outlined" color="error" startIcon={<DeleteOutlinedIcon />} sx={{ width: { xs: '100%', sm: 'auto' } }}
                                         onClick={() => setConfirmarEliminar(true)}>
@@ -289,14 +303,8 @@ export default function CajaBancos() {
                                 <Dato etiqueta="Titular" valor={cuenta.titular} />
                                 <Dato etiqueta="Moneda" valor={cuenta.moneda} />
                                 <Dato etiqueta="En uso desde" valor={cuenta.desde} />
-                                <Dato etiqueta="Saldo inicial" valor={formatBs(cuenta.saldoInicial)} />
+                                <Dato etiqueta={esCuentaDeApertura ? 'Saldo de apertura' : 'Saldo inicial'} valor={formatBs(cuenta.saldoInicial)} />
                             </Box>
-                            {cuenta.ejemplo && (
-                                <Alert severity="warning" sx={{ mt: 2 }}>
-                                    Es una cuenta de ejemplo para probar el sistema. Usa <strong>Cambiar cuenta</strong> para registrar la cuenta
-                                    real del edificio (puedes indicar que se usa desde el inicio), o <strong>Eliminar</strong> si no la necesitas.
-                                </Alert>
-                            )}
                         </Paper>
                     ) : (
                         <Paper sx={{ p: 4, borderRadius: 2, mb: 2, textAlign: 'center' }}>
@@ -328,6 +336,7 @@ export default function CajaBancos() {
                                 libro={datos.libroBanco}
                                 titulo={`Movimientos — ${etiquetaCuenta(cuenta)}`}
                                 periodo={periodo}
+                                esApertura={esPrimerMes && esCuentaDeApertura}
                                 vacio={`No hubo movimientos en el banco en ${periodo}.`}
                                 columnaExtra={{
                                     titulo: 'Conciliacion',
@@ -349,6 +358,9 @@ export default function CajaBancos() {
             {dialogoMovimiento && (
                 <MovimientoBancarioDialog open cuenta={cuenta} tipoInicial={dialogoMovimiento}
                     onClose={() => setDialogoMovimiento(null)} onGuardado={movimientoGuardado} />
+            )}
+            {dialogoApertura && (
+                <SaldoAperturaDialog open onClose={() => setDialogoApertura(false)} onGuardado={aperturaGuardada} />
             )}
             {dialogoArqueo && (
                 <ArqueoCajaDialog open responsable={user?.nombre || 'Administrador'}

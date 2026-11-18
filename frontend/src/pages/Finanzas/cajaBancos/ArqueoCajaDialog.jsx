@@ -15,6 +15,7 @@ import { formatBs } from '../../../constants/finanzasMock';
 // props: open, responsable, onClose, onGuardado(arqueo)
 
 const COLOR_RESULTADO = {
+    'Sin contar': { color: '#64748B', bg: '#F1F5FA' },
     Cuadra: { color: '#2E9D78', bg: '#E4F4EE' },
     Sobrante: { color: '#B6802A', bg: '#FDF0D5' },
     Faltante: { color: '#D9534F', bg: '#FBEAE9' },
@@ -22,19 +23,29 @@ const COLOR_RESULTADO = {
 
 const etiquetaDenominacion = (valor) => (valor < 1 ? `${Math.round(valor * 100)} ctvs.` : `Bs ${valor}`);
 
+// Una casilla por billete o moneda: se escribe CUANTOS hay (no el monto).
+// Debajo se ve el subtotal: 2 billetes de Bs 200 -> "= Bs 400".
 function GrupoConteo({ titulo, valores, conteo, onCambiar }) {
     return (
         <Box sx={{ mb: 2 }}>
             <Typography variant="body2" sx={{ fontWeight: 600, mb: 1 }}>{titulo}</Typography>
             <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(3, 1fr)' }, gap: 1.5 }}>
-                {valores.map((v) => (
-                    <TextField
-                        key={v} size="small" type="number" label={etiquetaDenominacion(v)}
-                        value={conteo[v] ?? ''} placeholder="0"
-                        onChange={(e) => onCambiar(v, e.target.value)}
-                        slotProps={{ htmlInput: { min: 0, step: 1, inputMode: 'numeric' }, inputLabel: { shrink: true } }}
-                    />
-                ))}
+                {valores.map((v) => {
+                    const cantidad = Number(conteo[v]) || 0;
+                    return (
+                        <TextField
+                            key={v} size="small" type="number" label={etiquetaDenominacion(v)}
+                            value={conteo[v] ?? ''} placeholder="0"
+                            onChange={(e) => onCambiar(v, e.target.value)}
+                            helperText={cantidad > 0 ? `= ${formatBs(totalContado({ [v]: cantidad }))}` : ' '}
+                            slotProps={{
+                                htmlInput: { min: 0, step: 1, inputMode: 'numeric', 'aria-label': `Cantidad de ${etiquetaDenominacion(v)}` },
+                                inputLabel: { shrink: true },
+                                formHelperText: { sx: { color: '#2E9D78', fontWeight: 600, mt: 0.25 } },
+                            }}
+                        />
+                    );
+                })}
             </Box>
         </Box>
     );
@@ -48,7 +59,10 @@ export default function ArqueoCajaDialog({ open, responsable, onClose, onGuardad
     const saldoSistema = saldoCaja();
     const contado = totalContado(conteo);
     const diferencia = Math.round((contado - saldoSistema) * 100) / 100;
-    const resultado = resultadoArqueo(diferencia);
+    // Mientras no se escriba ninguna cantidad, todavia no hay resultado
+    const empezo = Object.values(conteo).some((c) => c !== '');
+    const resultado = empezo ? resultadoArqueo(diferencia) : 'Sin contar';
+    const noCuadra = resultado === 'Sobrante' || resultado === 'Faltante';
     const colores = COLOR_RESULTADO[resultado];
 
     // Solo cantidades enteras y positivas
@@ -58,7 +72,7 @@ export default function ArqueoCajaDialog({ open, responsable, onClose, onGuardad
     };
 
     const guardar = () => {
-        if (resultado !== 'Cuadra' && !observacion.trim()) { setErrorObs(true); return; }
+        if (noCuadra && !observacion.trim()) { setErrorObs(true); return; }
         onGuardado(registrarArqueo({ contado, observacion, responsable }));
     };
 
@@ -72,7 +86,9 @@ export default function ArqueoCajaDialog({ open, responsable, onClose, onGuardad
             </DialogTitle>
             <DialogContent dividers>
                 <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                    Cuenta el efectivo que hay en caja hoy ({fechaTexto()}) e ingresa la cantidad de cada billete y moneda.
+                    El arqueo sirve para comprobar que el efectivo que hay en caja hoy ({fechaTexto()}) es el mismo que dice
+                    el sistema. Cuenta el dinero y escribe <strong>cuantos</strong> billetes y monedas hay de cada valor
+                    (por ejemplo, si tienes 2 billetes de Bs 200, escribe 2).
                 </Typography>
 
                 <GrupoConteo titulo="Billetes" valores={DENOMINACIONES.billetes} conteo={conteo} onCambiar={cambiarCantidad} />
@@ -89,12 +105,14 @@ export default function ArqueoCajaDialog({ open, responsable, onClose, onGuardad
                 </Box>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 1, p: 1.5, borderRadius: 2, bgcolor: colores.bg }}>
                     <Typography sx={{ fontWeight: 700, color: colores.color }}>{resultado}</Typography>
-                    <Typography sx={{ fontWeight: 700, color: colores.color }}>
-                        {diferencia > 0 ? '+ ' : ''}{diferencia < 0 ? '− ' : ''}{formatBs(Math.abs(diferencia))}
-                    </Typography>
+                    {empezo && (
+                        <Typography sx={{ fontWeight: 700, color: colores.color }}>
+                            {diferencia > 0 ? '+ ' : ''}{diferencia < 0 ? '− ' : ''}{formatBs(Math.abs(diferencia))}
+                        </Typography>
+                    )}
                 </Box>
 
-                {resultado !== 'Cuadra' && (
+                {noCuadra && (
                     <Alert severity="warning" icon={false} sx={{ mt: 2, mb: 1 }}>
                         <Typography variant="caption">
                             La caja no cuadra. Explica la diferencia (por ejemplo, un gasto sin registrar o un cambio mal dado).
@@ -102,7 +120,7 @@ export default function ArqueoCajaDialog({ open, responsable, onClose, onGuardad
                     </Alert>
                 )}
                 <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5, mt: 1 }}>
-                    Observacion {resultado === 'Cuadra' ? '(opcional)' : ''}
+                    Observacion {noCuadra ? '' : '(opcional)'}
                 </Typography>
                 <TextField fullWidth multiline minRows={2} value={observacion}
                     onChange={(e) => { setObservacion(e.target.value); setErrorObs(false); }}
@@ -111,7 +129,7 @@ export default function ArqueoCajaDialog({ open, responsable, onClose, onGuardad
             </DialogContent>
             <DialogActions sx={{ p: 2 }}>
                 <Button variant="outlined" onClick={onClose}>Cancelar</Button>
-                <Button variant="contained" onClick={guardar}>Guardar arqueo</Button>
+                <Button variant="contained" onClick={guardar} disabled={!empezo}>Guardar arqueo</Button>
             </DialogActions>
         </Dialog>
     );

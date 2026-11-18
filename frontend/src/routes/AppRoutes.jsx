@@ -79,7 +79,7 @@ export default function AppRoutes() {
       <Route path="/finanzas/pagos" element={<ProtectedRoute pantalla="finanzas.pagos"><Pagos /></ProtectedRoute>} />
       <Route path="/finanzas/pagos/registrar" element={<ProtectedRoute pantalla="finanzas.pagos"><RegistrarPago /></ProtectedRoute>} />
       <Route path="/finanzas/pagos/registrado" element={<ProtectedRoute pantalla="finanzas.pagos"><PagoRegistrado /></ProtectedRoute>} />
-      <Route path="/finanzas/pagos/conciliacion" element={<ProtectedRoute pantalla="finanzas.pagos"><ConciliacionBancaria /></ProtectedRoute>} />
+      <Route path="/finanzas/pagos/conciliacion" element={<Navigate to="/finanzas/caja-bancos/conciliacion" replace />} />
       <Route path="/finanzas/pagos/anticipo" element={<ProtectedRoute pantalla="finanzas.pagos"><RegistrarAnticipo /></ProtectedRoute>} />
       <Route path="/finanzas/pagos/anticipo/registrado" element={<ProtectedRoute pantalla="finanzas.pagos"><AnticipoRegistrado /></ProtectedRoute>} />
       <Route path="/finanzas/configuracion" element={<ProtectedRoute pantalla="finanzas.expensas"><ConfiguracionFinanciera /></ProtectedRoute>} />

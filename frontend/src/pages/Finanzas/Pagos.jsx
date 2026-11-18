@@ -7,7 +7,6 @@ import {
 import AddIcon from '@mui/icons-material/Add';
 import SearchIcon from '@mui/icons-material/Search';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
-import AccountBalanceOutlinedIcon from '@mui/icons-material/AccountBalanceOutlined';
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
 import PrintOutlinedIcon from '@mui/icons-material/PrintOutlined';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
@@ -264,18 +263,11 @@ export default function Pagos() {
 
             <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', justifyContent: { xs: 'stretch', md: 'flex-end' }, mb: 2 }}>
                 {tab === 'expensas' && (
-                    <>
-                        <Button variant="outlined" startIcon={<AccountBalanceOutlinedIcon />}
-                            onClick={() => navigate('/finanzas/pagos/conciliacion')}
-                            sx={{ color: '#1a2733', borderColor: '#cdd8e3', width: { xs: '100%', md: 'auto' } }}>
-                            Conciliacion bancaria
-                        </Button>
-                        <Button variant="contained" startIcon={<AddIcon />}
-                            onClick={() => navigate('/finanzas/pagos/registrar')}
-                            sx={{ width: { xs: '100%', md: 'auto' } }}>
-                            Registrar pago
-                        </Button>
-                    </>
+                    <Button variant="contained" startIcon={<AddIcon />}
+                        onClick={() => navigate('/finanzas/pagos/registrar')}
+                        sx={{ width: { xs: '100%', md: 'auto' } }}>
+                        Registrar pago
+                    </Button>
                 )}
                 {tab === 'anticipados' && (
                     <Button variant="contained" startIcon={<AddIcon />}

@@ -11,20 +11,21 @@ import { formatBs } from '../../../constants/finanzasMock';
 //   periodo    -> 'Noviembre 2026'
 //   columnaExtra (opcional) -> { titulo, render: (fila) => node }
 //   vacio      -> texto cuando no hay movimientos
+//   esApertura -> el periodo arranca con el saldo de apertura del sistema
 
 const DATOS_RESUMEN = [
-    { clave: 'saldoInicial', label: 'Saldo al inicio', color: '#1F5F8B', bg: '#E4EEF5' },
+    { clave: 'saldoInicial', label: 'Saldo al inicio', labelApertura: 'Saldo de apertura', color: '#1F5F8B', bg: '#E4EEF5' },
     { clave: 'ingresos', label: 'Ingresos', color: '#2E9D78', bg: '#E4F4EE', signo: '+' },
     { clave: 'egresos', label: 'Egresos', color: '#D9534F', bg: '#FBEAE9', signo: '−' },
     { clave: 'saldoFinal', label: 'Saldo al cierre', color: '#132B3E', bg: '#F1F5FA' },
 ];
 
-export function ResumenPeriodo({ libro }) {
+export function ResumenPeriodo({ libro, esApertura = false }) {
     return (
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, 1fr)', md: 'repeat(4, 1fr)' }, gap: 1.5, mb: 2 }}>
             {DATOS_RESUMEN.map((d) => (
                 <Box key={d.clave} sx={{ bgcolor: d.bg, borderRadius: 2, px: 2, py: 1.5, minWidth: 0 }}>
-                    <Typography variant="caption" color="text.secondary">{d.label}</Typography>
+                    <Typography variant="caption" color="text.secondary">{esApertura && d.labelApertura ? d.labelApertura : d.label}</Typography>
                     <Typography sx={{ fontWeight: 700, color: d.color, fontSize: '1.05rem' }} noWrap>
                         {d.signo && libro[d.clave] > 0 ? `${d.signo} ` : ''}{formatBs(libro[d.clave])}
                     </Typography>
@@ -34,7 +35,7 @@ export function ResumenPeriodo({ libro }) {
     );
 }
 
-export default function LibroCuenta({ libro, titulo, periodo, columnaExtra, vacio }) {
+export default function LibroCuenta({ libro, titulo, periodo, columnaExtra, vacio, esApertura = false }) {
     const columnas = 5 + (columnaExtra ? 1 : 0);
     return (
         <Paper sx={{ p: { xs: 2, md: 3 }, borderRadius: 2 }}>
@@ -44,7 +45,7 @@ export default function LibroCuenta({ libro, titulo, periodo, columnaExtra, vaci
                     {libro.filas.length} movimiento{libro.filas.length !== 1 ? 's' : ''}
                 </Typography>
             </Box>
-            <ResumenPeriodo libro={libro} />
+            <ResumenPeriodo libro={libro} esApertura={esApertura} />
             <Box sx={{ overflowX: 'auto' }}>
                 <Table size="small" sx={{ minWidth: 760 }}>
                     <TableHead>

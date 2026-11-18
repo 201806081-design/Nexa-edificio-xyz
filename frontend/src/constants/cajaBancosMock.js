@@ -22,8 +22,9 @@
 //  (activa = false al eliminar), traspasos y arqueos.
 // ============================================================
 
-import { libroDiario, MOVIMIENTOS_LISTA, CATEGORIAS_BANCO, enPeriodo } from './movimientosMock';
-import { MESES } from './periodos';
+import { libroDiario, MOVIMIENTOS_LISTA, CATEGORIAS_BANCO, enPeriodo, resumenFinanciero } from './movimientosMock';
+import { MESES, PRIMER_PERIODO, TODOS_LOS_PERIODOS, nombrePeriodo } from './periodos';
+import { formatBs } from './finanzasMock';
 
 // ------------------------------------------------------------
 //  FECHAS ('DD/MM/AAAA', el formato de todos los mocks)
@@ -162,12 +163,7 @@ export const eliminarCuentaBancaria = (id) => {
 //  solo cambia cuanto hay en cada lugar.
 // ------------------------------------------------------------
 
-export const TRASPASOS = [
-    {
-        id: 'TRP-001', fecha: '07/11/2026', origen: 'Caja', cuentaId: 'BCO-001', monto: 300,
-        referencia: 'DEP-261107-01', descripcion: 'Deposito de cobros de expensas en efectivo',
-    },
-];
+export const TRASPASOS = [];
 
 // ------------------------------------------------------------
 //  MOVIMIENTOS QUE SE REGISTRAN DESDE EL EXTRACTO DEL BANCO
@@ -260,6 +256,81 @@ export const libroDelPeriodo = (movs, saldoApertura, periodo) => {
 };
 
 // ------------------------------------------------------------
+//  SALDO DE APERTURA
+//  Dinero con el que el edificio empezo a usar el sistema (01/10/2026):
+//  lo que habia en caja y en la cuenta bancaria ese dia. NO es un ingreso
+//  (no se cobro en octubre); es el punto de partida. En el backend es el
+//  asiento de apertura contra el Fondo comun (POST /contabilidad/apertura).
+//
+//  Cuadre: apertura + ingresos - gastos = caja + banco
+// ------------------------------------------------------------
+
+export const PRIMER_MES = nombrePeriodo(PRIMER_PERIODO.anio, PRIMER_PERIODO.mes);
+
+// Cuenta bancaria que estaba en uso al iniciar el sistema
+export const cuentaDeApertura = () => cuentaBancariaEn(INICIO_SISTEMA);
+
+export const saldoApertura = () => {
+    const cuenta = cuentaDeApertura();
+    const banco = cuenta?.saldoInicial ?? 0;
+    return { fecha: INICIO_SISTEMA, caja: CAJA.saldoInicial, banco, cuenta, total: round2(CAJA.saldoInicial + banco) };
+};
+
+// Punto mas bajo al que llega el saldo si se parte de 0: { monto, fecha }
+const puntoMasBajo = (movs) => {
+    let saldo = 0;
+    let minimo = { monto: 0, fecha: null };
+    movs.forEach((m) => {
+        saldo = round2(saldo + (m.tipo === 'Ingreso' ? m.monto : -m.monto));
+        if (saldo < minimo.monto) minimo = { monto: saldo, fecha: m.fecha };
+    });
+    return minimo;
+};
+
+// Valida { caja, banco }: montos validos y que con ellos ningun saldo quede negativo
+export const validarSaldosApertura = ({ caja, banco }) => {
+    const err = {};
+    const revisar = (campo, valor, movs, lugar) => {
+        const n = Number(valor);
+        if (valor === '' || !Number.isFinite(n) || n < 0) { err[campo] = 'Ingresa un monto valido (puede ser 0)'; return; }
+        const bajo = puntoMasBajo(movs);
+        if (n + bajo.monto < -0.005) {
+            err[campo] = `Con ese monto ${lugar} quedaria en negativo el ${bajo.fecha}. Minimo: ${formatBs(round2(-bajo.monto))}`;
+        }
+    };
+    revisar('caja', caja, movimientosCaja(), 'la caja');
+    const cuenta = cuentaDeApertura();
+    if (cuenta) revisar('banco', banco, movimientosBanco(cuenta.id), 'el banco');
+    return err;
+};
+
+export const editarSaldosApertura = ({ caja, banco }) => {
+    CAJA.saldoInicial = round2(caja);
+    const cuenta = cuentaDeApertura();
+    if (cuenta) cuenta.saldoInicial = round2(banco);
+};
+
+// Cuadre de fondos de un periodo (o de todos):
+//   saldoInicial + ingresos - gastos = saldoFinal (= caja + banco)
+// Ingresos y gastos son los mismos del Resumen y de Ingresos y gastos.
+export const fondosDelPeriodo = (periodo) => {
+    const apertura = saldoApertura();
+    const todos = periodo === TODOS_LOS_PERIODOS;
+    const { ingresos, gastos } = resumenFinanciero(periodo);
+    const antes = todos ? 0 : round2(libroDiario()
+        .filter((m) => claveFecha(m.fecha) < inicioPeriodo(periodo))
+        .reduce((s, m) => s + (m.tipo === 'Ingreso' ? m.monto : -m.monto), 0));
+    const saldoInicial = round2(apertura.total + antes);
+    const saldoFinal = round2(saldoInicial + ingresos - gastos);
+    const caja = todos ? saldoCaja() : libroDelPeriodo(movimientosCaja(), CAJA.saldoInicial, periodo).saldoFinal;
+    return {
+        esApertura: todos || periodo === PRIMER_MES,
+        apertura, saldoInicial, ingresos, gastos, saldoFinal,
+        caja, banco: round2(saldoFinal - caja),
+    };
+};
+
+// ------------------------------------------------------------
 //  REGISTRAR UN MOVIMIENTO DEL BANCO (extracto)
 // ------------------------------------------------------------
 
@@ -315,22 +386,11 @@ export const DENOMINACIONES = {
     monedas: [5, 2, 1, 0.5, 0.2, 0.1],
 };
 
-export const ARQUEOS = [
-    {
-        id: 'ARQ-001', fecha: '31/10/2026', saldoSistema: 0, contado: 0, diferencia: 0,
-        responsable: 'Oscar Tarque', observacion: 'Cierre de octubre',
-    },
-];
+export const ARQUEOS = [];
 
 // Saldo de caja al cierre de una fecha 'DD/MM/AAAA'
 export const saldoCajaAl = (fecha) => round2(CAJA.saldoInicial
     + neto(movimientosCaja().filter((m) => claveFecha(m.fecha) <= claveFecha(fecha))));
-
-// El arqueo semilla cuadra con el saldo de esa fecha
-ARQUEOS.forEach((a) => {
-    a.saldoSistema = saldoCajaAl(a.fecha);
-    a.contado = a.saldoSistema;
-});
 
 // Total contado a partir de { denominacion: cantidad }
 export const totalContado = (conteo) => round2(Object.entries(conteo)

@@ -18,6 +18,7 @@ import {
 } from '../../constants/movimientosMock';
 import { periodosConTodos, TODOS_LOS_PERIODOS } from '../../constants/periodos';
 import { formatBs } from '../../constants/finanzasMock';
+import CuadreFondos from '../../components/CuadreFondos';
 
 // 'Octubre 2026' -> {mes: 10, anio: 2026}
 const MES_IDX = {
@@ -47,7 +48,7 @@ const RESUMEN = [
     { clave: 'gastos', label: 'Gastos del periodo', icon: <SouthIcon />, color: '#D9534F', bg: '#FBEAE9',
         nota: (r) => `Personal ${formatBs(r.gastosPersonal)} · Operativos ${formatBs(r.gastosOperativos)}` },
     { clave: 'balance', label: 'Balance', icon: <DragHandleIcon />, color: null, bg: '#E4EEF5', // color dinamico segun signo
-        nota: (r) => `Caja ${formatBs(r.enCaja)} · Banco ${formatBs(r.enBanco)}` },
+        nota: () => 'Ingresos menos gastos del periodo' },
 ];
 
 export default function IngresosGastos() {
@@ -141,6 +142,9 @@ export default function IngresosGastos() {
                     );
                 })}
             </Box>
+
+            {/* Saldo de apertura + ingresos - gastos = disponible (mismas cifras que Caja y bancos) */}
+            <CuadreFondos periodo={periodo} />
 
             {/* VISTA ESCRITORIO: tabla */}
             <Paper sx={{ p: 2, borderRadius: 2, display: { xs: 'none', md: 'block' } }}>

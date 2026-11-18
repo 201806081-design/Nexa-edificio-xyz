@@ -15,7 +15,7 @@ import VisibilityIcon from '@mui/icons-material/Visibility';
 import NorthIcon from '@mui/icons-material/North';
 import SouthIcon from '@mui/icons-material/South';
 import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import {
     ESTADOS_CONCILIACION, TIPOS_MOV_BANCO,
@@ -74,11 +74,6 @@ const fechaEnPeriodo = (fecha, periodoSel) => {
 
 export default function ConciliacionBancaria() {
     const navigate = useNavigate();
-    // Se entra desde Pagos o desde Caja y bancos: el boton "Volver" regresa a esa pantalla
-    const { pathname } = useLocation();
-    const volver = pathname.startsWith('/finanzas/caja-bancos')
-        ? { ruta: '/finanzas/caja-bancos', estado: { tab: 'bancos' }, texto: 'Volver a caja y bancos' }
-        : { ruta: '/finanzas/pagos', estado: null, texto: 'Volver a pagos' };
 
     // Periodos: meses cerrados + mes en curso (para seguimiento diario)
     const [tick, setTick] = useState(0);
@@ -182,9 +177,9 @@ export default function ConciliacionBancaria() {
 
             <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', justifyContent: { xs: 'stretch', md: 'flex-end' }, mb: 2 }}>
                 <Button variant="outlined" startIcon={<ArrowBackIcon />}
-                    onClick={() => navigate(volver.ruta, { state: volver.estado })}
+                    onClick={() => navigate('/finanzas/caja-bancos', { state: { tab: 'bancos' } })}
                     sx={{ color: '#1a2733', borderColor: '#cdd8e3', width: { xs: '100%', md: 'auto' } }}>
-                    {volver.texto}
+                    Volver a caja y bancos
                 </Button>
                 <Button variant="contained" startIcon={<SyncIcon />} onClick={conciliarAuto} disabled={!cuenta}
                     sx={{ width: { xs: '100%', md: 'auto' } }}>

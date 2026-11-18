@@ -16,13 +16,10 @@
 //  y el modelo Conciliacion.
 // ============================================================
 
-import { movimientosBanco, claveFecha } from './cajaBancosMock';
+import { movimientosBanco } from './cajaBancosMock';
 
 export const ESTADOS_CONCILIACION = ['Todos', 'Conciliado', 'Pendiente', 'Alerta'];
 export const TIPOS_MOV_BANCO = ['Todos', 'Ingreso', 'Egreso'];
-
-// Octubre 2026 ya fue conciliado por el administrador (mes cerrado)
-const CONCILIADO_HASTA = '20261031';
 
 const CONCILIADOS = new Set();
 const EN_INVESTIGACION = new Set();
@@ -54,9 +51,7 @@ export const MOVIMIENTOS_SIN_REGISTRO = [
     },
 ];
 
-const estaConciliado = (m) => m.origen === 'extracto'
-    || CONCILIADOS.has(m.id)
-    || claveFecha(m.fecha) <= CONCILIADO_HASTA;
+const estaConciliado = (m) => m.origen === 'extracto' || CONCILIADOS.has(m.id);
 
 // Movimientos de una cuenta con su estado de conciliacion
 export const movimientosConciliacion = (cuentaId) => [

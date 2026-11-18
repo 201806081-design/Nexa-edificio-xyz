@@ -33,7 +33,7 @@ export const PANTALLAS = [
   { clave: 'finanzas.resumen', nombre: 'Resumen', grupo: 'Finanzas', ruta: '/finanzas', descripcion: 'Resumen de la gestion financiera' },
   { clave: 'finanzas.dashboard', nombre: 'Dashboard', grupo: 'Finanzas', ruta: '/finanzas/dashboard', descripcion: 'Graficos e indicadores' },
   { clave: 'finanzas.expensas', nombre: 'Expensas', grupo: 'Finanzas', ruta: '/finanzas/expensas', descripcion: 'Generar expensas y su configuracion' },
-  { clave: 'finanzas.pagos', nombre: 'Pagos', grupo: 'Finanzas', ruta: '/finanzas/pagos', descripcion: 'Registrar pagos, anticipos y conciliacion' },
+  { clave: 'finanzas.pagos', nombre: 'Pagos', grupo: 'Finanzas', ruta: '/finanzas/pagos', descripcion: 'Registrar pagos y anticipos' },
   { clave: 'finanzas.estadoCuenta', nombre: 'Estado de cuenta', grupo: 'Finanzas', ruta: '/finanzas/estado-cuenta', descripcion: 'Deudas y pagos por departamento (el residente ve solo el suyo)' },
   { clave: 'finanzas.ingresosGastos', nombre: 'Ingresos y gastos', grupo: 'Finanzas', ruta: '/finanzas/ingresos-gastos', descripcion: 'Movimientos y flujo de caja' },
   { clave: 'finanzas.cajaBancos', nombre: 'Caja y bancos', grupo: 'Finanzas', ruta: '/finanzas/caja-bancos', descripcion: 'Caja, cuenta bancaria y conciliacion' },

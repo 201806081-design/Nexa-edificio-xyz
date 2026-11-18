@@ -24,8 +24,11 @@ const EXPLICACION = {
     [TIPOS_MOV_BANCARIO.INTERES]: 'Interes que paga el banco por el saldo. Se registra como ingreso.',
 };
 
+// En un deposito se propone depositar todo el efectivo de caja (se puede cambiar)
+const montoSugerido = (tipo) => (tipo === TIPOS_MOV_BANCARIO.DEPOSITO && saldoCaja() > 0 ? String(saldoCaja()) : '');
+
 const formInicial = (tipo) => ({
-    tipo, fecha: textoAIso(fechaTexto()), monto: '', referencia: '', descripcion: '',
+    tipo, fecha: textoAIso(fechaTexto()), monto: montoSugerido(tipo), referencia: '', descripcion: '',
 });
 
 export default function MovimientoBancarioDialog({ open, cuenta, tipoInicial = TIPOS_MOV_BANCARIO.DEPOSITO, onClose, onGuardado }) {
@@ -35,7 +38,12 @@ export default function MovimientoBancarioDialog({ open, cuenta, tipoInicial = T
 
     const cambiar = (campo, valor) => {
         setForm((f) => ({ ...f, [campo]: valor }));
-        setErrores((e) => ({ ...e, [campo]: '', ...(campo === 'tipo' ? { monto: '' } : {}) }));
+        setErrores((e) => ({ ...e, [campo]: '' }));
+    };
+
+    const cambiarTipo = (tipo) => {
+        setForm((f) => ({ ...f, tipo, monto: montoSugerido(tipo) }));
+        setErrores((e) => ({ ...e, tipo: '', monto: '' }));
     };
 
     const guardar = () => {
@@ -49,7 +57,8 @@ export default function MovimientoBancarioDialog({ open, cuenta, tipoInicial = T
 
     if (!cuenta) return null;
     const entra = entraAlBanco(form.tipo);
-    const disponible = form.tipo === TIPOS_MOV_BANCARIO.DEPOSITO ? saldoCaja() : (entra ? null : saldoBanco(cuenta.id));
+    const esDeposito = form.tipo === TIPOS_MOV_BANCARIO.DEPOSITO;
+    const disponible = esDeposito ? saldoCaja() : (entra ? null : saldoBanco(cuenta.id));
 
     return (
         <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
@@ -65,7 +74,7 @@ export default function MovimientoBancarioDialog({ open, cuenta, tipoInicial = T
                 </Typography>
 
                 <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Tipo de movimiento</Typography>
-                <Select fullWidth value={form.tipo} onChange={(e) => cambiar('tipo', e.target.value)} sx={{ mb: 1 }}>
+                <Select fullWidth value={form.tipo} onChange={(e) => cambiarTipo(e.target.value)} sx={{ mb: 1 }}>
                     {OPCIONES_MOV_BANCARIO.map((t) => <MenuItem key={t} value={t}>{t}</MenuItem>)}
                 </Select>
                 <Alert severity={entra ? 'success' : 'warning'} icon={false} sx={{ mb: 2, py: 0.25 }}>
@@ -86,7 +95,7 @@ export default function MovimientoBancarioDialog({ open, cuenta, tipoInicial = T
                         <TextField fullWidth type="number" value={form.monto} placeholder="0.00"
                             onChange={(e) => cambiar('monto', e.target.value)}
                             error={!!errores.monto}
-                            helperText={errores.monto || (disponible != null ? `Disponible: ${formatBs(disponible)}` : ' ')}
+                            helperText={errores.monto || (disponible != null ? `Disponible: ${formatBs(disponible)}${esDeposito ? ' (puedes dejar una parte en caja)' : ''}` : ' ')}
                             slotProps={{
                                 htmlInput: { min: 0, step: 0.01 },
                                 input: { startAdornment: <InputAdornment position="start">Bs</InputAdornment> },

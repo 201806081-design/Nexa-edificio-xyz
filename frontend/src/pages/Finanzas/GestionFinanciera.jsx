@@ -17,6 +17,7 @@ import { formatBs } from '../../constants/finanzasMock';
 import { periodosConTodos } from '../../constants/periodos';
 import { resumenFinanciero } from '../../constants/movimientosMock';
 import { saldoPendienteTotal } from '../../constants/deudasMock';
+import CuadreFondos from '../../components/CuadreFondos';
 
 // Accesos a sub-vistas (solo se muestran los que el rol tiene permitidos)
 const ACCESOS = [
@@ -91,6 +92,9 @@ export default function GestionFinanciera() {
                     </Paper>
                 ))}
             </Box>
+
+            {/* Saldo de apertura + ingresos - gastos = disponible (caja + banco) */}
+            <CuadreFondos periodo={periodo} />
 
             {/* Accesos a sub-vistas */}
             <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(3, 1fr)' }, gap: 2 }}>
