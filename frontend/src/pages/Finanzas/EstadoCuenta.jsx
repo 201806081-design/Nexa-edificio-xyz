@@ -25,6 +25,7 @@ import { historialDepto, round2 } from '../../constants/deudasMock';
 import { responsableDe } from '../../constants/edificioMock';
 import { deptoDeUsuario } from '../../constants/usuariosMock';
 import { ROLES } from '../../constants/permisos';
+import { useLocation } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { datosHistorialDepto, reporteHistorialDepto } from '../../constants/reportesMock';
 import { exportarPDF, exportarExcel } from '../../utils/exportarReporte';
@@ -213,7 +214,9 @@ export default function EstadoCuenta() {
     // Periodos dinamicos (igual que Conciliacion): meses cerrados + mes en curso + "Todos"
     const [tick, setTick] = useState(0);
     const periodosOptions = useMemo(() => periodosParaCuenta(), [tick]);
-    const [seleccion, setSeleccion] = useState(miDepto ?? '');
+    // Desde la Lista de morosos llega con el departamento ya elegido
+    const location = useLocation();
+    const [seleccion, setSeleccion] = useState(() => miDepto ?? location.state?.depto ?? '');
     const [periodo, setPeriodo] = useState('Todos los periodos');
     const [aviso, setAviso] = useState(null);
 
@@ -271,7 +274,7 @@ export default function EstadoCuenta() {
             <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                 {esResidente
                     ? 'Consulta tus expensas, pagos, anticipos y deudas pendientes.'
-                    : 'Consulta las expensas, pagos, anticipos y saldos de una unidad.'}
+                    : 'Consulta las expensas, pagos, anticipos y saldos de una unidad, y descarga su historial en PDF o Excel.'}
             </Typography>
 
             <Paper sx={{ p: 3, borderRadius: 2, mb: 3 }}>

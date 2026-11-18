@@ -35,7 +35,10 @@ function TarjetaReporte({ reporte, onAbrir }) {
                 <Box sx={{ flex: 1, minWidth: 0 }}>
                     <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap' }}>
                         <Typography sx={{ fontWeight: 700 }}>{reporte.titulo}</Typography>
-                        {critico && <Chip size="small" label="Critico" sx={{ bgcolor: '#FBEAE9', color: '#D9534F', fontWeight: 600 }} />}
+                        <Box sx={{ display: 'flex', gap: 0.5 }}>
+                            {reporte.enFinanzas && <Chip size="small" label="En Finanzas" sx={{ bgcolor: '#E4EEF5', color: '#1F5F8B', fontWeight: 600 }} />}
+                            {critico && <Chip size="small" label="Critico" sx={{ bgcolor: '#FBEAE9', color: '#D9534F', fontWeight: 600 }} />}
+                        </Box>
                     </Box>
                     <Typography variant="body2" color="text.secondary">{reporte.descripcion}</Typography>
                 </Box>

@@ -1,12 +1,13 @@
 import { useState, useMemo } from 'react';
 import {
     Box, Typography, Select, MenuItem, Paper, Button, Chip, IconButton, TextField, InputAdornment,
-    Table, TableHead, TableBody, TableRow, TableCell, Divider,
+    Table, TableHead, TableBody, TableRow, TableCell, Divider, Snackbar, Alert,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import SearchIcon from '@mui/icons-material/Search';
 import TimelineIcon from '@mui/icons-material/Timeline';
-import AssessmentOutlinedIcon from '@mui/icons-material/AssessmentOutlined';
+import PictureAsPdfOutlinedIcon from '@mui/icons-material/PictureAsPdfOutlined';
+import FileDownloadOutlinedIcon from '@mui/icons-material/FileDownloadOutlined';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import NorthIcon from '@mui/icons-material/North';
 import SouthIcon from '@mui/icons-material/South';
@@ -14,36 +15,53 @@ import DragHandleIcon from '@mui/icons-material/DragHandle';
 import DescriptionOutlinedIcon from '@mui/icons-material/DescriptionOutlined';
 import { useNavigate } from 'react-router-dom';
 import DashboardLayout from '../../layouts/DashboardLayout';
-import { usePermisos } from '../../hooks/usePermisos';
 import {
-    TIPOS_MOVIMIENTO, CATEGORIAS_FILTRO, libroDiario, resumenFinanciero,
+    TIPOS_MOVIMIENTO, CATEGORIAS_FILTRO, libroDiario, resumenFinanciero, enPeriodo,
 } from '../../constants/movimientosMock';
-import { periodosConTodos, TODOS_LOS_PERIODOS } from '../../constants/periodos';
+import { periodosConTodos, periodosAnuales } from '../../constants/periodos';
 import { formatBs } from '../../constants/finanzasMock';
+import { datosIngresosGastos, reporteIngresosGastos } from '../../constants/reportesMock';
+import { exportarPDF, exportarExcel } from '../../utils/exportarReporte';
 import CuadreFondos from '../../components/CuadreFondos';
 
-// 'Octubre 2026' -> {mes: 10, anio: 2026}
-const MES_IDX = {
-    enero: 1, febrero: 2, marzo: 3, abril: 4, mayo: 5, junio: 6,
-    julio: 7, agosto: 8, septiembre: 9, octubre: 10, noviembre: 11, diciembre: 12,
-};
-const parsePeriodo = (p) => {
-    const [mes, anio] = (p || '').toLowerCase().split(' ');
-    return { mes: MES_IDX[mes] || 0, anio: Number(anio) || 0 };
-};
-// Si la fecha 'DD/MM/YYYY' cae dentro del periodo seleccionado
-const fechaEnPeriodo = (fecha, periodoSel) => {
-    if (periodoSel === TODOS_LOS_PERIODOS) return true;
-    const [, m, y] = (fecha || '').split('/').map(Number);
-    const { mes, anio } = parsePeriodo(periodoSel);
-    return m === mes && y === anio;
-};
+// Ingresos y gastos: registro de movimientos y, a la vez, el reporte 8.5
+// (totales por categoria del mes o del año, exportable a PDF y Excel).
+
+// Totales de un tipo (ingresos o gastos) por categoria, con barra de porcentaje
+function PorCategoria({ titulo, total, categorias, color, fondo }) {
+    return (
+        <Paper sx={{ p: { xs: 2, md: 3 }, borderRadius: 2, minWidth: 0 }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1, mb: 2 }}>
+                <Typography sx={{ fontWeight: 700, color }}>{titulo}</Typography>
+                <Typography sx={{ fontWeight: 700, color, whiteSpace: 'nowrap' }}>{formatBs(total)}</Typography>
+            </Box>
+            {categorias.length === 0 ? (
+                <Typography variant="body2" color="text.secondary">Sin movimientos en este periodo.</Typography>
+            ) : categorias.map((c) => (
+                <Box key={c.categoria} sx={{ mb: 1.5 }}>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1, mb: 0.5 }}>
+                        <Typography variant="body2" sx={{ minWidth: 0 }} noWrap>
+                            {c.categoria}
+                            <Typography component="span" variant="caption" color="text.secondary"> · {c.cantidad} mov.</Typography>
+                        </Typography>
+                        <Typography variant="body2" sx={{ fontWeight: 700, whiteSpace: 'nowrap' }}>
+                            {formatBs(c.monto)} <Typography component="span" variant="caption" color="text.secondary">({c.porcentaje} %)</Typography>
+                        </Typography>
+                    </Box>
+                    <Box sx={{ height: 8, bgcolor: fondo, borderRadius: 1 }}>
+                        <Box sx={{ height: '100%', width: `${c.porcentaje}%`, bgcolor: color, borderRadius: 1 }} />
+                    </Box>
+                </Box>
+            ))}
+        </Paper>
+    );
+}
 
 const tipoChipSx = (tipo) => (tipo === 'Ingreso'
     ? { bgcolor: '#E4F4EE', color: '#2E9D78' }
     : { bgcolor: '#FBEAE9', color: '#D9534F' });
 
-// Mismas cifras que el Dashboard financiero y Gestion financiera (resumenFinanciero)
+// Mismas cifras que el Resumen y los reportes (resumenFinanciero)
 const RESUMEN = [
     { clave: 'ingresos', label: 'Ingresos del periodo', icon: <NorthIcon />, color: '#2E9D78', bg: '#E4F4EE',
         nota: (r) => `Expensas ${formatBs(r.cobrosExpensas)} · Anticipos ${formatBs(r.anticiposRecibidos)} · Otros ${formatBs(r.otrosIngresos)}` },
@@ -55,26 +73,36 @@ const RESUMEN = [
 
 export default function IngresosGastos() {
     const navigate = useNavigate();
-    const { puede } = usePermisos();
-    // Periodos: mes en curso + meses cerrados desde el inicio del sistema (periodos.js)
-    // "Todos los periodos" (por defecto) muestra el acumulado; luego cada mes
-    const periodos = useMemo(() => periodosConTodos(), []);
+    // Periodos: acumulado, cada mes desde el inicio del sistema y cada año (periodos.js)
+    const periodos = useMemo(() => [...periodosConTodos(), ...periodosAnuales()], []);
     const [periodo, setPeriodo] = useState(() => periodos[0] || '');
     const [tipo, setTipo] = useState('Todos');
     const [categoria, setCategoria] = useState('Todas');
     const [busqueda, setBusqueda] = useState('');
+    const [aviso, setAviso] = useState(null);
 
     // Movimientos filtrados por periodo + filtros adicionales
     // Libro completo: cobros de expensas, anticipos, otros ingresos y gastos (incluye personal)
     const movimientos = useMemo(() => libroDiario().filter((m) =>
-        fechaEnPeriodo(m.fecha, periodo) &&
+        enPeriodo(m.fecha, periodo) &&
         (tipo === 'Todos' || m.tipo === tipo) &&
         (categoria === 'Todas' || m.categoria === categoria) &&
         m.descripcion.toLowerCase().includes(busqueda.toLowerCase())),
         [periodo, tipo, categoria, busqueda]);
 
-    // KPIs del periodo: misma formula que el Dashboard financiero
+    // KPIs y totales por categoria del periodo (sin los filtros de tipo, categoria y busqueda)
     const resumen = useMemo(() => resumenFinanciero(periodo), [periodo]);
+    const reporte = useMemo(() => datosIngresosGastos(periodo), [periodo]);
+
+    // Exporta el periodo completo: totales por categoria y detalle de movimientos
+    const exportar = (formato) => {
+        try {
+            const nombre = (formato === 'pdf' ? exportarPDF : exportarExcel)(reporteIngresosGastos(reporte));
+            setAviso({ sev: 'success', msg: `Archivo descargado: ${nombre}` });
+        } catch {
+            setAviso({ sev: 'error', msg: 'No se pudo generar el archivo. Intenta de nuevo.' });
+        }
+    };
 
     return (
         <DashboardLayout>
@@ -85,13 +113,16 @@ export default function IngresosGastos() {
             </Typography>
 
             <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', justifyContent: { xs: 'stretch', md: 'flex-end' }, mb: 2 }}>
-                {puede('reportes.ingresosGastos') && (
-                    <Button variant="outlined" startIcon={<AssessmentOutlinedIcon />}
-                        onClick={() => navigate('/reportes/ingresos-gastos', { state: { periodo } })}
-                        sx={{ color: '#1a2733', borderColor: '#cdd8e3', width: { xs: '100%', md: 'auto' } }}>
-                        Reporte por categoria
+                <Box sx={{ display: 'flex', gap: 1, width: { xs: '100%', md: 'auto' } }}>
+                    <Button variant="outlined" startIcon={<PictureAsPdfOutlinedIcon />} onClick={() => exportar('pdf')}
+                        sx={{ flex: { xs: 1, md: 'none' }, color: '#1a2733', borderColor: '#cdd8e3' }}>
+                        PDF
                     </Button>
-                )}
+                    <Button variant="outlined" startIcon={<FileDownloadOutlinedIcon />} onClick={() => exportar('excel')}
+                        sx={{ flex: { xs: 1, md: 'none' }, color: '#1a2733', borderColor: '#cdd8e3' }}>
+                        Excel
+                    </Button>
+                </Box>
                 <Button variant="outlined" startIcon={<TimelineIcon />}
                     onClick={() => navigate('/reportes/flujo-caja')}
                     sx={{ color: '#1a2733', borderColor: '#cdd8e3', width: { xs: '100%', md: 'auto' } }}>
@@ -155,6 +186,14 @@ export default function IngresosGastos() {
 
             {/* Saldo de apertura + ingresos - gastos = disponible (mismas cifras que Caja y bancos) */}
             <CuadreFondos periodo={periodo} />
+
+            {/* Totales por categoria del periodo (lo mismo que se exporta) */}
+            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'minmax(0, 1fr)', md: 'repeat(2, minmax(0, 1fr))' }, gap: 2, mb: 3 }}>
+                <PorCategoria titulo="Ingresos por categoria" total={reporte.ingresos} categorias={reporte.ingresosPorCategoria}
+                    color="#2E9D78" fondo="#E4F4EE" />
+                <PorCategoria titulo="Gastos por categoria" total={reporte.gastos} categorias={reporte.gastosPorCategoria}
+                    color="#D9534F" fondo="#FBEAE9" />
+            </Box>
 
             {/* VISTA ESCRITORIO: tabla */}
             <Paper sx={{ p: 2, borderRadius: 2, display: { xs: 'none', md: 'block' } }}>
@@ -247,6 +286,13 @@ export default function IngresosGastos() {
                     );
                 })}
             </Box>
+
+            <Snackbar open={!!aviso} autoHideDuration={3000} onClose={() => setAviso(null)}
+                anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}>
+                {aviso ? (
+                    <Alert severity={aviso.sev} onClose={() => setAviso(null)} sx={{ width: '100%' }}>{aviso.msg}</Alert>
+                ) : <span />}
+            </Snackbar>
         </DashboardLayout>
     );
 }

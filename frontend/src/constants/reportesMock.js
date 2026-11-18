@@ -29,6 +29,9 @@ import { nombreArchivo } from '../utils/exportarReporte';
 
 // ------------------------------------------------------------
 //  CATALOGO
+//  clave = permiso de la pantalla que abre. Ingresos y gastos e Historial
+//  por departamento no tienen pantalla propia en Reportes: se consultan y
+//  exportan desde su pantalla de Finanzas (enFinanzas).
 // ------------------------------------------------------------
 
 export const REPORTES = [
@@ -53,14 +56,14 @@ export const REPORTES = [
         ruta: '/reportes/morosos',
     },
     {
-        clave: 'reportes.ingresosGastos', titulo: 'Ingresos y gastos', grupo: 'Financieros',
-        descripcion: 'Movimientos del periodo clasificados por categoria.',
-        ruta: '/reportes/ingresos-gastos',
+        clave: 'finanzas.ingresosGastos', titulo: 'Ingresos y gastos', grupo: 'Financieros', enFinanzas: true,
+        descripcion: 'Movimientos del periodo (mes o año) por categoria. Se exporta desde Finanzas.',
+        ruta: '/finanzas/ingresos-gastos',
     },
     {
-        clave: 'reportes.historialDepto', titulo: 'Historial por departamento', grupo: 'Cobranza', critico: true,
-        descripcion: 'Cargos, pagos, mora y saldo de un departamento por periodo.',
-        ruta: '/reportes/historial-departamento',
+        clave: 'finanzas.estadoCuenta', titulo: 'Historial por departamento', grupo: 'Cobranza', critico: true, enFinanzas: true,
+        descripcion: 'Cargos, pagos, mora y saldo de un departamento. Se descarga desde Estado de cuenta.',
+        ruta: '/finanzas/estado-cuenta',
     },
 ];
 
@@ -265,13 +268,17 @@ export const datosBalanceMensual = (periodo) => {
     const actual = resumenMes(periodo);
     const anteriorNombre = mesAnterior(periodo);
     const anterior = anteriorNombre ? resumenMes(anteriorNombre) : null;
+    // Si el mes no se cerro, sus expensas todavia no existen: se muestran como
+    // "—" (null) y sin variacion, para no aparentar una caida frente al mes anterior.
+    const sinExpensas = !actual.expensas.generadas;
     const fila = (concepto, fn, grupo) => {
-        const a = fn(actual);
+        const pendiente = sinExpensas && grupo === 'Expensas del mes';
+        const a = pendiente ? null : fn(actual);
         const b = anterior ? fn(anterior) : null;
         return {
             concepto, grupo, actual: a, anterior: b,
-            variacion: b === null ? null : round2(a - b),
-            porcentaje: b ? Math.round(((a - b) / Math.abs(b)) * 1000) / 10 : null,
+            variacion: b === null || a === null ? null : round2(a - b),
+            porcentaje: b && a !== null ? Math.round(((a - b) / Math.abs(b)) * 1000) / 10 : null,
         };
     };
     return {
@@ -296,8 +303,10 @@ export const reporteBalanceMensual = (d) => ({
     titulo: 'Balance mensual',
     subtitulo: `Periodo: ${d.periodo}${d.anteriorNombre ? ` · Comparado con ${d.anteriorNombre}` : ''}`,
     resumen: [
-        { etiqueta: 'Expensas emitidas', valor: d.actual.expensas.emitido, tipo: 'monto' },
-        { etiqueta: `Cobrado (${d.actual.expensas.porcentajeCobrado} %)`, valor: d.actual.expensas.cobrado, tipo: 'monto' },
+        ...(d.actual.expensas.generadas ? [
+            { etiqueta: 'Expensas emitidas', valor: d.actual.expensas.emitido, tipo: 'monto' },
+            { etiqueta: `Cobrado (${d.actual.expensas.porcentajeCobrado} %)`, valor: d.actual.expensas.cobrado, tipo: 'monto' },
+        ] : [{ etiqueta: 'Expensas del mes', valor: 'Se generan a inicios del mes siguiente' }]),
         { etiqueta: 'Resultado del mes', valor: d.actual.caja.resultado, tipo: 'monto' },
         { etiqueta: 'Saldo al cierre', valor: d.actual.caja.saldoFinal, tipo: 'monto' },
     ],
@@ -307,9 +316,9 @@ export const reporteBalanceMensual = (d) => ({
             { titulo: 'Concepto' }, { titulo: d.anteriorNombre || 'Mes anterior', tipo: 'monto' },
             { titulo: d.periodo, tipo: 'monto' }, { titulo: 'Variacion', tipo: 'monto' }, { titulo: 'Variacion %', tipo: 'numero' },
         ],
-        filas: d.filas.map((f) => [f.concepto, f.anterior ?? '', f.actual, f.variacion ?? '', f.porcentaje ?? '']),
+        filas: d.filas.map((f) => [f.concepto, f.anterior ?? '', f.actual ?? '—', f.variacion ?? '', f.porcentaje ?? '']),
     }],
-    notas: d.actual.expensas.generadas ? [] : [`Las expensas de ${d.periodo} todavia no se generaron (se generan a inicios del mes siguiente).`],
+    notas: d.actual.expensas.generadas ? [] : [`${d.periodo} todavia no se cerro: sus expensas se generan a inicios del mes siguiente. Solo se compara el dinero que entro y salio.`],
     archivo: nombreArchivo('balance-mensual', d.periodo),
 });
 

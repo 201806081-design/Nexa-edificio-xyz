@@ -17,7 +17,6 @@ import CancelIcon from '@mui/icons-material/Cancel';
 import NotificationsActiveIcon from '@mui/icons-material/NotificationsActive';
 import EmailIcon from '@mui/icons-material/Email';
 import WhatsAppIcon from '@mui/icons-material/WhatsApp';
-import SmsIcon from '@mui/icons-material/Sms';
 import AttachFileIcon from '@mui/icons-material/AttachFile';
 import CloseIcon from '@mui/icons-material/Close';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -45,7 +44,6 @@ const iconoCanal = (id) => {
     if (id === 'app') return <NotificationsActiveIcon sx={sx} />;
     if (id === 'correo') return <EmailIcon sx={sx} />;
     if (id === 'whatsapp') return <WhatsAppIcon sx={sx} />;
-    if (id === 'sms') return <SmsIcon sx={sx} />;
     return null;
 };
 

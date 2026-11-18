@@ -2,7 +2,7 @@
 //  DEUDAS Y MOROSOS: CALCULO UNICO PARA TODO EL SISTEMA
 //
 //  Todas las pantallas que muestran deudas, saldos pendientes o morosos
-//  (Mora, Dashboard financiero, Gestion financiera, Estado de cuenta,
+//  (Mora, Resumen de finanzas, Estado de cuenta,
 //  Registrar pago y Comunicados) usan estas funciones. Asi, si un depto
 //  es moroso, lo es en todas partes al mismo tiempo.
 //

@@ -33,7 +33,8 @@ export default function ListaMorosos() {
         && `${f.depto} ${f.responsable}`.toLowerCase().includes(busqueda.trim().toLowerCase()));
     const total = (campo) => Math.round(filas.reduce((s, f) => s + f[campo], 0) * 100) / 100;
 
-    const verHistorial = (depto) => navigate('/reportes/historial-departamento', { state: { depto } });
+    // El historial del departamento se ve (y descarga) en su Estado de cuenta
+    const verHistorial = (depto) => navigate('/finanzas/estado-cuenta', { state: { depto } });
 
     return (
         <DashboardLayout>
@@ -104,7 +105,7 @@ export default function ListaMorosos() {
                                     <TableCell align="right" sx={{ whiteSpace: 'nowrap', color: '#D9534F', fontWeight: 700 }}>{formatBs(f.total)}</TableCell>
                                     <TableCell sx={{ whiteSpace: 'nowrap' }}>{f.ultimoPago}</TableCell>
                                     <TableCell align="center">
-                                        <Tooltip title="Ver historial del departamento">
+                                        <Tooltip title="Ver estado de cuenta del departamento">
                                             <IconButton size="small" color="primary" onClick={() => verHistorial(f.depto)}>
                                                 <VisibilityOutlinedIcon fontSize="small" />
                                             </IconButton>

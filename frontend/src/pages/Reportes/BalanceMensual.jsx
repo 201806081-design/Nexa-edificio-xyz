@@ -67,9 +67,10 @@ export default function BalanceMensual() {
             )}
 
             <GrillaKpis>
-                <KpiReporte etiqueta="Expensas emitidas" valor={formatBs(expensas.emitido)} nota={`${expensas.unidades} departamentos`}
-                    icono={<ReceiptLongIcon />} />
-                <KpiReporte etiqueta="Cobrado" valor={formatBs(expensas.cobrado)} nota={`${expensas.porcentajeCobrado} % de lo emitido`}
+                <KpiReporte etiqueta="Expensas emitidas" valor={expensas.generadas ? formatBs(expensas.emitido) : '—'}
+                    nota={expensas.generadas ? `${expensas.unidades} departamentos` : 'Aun no se generan'} icono={<ReceiptLongIcon />} />
+                <KpiReporte etiqueta="Cobrado" valor={expensas.generadas ? formatBs(expensas.cobrado) : '—'}
+                    nota={expensas.generadas ? `${expensas.porcentajeCobrado} % de lo emitido` : 'Aun no se generan'}
                     icono={<TaskAltIcon />} color="#2E9D78" fondo="#E4F4EE" />
                 <KpiReporte etiqueta="Resultado del mes" valor={`${positivo ? '+ ' : '− '}${formatBs(Math.abs(caja.resultado))}`}
                     nota="Ingresos menos gastos" icono={<BalanceIcon />}
@@ -98,7 +99,11 @@ export default function BalanceMensual() {
             )}
 
             <Paper sx={{ p: { xs: 2, md: 3 }, borderRadius: 2 }}>
-                <Typography sx={{ fontWeight: 700, mb: 1.5 }}>Comparacion con el mes anterior</Typography>
+                <Typography sx={{ fontWeight: 700, mb: 0.5 }}>Comparacion con el mes anterior</Typography>
+                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.5 }}>
+                    Variacion = este mes menos el anterior. La flecha indica si subio o bajo; el color, si es bueno (verde) o malo (rojo)
+                    para el edificio: que suban los cobros es bueno, que suban los gastos es malo.
+                </Typography>
                 <TablaDeslizable minWidth={640}>
                     <Table size="small">
                         <TableHead>
@@ -123,7 +128,9 @@ export default function BalanceMensual() {
                                                 <TableCell align="right" sx={{ whiteSpace: 'nowrap', color: 'text.secondary' }}>
                                                     {f.anterior === null ? '—' : formatBs(f.anterior)}
                                                 </TableCell>
-                                                <TableCell align="right" sx={{ whiteSpace: 'nowrap', fontWeight: destacada ? 700 : 600 }}>{formatBs(f.actual)}</TableCell>
+                                                <TableCell align="right" sx={{ whiteSpace: 'nowrap', fontWeight: destacada ? 700 : 600 }}>
+                                                    {f.actual === null ? '—' : formatBs(f.actual)}
+                                                </TableCell>
                                                 <TableCell align="right"><Variacion fila={f} /></TableCell>
                                             </TableRow>
                                         );

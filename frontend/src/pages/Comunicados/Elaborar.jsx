@@ -13,7 +13,6 @@ import ScheduleIcon from '@mui/icons-material/Schedule';
 import NotificationsActiveIcon from '@mui/icons-material/NotificationsActive';
 import EmailIcon from '@mui/icons-material/Email';
 import WhatsAppIcon from '@mui/icons-material/WhatsApp';
-import SmsIcon from '@mui/icons-material/Sms';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import CloseIcon from '@mui/icons-material/Close';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -23,7 +22,7 @@ import { QRCodeSVG } from 'qrcode.react';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import {
     CANALES, PRIORIDADES,
-    gruposDestinatarios, grupoPorId, canalPorId, canalEstaDisponible,
+    gruposDestinatarios, grupoPorId, canalEstaDisponible,
     personasDeGrupo, enviarComunicado, programarComunicado,
     guardarBorrador, eliminarBorrador, BORRADORES_MOCK,
 } from '../../constants/comunicadosMock';
@@ -32,7 +31,6 @@ const iconoCanal = (id) => {
     if (id === 'app') return <NotificationsActiveIcon />;
     if (id === 'correo') return <EmailIcon />;
     if (id === 'whatsapp') return <WhatsAppIcon />;
-    if (id === 'sms') return <SmsIcon />;
     return <NotificationsActiveIcon />;
 };
 
@@ -93,7 +91,7 @@ export default function Elaborar() {
     // Arranca solo con App tildado. Si venimos de un borrador, respetamos sus canales,
     // pero filtramos los que ya no son seleccionables (ej. correo si el backend lo deshabilita).
     const [canalesSel, setCanalesSel] = useState(() => {
-        const base = { app: true, correo: false, whatsapp: false, sms: false };
+        const base = { app: true, correo: false, whatsapp: false };
         if (borradorInicial?.canalesIds) {
             // Resetear app a false si el borrador no lo tenia
             base.app = false;
@@ -154,7 +152,7 @@ export default function Elaborar() {
         setMostrarGranular(false);
         setPrioridad('Importante'); setMensaje(''); setAdjunto(null);
         setQrData(''); setQrTitulo('');
-        setCanalesSel({ app: true, correo: true, whatsapp: false, sms: false });
+        setCanalesSel({ app: true, correo: true, whatsapp: false });
         setProgramarAhora('ahora'); setFechaProgramada('');
     };
 

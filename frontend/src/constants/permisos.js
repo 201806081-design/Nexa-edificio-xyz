@@ -31,11 +31,10 @@ export const PANTALLAS = [
   { clave: 'unidades', nombre: 'Unidades', grupo: 'Edificio', ruta: '/unidades', descripcion: 'Departamentos, parqueos y bauleras' },
 
   { clave: 'finanzas.resumen', nombre: 'Resumen', grupo: 'Finanzas', ruta: '/finanzas', descripcion: 'Resumen de la gestion financiera' },
-  { clave: 'finanzas.dashboard', nombre: 'Dashboard', grupo: 'Finanzas', ruta: '/finanzas/dashboard', descripcion: 'Graficos e indicadores' },
   { clave: 'finanzas.expensas', nombre: 'Expensas', grupo: 'Finanzas', ruta: '/finanzas/expensas', descripcion: 'Generar expensas y su configuracion' },
   { clave: 'finanzas.pagos', nombre: 'Pagos', grupo: 'Finanzas', ruta: '/finanzas/pagos', descripcion: 'Registrar pagos y anticipos' },
   { clave: 'finanzas.estadoCuenta', nombre: 'Estado de cuenta', grupo: 'Finanzas', ruta: '/finanzas/estado-cuenta', descripcion: 'Deudas y pagos por departamento (el residente ve solo el suyo)' },
-  { clave: 'finanzas.ingresosGastos', nombre: 'Ingresos y gastos', grupo: 'Finanzas', ruta: '/finanzas/ingresos-gastos', descripcion: 'Movimientos y flujo de caja' },
+  { clave: 'finanzas.ingresosGastos', nombre: 'Ingresos y gastos', grupo: 'Finanzas', ruta: '/finanzas/ingresos-gastos', descripcion: 'Movimientos, reporte por categoria y exportacion' },
   { clave: 'finanzas.cajaBancos', nombre: 'Caja y bancos', grupo: 'Finanzas', ruta: '/finanzas/caja-bancos', descripcion: 'Caja, cuenta bancaria y conciliacion' },
   { clave: 'finanzas.mora', nombre: 'Mora e intereses', grupo: 'Finanzas', ruta: '/finanzas/mora', descripcion: 'Deudas vencidas e intereses' },
 
@@ -52,8 +51,6 @@ export const PANTALLAS = [
   { clave: 'reportes.balanceMensual', nombre: 'Balance mensual', grupo: 'Reportes', ruta: '/reportes/balance-mensual', descripcion: 'El mes comparado con el anterior' },
   { clave: 'reportes.flujoCaja', nombre: 'Flujo de caja', grupo: 'Reportes', ruta: '/reportes/flujo-caja', descripcion: 'Entradas, salidas y saldo mes a mes' },
   { clave: 'reportes.morosos', nombre: 'Lista de morosos', grupo: 'Reportes', ruta: '/reportes/morosos', descripcion: 'Departamentos con deuda vencida' },
-  { clave: 'reportes.ingresosGastos', nombre: 'Ingresos y gastos', grupo: 'Reportes', ruta: '/reportes/ingresos-gastos', descripcion: 'Movimientos por categoria (mensual o anual)' },
-  { clave: 'reportes.historialDepto', nombre: 'Historial por dpto.', grupo: 'Reportes', ruta: '/reportes/historial-departamento', descripcion: 'Cargos, pagos y saldo de un departamento' },
 ];
 
 export const GRUPOS = [...new Set(PANTALLAS.map((p) => p.grupo))];

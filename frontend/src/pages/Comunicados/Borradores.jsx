@@ -15,7 +15,6 @@ import ScheduleIcon from '@mui/icons-material/Schedule';
 import NotificationsActiveIcon from '@mui/icons-material/NotificationsActive';
 import EmailIcon from '@mui/icons-material/Email';
 import WhatsAppIcon from '@mui/icons-material/WhatsApp';
-import SmsIcon from '@mui/icons-material/Sms';
 import { useNavigate } from 'react-router-dom';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import { BORRADORES_MOCK, eliminarBorrador, grupoPorId } from '../../constants/comunicadosMock';
@@ -32,7 +31,6 @@ const iconoCanal = (id) => {
     if (id === 'app') return <NotificationsActiveIcon sx={sx} />;
     if (id === 'correo') return <EmailIcon sx={sx} />;
     if (id === 'whatsapp') return <WhatsAppIcon sx={sx} />;
-    if (id === 'sms') return <SmsIcon sx={sx} />;
     return null;
 };
 

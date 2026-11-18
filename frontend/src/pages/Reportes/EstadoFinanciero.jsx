@@ -1,12 +1,16 @@
 import { useState, useMemo } from 'react';
 import {
-    Box, Typography, Paper, Table, TableHead, TableBody, TableRow, TableCell,
+    Box, Typography, Paper, Table, TableHead, TableBody, TableRow, TableCell, ToggleButton, ToggleButtonGroup,
 } from '@mui/material';
 import NorthIcon from '@mui/icons-material/North';
 import SouthIcon from '@mui/icons-material/South';
 import BalanceIcon from '@mui/icons-material/Balance';
 import ScheduleIcon from '@mui/icons-material/Schedule';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import BarChartIcon from '@mui/icons-material/BarChart';
+import DonutLargeIcon from '@mui/icons-material/DonutLarge';
+import {
+    BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell,
+} from 'recharts';
 import { useLocation } from 'react-router-dom';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import CuadreFondos from '../../components/CuadreFondos';
@@ -22,6 +26,53 @@ import {
 const COLOR_INGRESO = '#2E9D78';
 const COLOR_GASTO = '#E5A33B';
 
+// Tonos para la dona: cada concepto de ingreso en verdes y cada gasto en naranjas
+const TONOS = { Ingreso: ['#2E9D78', '#5DBB97', '#9FD8C1'], Gasto: ['#E5A33B', '#C9741F'] };
+
+const toggleSx = {
+    '& .MuiToggleButton-root': { textTransform: 'none', fontWeight: 600, color: '#1F5F8B', borderColor: '#cdd8e3', px: 1.5, py: 0.25 },
+    '& .MuiToggleButton-root.Mui-selected': { bgcolor: '#1F5F8B', color: '#fff', '&:hover': { bgcolor: '#1C4E70' } },
+};
+
+// Dona de un tipo (ingresos o gastos) con el total al centro y su leyenda
+function Dona({ titulo, conceptos, total, color }) {
+    return (
+        <Box sx={{ minWidth: 0 }}>
+            <Typography variant="body2" sx={{ fontWeight: 700, textAlign: 'center', color, mb: 0.5 }}>{titulo}</Typography>
+            {conceptos.length === 0 ? (
+                <Box sx={{ height: 170, display: 'grid', placeItems: 'center' }}>
+                    <Typography variant="body2" color="text.secondary">Sin movimientos</Typography>
+                </Box>
+            ) : (
+                <>
+                    <Box sx={{ position: 'relative', height: 170 }}>
+                        <ResponsiveContainer width="100%" height="100%">
+                            <PieChart>
+                                <Pie data={conceptos} dataKey="monto" nameKey="concepto" innerRadius={48} outerRadius={72} paddingAngle={2}>
+                                    {conceptos.map((c) => <Cell key={c.concepto} fill={c.color} />)}
+                                </Pie>
+                                <Tooltip formatter={(v) => formatBs(v)} />
+                            </PieChart>
+                        </ResponsiveContainer>
+                        <Box sx={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', pointerEvents: 'none' }}>
+                            <Typography variant="body2" sx={{ fontWeight: 700, color }}>{formatBs(total)}</Typography>
+                        </Box>
+                    </Box>
+                    {conceptos.map((c) => (
+                        <Box key={c.concepto} sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5 }}>
+                            <Box sx={{ flexShrink: 0, width: 10, height: 10, borderRadius: '50%', bgcolor: c.color }} />
+                            <Typography variant="caption" color="text.secondary" sx={{ flex: 1, minWidth: 0 }} noWrap>{c.concepto}</Typography>
+                            <Typography variant="caption" sx={{ fontWeight: 700, whiteSpace: 'nowrap' }}>
+                                {total > 0 ? Math.round((c.monto / total) * 1000) / 10 : 0} %
+                            </Typography>
+                        </Box>
+                    ))}
+                </>
+            )}
+        </Box>
+    );
+}
+
 export default function EstadoFinanciero() {
     const periodos = useMemo(() => periodosDeReporte(), []);
     const location = useLocation();
@@ -30,6 +81,11 @@ export default function EstadoFinanciero() {
         periodos.includes(location.state?.periodo) ? location.state.periodo : periodos[0] || ''
     ));
     const d = useMemo(() => datosEstadoFinanciero(periodo), [periodo]);
+    const [vista, setVista] = useState('barras');
+    // Conceptos con monto, coloreados por tipo (para la dona)
+    const conceptosDe = (tipo) => d.composicion
+        .filter((c) => c.tipo === tipo && c.monto > 0)
+        .map((c, i) => ({ ...c, color: TONOS[tipo][i % TONOS[tipo].length] }));
 
     const totalComposicion = Math.max(1, ...d.composicion.map((c) => c.monto));
     const positivo = d.resultado >= 0;
@@ -79,8 +135,19 @@ export default function EstadoFinanciero() {
                 </Paper>
 
                 <Paper sx={{ p: { xs: 2, md: 3 }, borderRadius: 2, minWidth: 0 }}>
-                    <Typography sx={{ fontWeight: 700, mb: 2 }}>Composicion del periodo</Typography>
-                    {d.composicion.map((c) => (
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 1, flexWrap: 'wrap', mb: 2 }}>
+                        <Typography sx={{ fontWeight: 700 }}>Composicion del periodo</Typography>
+                        <ToggleButtonGroup exclusive size="small" value={vista} onChange={(e, v) => v && setVista(v)} sx={toggleSx}>
+                            <ToggleButton value="barras"><BarChartIcon fontSize="small" sx={{ mr: 0.5 }} /> Barras</ToggleButton>
+                            <ToggleButton value="dona"><DonutLargeIcon fontSize="small" sx={{ mr: 0.5 }} /> Dona</ToggleButton>
+                        </ToggleButtonGroup>
+                    </Box>
+                    {vista === 'dona' ? (
+                        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
+                            <Dona titulo="Ingresos" conceptos={conceptosDe('Ingreso')} total={d.ingresos} color={COLOR_INGRESO} />
+                            <Dona titulo="Gastos" conceptos={conceptosDe('Gasto')} total={d.gastos} color={COLOR_GASTO} />
+                        </Box>
+                    ) : d.composicion.map((c) => (
                         <Box key={c.concepto} sx={{ mb: 2 }}>
                             <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1, mb: 0.5 }}>
                                 <Typography variant="body2" color="text.secondary">{c.concepto}</Typography>

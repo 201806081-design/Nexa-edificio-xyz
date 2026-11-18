@@ -23,8 +23,6 @@ import ArticleOutlinedIcon from '@mui/icons-material/ArticleOutlined';
 import CompareArrowsIcon from '@mui/icons-material/CompareArrows';
 import WaterfallChartIcon from '@mui/icons-material/WaterfallChart';
 import PersonOffOutlinedIcon from '@mui/icons-material/PersonOffOutlined';
-import ReceiptOutlinedIcon from '@mui/icons-material/ReceiptOutlined';
-import HistoryIcon from '@mui/icons-material/History';
 
 // Iconos del menu lateral y de los accesos de Inicio (claves de PANTALLAS en constants/permisos.js)
 export const ICONO_PANTALLA = {
@@ -34,7 +32,6 @@ export const ICONO_PANTALLA = {
   copropietarios: <PeopleIcon />,
   unidades: <DomainIcon />,
   'finanzas.resumen': <DescriptionIcon />,
-  'finanzas.dashboard': <BarChartIcon />,
   'finanzas.expensas': <DescriptionIcon />,
   'finanzas.pagos': <PaymentIcon />,
   'finanzas.estadoCuenta': <ReceiptLongIcon />,
@@ -52,8 +49,6 @@ export const ICONO_PANTALLA = {
   'reportes.balanceMensual': <CompareArrowsIcon />,
   'reportes.flujoCaja': <WaterfallChartIcon />,
   'reportes.morosos': <PersonOffOutlinedIcon />,
-  'reportes.ingresosGastos': <ReceiptOutlinedIcon />,
-  'reportes.historialDepto': <HistoryIcon />,
 };
 
 // Iconos de las opciones con submenu

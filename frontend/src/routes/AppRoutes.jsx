@@ -18,7 +18,6 @@ import DetalleUnidad from '../pages/Unidades/DetalleUnidad';
 import EditarUnidad from '../pages/Unidades/EditarUnidad';
 import HistorialOcupantes from '../pages/Unidades/HistorialOcupantes';
 import GestionFinanciera from '../pages/Finanzas/GestionFinanciera';
-import DashboardFinanciero from '../pages/Finanzas/DashboardFinanciero';
 import Expensas from '../pages/Finanzas/Expensas';
 import ConfiguracionFinanciera from '../pages/Finanzas/ConfiguracionFinanciera';
 import Pagos from '../pages/Finanzas/Pagos';
@@ -38,8 +37,6 @@ import EstadoFinanciero from '../pages/Reportes/EstadoFinanciero';
 import BalanceMensual from '../pages/Reportes/BalanceMensual';
 import FlujoCaja from '../pages/Reportes/FlujoCaja';
 import ListaMorosos from '../pages/Reportes/ListaMorosos';
-import ReporteIngresosGastos from '../pages/Reportes/ReporteIngresosGastos';
-import HistorialDepartamento from '../pages/Reportes/HistorialDepartamento';
 import Mora from '../pages/Finanzas/Mora';
 // HU-AP-01 Administracion de personal
 import Empleados from '../pages/Personal/Empleados';
@@ -80,7 +77,8 @@ export default function AppRoutes() {
       <Route path="/unidades/:id/editar" element={<ProtectedRoute pantalla="unidades"><EditarUnidad /></ProtectedRoute>} />
 
       <Route path="/finanzas" element={<ProtectedRoute pantalla="finanzas.resumen"><GestionFinanciera /></ProtectedRoute>} />
-      <Route path="/finanzas/dashboard" element={<ProtectedRoute pantalla="finanzas.dashboard"><DashboardFinanciero /></ProtectedRoute>} />
+      {/* El Dashboard financiero se unio al Resumen */}
+      <Route path="/finanzas/dashboard" element={<Navigate to="/finanzas" replace />} />
       <Route path="/finanzas/expensas" element={<ProtectedRoute pantalla="finanzas.expensas"><Expensas /></ProtectedRoute>} />
       <Route path="/finanzas/pagos" element={<ProtectedRoute pantalla="finanzas.pagos"><Pagos /></ProtectedRoute>} />
       <Route path="/finanzas/pagos/registrar" element={<ProtectedRoute pantalla="finanzas.pagos"><RegistrarPago /></ProtectedRoute>} />
@@ -115,8 +113,9 @@ export default function AppRoutes() {
       <Route path="/reportes/balance-mensual" element={<ProtectedRoute pantalla="reportes.balanceMensual"><BalanceMensual /></ProtectedRoute>} />
       <Route path="/reportes/flujo-caja" element={<ProtectedRoute pantalla="reportes.flujoCaja"><FlujoCaja /></ProtectedRoute>} />
       <Route path="/reportes/morosos" element={<ProtectedRoute pantalla="reportes.morosos"><ListaMorosos /></ProtectedRoute>} />
-      <Route path="/reportes/ingresos-gastos" element={<ProtectedRoute pantalla="reportes.ingresosGastos"><ReporteIngresosGastos /></ProtectedRoute>} />
-      <Route path="/reportes/historial-departamento" element={<ProtectedRoute pantalla="reportes.historialDepto"><HistorialDepartamento /></ProtectedRoute>} />
+      {/* Estos dos reportes se consultan y exportan desde su pantalla de Finanzas */}
+      <Route path="/reportes/ingresos-gastos" element={<Navigate to="/finanzas/ingresos-gastos" replace />} />
+      <Route path="/reportes/historial-departamento" element={<Navigate to="/finanzas/estado-cuenta" replace />} />
 
       <Route path="*" element={<Navigate to="/login" replace />} />
     </Routes>
