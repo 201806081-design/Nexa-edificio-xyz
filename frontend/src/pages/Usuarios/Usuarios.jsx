@@ -3,79 +3,105 @@ import {
   Box, Typography, Table, TableHead, TableBody, TableRow, TableCell,
   Button, Chip, Dialog, DialogTitle, DialogContent, DialogActions,
   Select, MenuItem, Paper, TextField, Alert, InputAdornment, ToggleButton, ToggleButtonGroup,
-  IconButton, Tooltip,
+  IconButton, Tooltip, Switch, Snackbar,
 } from '@mui/material';
 import PersonAddIcon from '@mui/icons-material/PersonAdd';
 import ManageAccountsIcon from '@mui/icons-material/ManageAccounts';
 import KeyIcon from '@mui/icons-material/Key';
+import DeleteIcon from '@mui/icons-material/Delete';
 import DashboardLayout from '../../layouts/DashboardLayout';
-import { ROLES } from '../../constants/permisos';
+import CredencialesDialog from '../../components/CredencialesDialog';
+import { useAuth } from '../../hooks/useAuth';
+import { useEnvioCredenciales } from '../../hooks/useEnvioCredenciales';
+import { ROLES, ROLES_GESTION, TIPOS_RESIDENTE } from '../../constants/permisos';
 import {
-  USUARIOS_MOCK, empleadoDeUsuario, usuarioDeEmpleado, personalSugeridoParaRol, actualizarUsuario,
-  crearUsuario, restablecerPassword,
+  USUARIOS_MOCK, empleadoDeUsuario, usuarioDeEmpleado, tipoResidente, deptoDeUsuario, personasSinCuenta,
+  crearUsuario, crearCuentaResidente, cambiarRol, cambiarEstado, eliminarUsuario, restablecerPassword,
+  generarUsername, PASSWORD_INICIAL,
 } from '../../constants/usuariosMock';
 import { EMPLEADOS_MOCK } from '../../constants/personalMock';
+import { PERSONAS, deptoDePersona, nombreCompleto } from '../../constants/edificioMock';
 
 // Reglas de cuentas:
 //  - Administrador: SIEMPRE es personal del edificio con cargo Administrador.
-//  - Directorio y Consulta: pueden ser personas externas (directorio, contador, auditor)
-//    o alguien del personal.
+//  - Directorio y Consulta: personas externas (directorio, contador, auditor).
+//  - Residente: copropietario o inquilino registrado en Copropietarios.
 const CORREO = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 const CELULAR_BO = /^[67]\d{7}$/;
 const SOLO_LETRAS = /^[A-Za-zÁÉÍÓÚáéíóúÑñÜü' ]+$/;
+const TODOS = 'Todos los roles';
 
 const rolChipSx = (rol) => {
   if (rol === ROLES.ADMINISTRADOR) return { bgcolor: '#C5E0F2', color: '#132B3E' };
   if (rol === ROLES.DIRECTORIO) return { bgcolor: '#E4F4EE', color: '#2E9D78' };
+  if (rol === ROLES.RESIDENTE) return { bgcolor: '#FDF0D5', color: '#B6802A' };
   return { bgcolor: '#F3F6FA', color: '#64748B' };
 };
 
-const NUEVO_VACIO = { rol: ROLES.CONSULTA, origen: 'externo', empleadoId: '', nombres: '', apellidos: '', email: '', celular: '' };
+const NUEVO_VACIO = {
+  rol: ROLES.CONSULTA, empleadoId: '', tipoResidente: TIPOS_RESIDENTE.Propietario, personaId: '',
+  nombres: '', apellidos: '', email: '', celular: '',
+};
+
+const deptoTexto = (personaId) => deptoDePersona(personaId)?.identificador ?? 'Sin depto';
+
+// Con quien esta vinculada la cuenta: personal, residente o externo
+function Vinculo({ usuario }) {
+  const emp = empleadoDeUsuario(usuario);
+  if (emp) {
+    return (
+      <>
+        <Typography variant="body2" sx={{ fontWeight: 600 }}>Personal</Typography>
+        <Typography variant="caption" color="text.secondary">{emp.id} · {emp.cargo}</Typography>
+      </>
+    );
+  }
+  if (usuario.rol === ROLES.RESIDENTE) {
+    const depto = deptoDeUsuario(usuario);
+    return <Typography variant="body2">{depto ? `Depto. ${depto}` : 'Sin depto asignado'}</Typography>;
+  }
+  return <Typography variant="body2" color="text.secondary">Externo</Typography>;
+}
 
 export default function Usuarios() {
+  const { user } = useAuth();
   const [usuarios, setUsuarios] = useState(() => USUARIOS_MOCK.map((u) => ({ ...u })));
   const refrescar = () => setUsuarios(USUARIOS_MOCK.map((u) => ({ ...u }))); // tambien se ve en Personal > Empleados
+  const [filtroRol, setFiltroRol] = useState(TODOS);
+  const [aviso, setAviso] = useState(''); // error de una accion (ej. ultimo Administrador)
+  const { credenciales, mostrar: mostrarCredenciales, cerrar: cerrarCredenciales } = useEnvioCredenciales();
 
-  // Empleados activos que pueden recibir una cuenta (sin cuenta todavia)
-  const empleadosSinCuenta = (rol) => EMPLEADOS_MOCK.filter((e) => e.estado === 'Activo'
-    && !usuarioDeEmpleado(e.id)
-    && (rol !== ROLES.ADMINISTRADOR || e.cargo === 'Administrador'));
+  const esYo = (u) => u.username === user?.usuario;
+  const visibles = filtroRol === TODOS ? usuarios : usuarios.filter((u) => u.rol === filtroRol);
+
+  // Ejecuta una accion del mock y refresca; si devuelve error lo muestra
+  const ejecutar = (accion) => {
+    const error = accion();
+    if (error) setAviso(error);
+    refrescar();
+  };
+
+  // Empleados activos con cargo Administrador que todavia no tienen cuenta
+  const administradoresSinCuenta = () => EMPLEADOS_MOCK.filter((e) => e.estado === 'Activo'
+    && e.cargo === 'Administrador' && !usuarioDeEmpleado(e.id));
 
   // ---------- Cambiar rol ----------
   const [editando, setEditando] = useState(null);
   const [rolNuevo, setRolNuevo] = useState('');
-  const [empleadoNuevo, setEmpleadoNuevo] = useState('');
   const [errorRol, setErrorRol] = useState('');
-
-  const abrirModal = (usuario) => {
-    setEditando(usuario);
-    setRolNuevo(usuario.rol);
-    setEmpleadoNuevo(usuario.empleadoId || '');
-    setErrorRol('');
-  };
-  // Al cambiar el rol, el personal vinculado cambia solo (se puede ajustar a mano)
-  const cambiarRol = (rol) => {
-    setRolNuevo(rol);
-    setEmpleadoNuevo(personalSugeridoParaRol(rol) || '');
-    setErrorRol('');
-  };
+  const abrirCambioRol = (u) => { setEditando(u); setRolNuevo(u.rol); setErrorRol(''); };
   const guardarRol = () => {
-    const emp = EMPLEADOS_MOCK.find((e) => e.id === empleadoNuevo);
-    if (rolNuevo === ROLES.ADMINISTRADOR && (!emp || emp.cargo !== 'Administrador')) {
-      setErrorRol('El Administrador debe ser un empleado con cargo Administrador. Registralo primero en Personal.');
-      return;
-    }
-    actualizarUsuario(editando.id, { rol: rolNuevo, empleadoId: empleadoNuevo });
+    const error = cambiarRol(editando.id, rolNuevo);
+    if (error) { setErrorRol(error); return; }
     refrescar();
     setEditando(null);
   };
 
-  // ---------- Credenciales (alta o restablecer) ----------
-  const [credenciales, setCredenciales] = useState(null); // { usuario, titulo, texto }
-  const restablecer = (u) => {
-    restablecerPassword(u.id);
-    refrescar();
-    setCredenciales({ usuario: u, titulo: 'Restablecer contraseña', texto: 'un enlace para crear una contraseña nueva' });
+  // ---------- Eliminar ----------
+  const [eliminando, setEliminando] = useState(null);
+  const confirmarEliminar = () => {
+    ejecutar(() => eliminarUsuario(eliminando.id));
+    setEliminando(null);
   };
 
   // ---------- Agregar usuario ----------
@@ -85,20 +111,24 @@ export default function Usuarios() {
   const cambiarNuevo = (campo, valor) => {
     setNuevo((n) => {
       const sig = { ...n, [campo]: valor };
-      // El Administrador siempre es personal
-      if (campo === 'rol' && valor === ROLES.ADMINISTRADOR) { sig.origen = 'personal'; sig.empleadoId = ''; }
-      if (campo === 'origen') sig.empleadoId = '';
+      if (campo === 'rol') { sig.empleadoId = ''; sig.personaId = ''; }
+      if (campo === 'tipoResidente') sig.personaId = '';
       return sig;
     });
     setErrores((e) => ({ ...e, [campo]: '' }));
   };
+
   const guardarNuevo = () => {
     const e = {};
-    let datos;
-    if (nuevo.origen === 'personal') {
+    let cuenta;
+    if (nuevo.rol === ROLES.ADMINISTRADOR) {
       const emp = EMPLEADOS_MOCK.find((x) => x.id === nuevo.empleadoId);
       if (!emp) e.empleadoId = 'Elige un empleado';
-      else datos = { nombres: emp.nombres, apellidos: emp.apellidos, nombre: emp.nombre, email: emp.correo, celular: emp.celular, empleadoId: emp.id };
+      else cuenta = () => crearUsuario({ nombres: emp.nombres, apellidos: emp.apellidos, email: emp.correo, celular: emp.celular, rol: ROLES.ADMINISTRADOR, empleadoId: emp.id });
+    } else if (nuevo.rol === ROLES.RESIDENTE) {
+      const persona = PERSONAS.find((p) => p.id === nuevo.personaId);
+      if (!persona) e.personaId = 'Elige una persona';
+      else cuenta = () => crearCuentaResidente(persona);
     } else {
       const t = (v) => String(v || '').trim();
       if (!t(nuevo.nombres) || !SOLO_LETRAS.test(t(nuevo.nombres))) e.nombres = 'Solo letras, obligatorio';
@@ -106,17 +136,30 @@ export default function Usuarios() {
       if (!CORREO.test(t(nuevo.email))) e.email = 'Correo no valido';
       else if (USUARIOS_MOCK.some((u) => u.email.toLowerCase() === t(nuevo.email).toLowerCase())) e.email = 'Ese correo ya tiene una cuenta';
       if (nuevo.celular && !CELULAR_BO.test(nuevo.celular)) e.celular = '8 digitos, empieza con 6 o 7';
-      datos = { nombres: t(nuevo.nombres), apellidos: t(nuevo.apellidos), nombre: `${t(nuevo.nombres)} ${t(nuevo.apellidos)}`, email: t(nuevo.email).toLowerCase(), celular: nuevo.celular };
+      cuenta = () => crearUsuario({ nombres: t(nuevo.nombres), apellidos: t(nuevo.apellidos), email: t(nuevo.email).toLowerCase(), celular: nuevo.celular, rol: nuevo.rol });
     }
     setErrores(e);
     if (Object.keys(e).length) return;
-    const cuenta = crearUsuario({ ...datos, rol: nuevo.rol });
+    mostrarCredenciales(cuenta(), { titulo: 'Usuario creado' });
     refrescar();
     setNuevoAbierto(false);
-    setCredenciales({ ...cuenta, titulo: 'Usuario creado', texto: 'un enlace para activar su cuenta y crear su contraseña' });
   };
 
   const errProps = (c) => ({ error: !!errores[c], helperText: errores[c] || ' ' });
+
+  // Datos de la persona elegida en el formulario, para mostrar su usuario ANTES de crear la cuenta
+  const personaDelFormulario = () => {
+    if (nuevo.rol === ROLES.ADMINISTRADOR) {
+      const emp = EMPLEADOS_MOCK.find((x) => x.id === nuevo.empleadoId);
+      return emp ? { nombres: emp.nombres, apellidos: emp.apellidos } : null;
+    }
+    if (nuevo.rol === ROLES.RESIDENTE) {
+      const p = PERSONAS.find((x) => x.id === nuevo.personaId);
+      return p ? { nombres: p.nombres, apellidos: p.apellidos, personaId: p.id } : null;
+    }
+    return nuevo.nombres.trim() ? { nombres: nuevo.nombres.trim(), apellidos: nuevo.apellidos.trim() } : null;
+  };
+  const datosNuevos = nuevoAbierto ? personaDelFormulario() : null;
 
   return (
     <DashboardLayout>
@@ -124,97 +167,106 @@ export default function Usuarios() {
         Usuarios y roles
       </Typography>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-        Cuentas para entrar al sistema. El Administrador siempre es parte del personal; Directorio y Consulta pueden ser externos.
+        Cuentas para entrar al sistema. El Administrador es parte del personal, Directorio y Consulta son externos
+        y los Residentes son los copropietarios e inquilinos.
       </Typography>
-      <Box sx={{ display: 'flex', justifyContent: { xs: 'stretch', md: 'flex-end' }, mb: 2 }}>
-        <Button variant="contained" startIcon={<PersonAddIcon />} sx={{ width: { xs: '100%', md: 'auto' } }}
+      <Box sx={{ display: 'flex', gap: 2, justifyContent: 'space-between', flexDirection: { xs: 'column', md: 'row' }, mb: 2 }}>
+        <Select size="small" value={filtroRol} onChange={(e) => setFiltroRol(e.target.value)} sx={{ minWidth: 200 }}>
+          {[TODOS, ...Object.values(ROLES)].map((r) => <MenuItem key={r} value={r}>{r}</MenuItem>)}
+        </Select>
+        <Button variant="contained" startIcon={<PersonAddIcon />}
           onClick={() => { setNuevo(NUEVO_VACIO); setErrores({}); setNuevoAbierto(true); }}>
           Agregar usuario
         </Button>
       </Box>
 
       <Paper sx={{ p: 2, borderRadius: 3, overflowX: 'auto' }}>
-        <Table sx={{ minWidth: 760 }}>
+        <Table sx={{ minWidth: 820 }}>
           <TableHead>
             <TableRow>
-              <TableCell><strong>Usuario</strong></TableCell>
+              <TableCell><strong>Correo</strong></TableCell>
               <TableCell><strong>Nombre</strong></TableCell>
-              <TableCell><strong>Personal del edificio</strong></TableCell>
+              <TableCell><strong>Vinculo</strong></TableCell>
               <TableCell><strong>Rol asignado</strong></TableCell>
               <TableCell><strong>Estado</strong></TableCell>
               <TableCell align="right"><strong>Acciones</strong></TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
-            {usuarios.map((u) => {
-              const emp = empleadoDeUsuario(u);
-              return (
-                <TableRow key={u.id}>
-                  <TableCell>
-                    <Typography variant="body2" sx={{ fontWeight: 600 }}>{u.username}</Typography>
-                    <Typography variant="caption" color="text.secondary">{u.email}</Typography>
-                  </TableCell>
-                  <TableCell>{u.nombre}</TableCell>
-                  <TableCell>
-                    {emp ? (
-                      <>
-                        <Typography variant="body2" sx={{ fontWeight: 600 }}>{emp.nombre}</Typography>
-                        <Typography variant="caption" color="text.secondary">{emp.id} · {emp.cargo}</Typography>
-                      </>
-                    ) : (
-                      <Typography variant="body2" color="text.secondary">No es personal</Typography>
-                    )}
-                  </TableCell>
-                  <TableCell><Chip label={u.rol} size="small" sx={rolChipSx(u.rol)} /></TableCell>
-                  <TableCell>
-                    <Chip size="small" label={!u.activo ? 'Desactivado' : (u.debeCambiarPassword ? 'Pendiente de activacion' : 'Activo')}
-                      sx={!u.activo ? { bgcolor: '#FBEAE9', color: '#D9534F' }
-                        : (u.debeCambiarPassword ? { bgcolor: '#FDF0D5', color: '#B6802A' } : { bgcolor: '#E4F4EE', color: '#2E9D78' })} />
-                  </TableCell>
-                  <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
-                    <Tooltip title="Cambiar rol">
-                      <IconButton color="primary" onClick={() => abrirModal(u)}><ManageAccountsIcon /></IconButton>
-                    </Tooltip>
-                    <Tooltip title="Enviar enlace para restablecer contraseña">
-                      <span>
-                        <IconButton color="primary" onClick={() => restablecer(u)} disabled={!u.activo}><KeyIcon /></IconButton>
-                      </span>
-                    </Tooltip>
-                  </TableCell>
-                </TableRow>
-              );
-            })}
+            {visibles.length === 0 && (
+              <TableRow>
+                <TableCell colSpan={6} align="center" sx={{ color: 'text.secondary', py: 3 }}>
+                  No hay usuarios con el rol {filtroRol}.
+                </TableCell>
+              </TableRow>
+            )}
+            {visibles.map((u) => (
+              <TableRow key={u.id}>
+                <TableCell>{u.email || <Typography variant="body2" color="text.secondary">Sin correo</Typography>}</TableCell>
+                <TableCell sx={{ fontWeight: 600 }}>{u.nombre}</TableCell>
+                <TableCell><Vinculo usuario={u} /></TableCell>
+                <TableCell>
+                  <Chip label={u.rol} size="small" sx={rolChipSx(u.rol)} />
+                  {u.rol === ROLES.RESIDENTE && (
+                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+                      {tipoResidente(u)}
+                    </Typography>
+                  )}
+                </TableCell>
+                <TableCell sx={{ whiteSpace: 'nowrap' }}>
+                  <Tooltip title={esYo(u) ? 'No puedes desactivar tu propia cuenta' : ''}>
+                    <span>
+                      <Switch size="small" checked={u.activo} disabled={esYo(u)}
+                        onChange={(e) => ejecutar(() => cambiarEstado(u.id, e.target.checked))} />
+                    </span>
+                  </Tooltip>
+                  <Typography component="span" variant="body2" sx={{ color: u.activo ? 'success.main' : 'error.main', fontWeight: 600 }}>
+                    {u.activo ? 'Activo' : 'Inactivo'}
+                  </Typography>
+                </TableCell>
+                <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
+                  <Tooltip title={u.rol === ROLES.RESIDENTE ? 'El rol de residente no se cambia' : 'Cambiar rol'}>
+                    <span>
+                      <IconButton color="primary" onClick={() => abrirCambioRol(u)} disabled={u.rol === ROLES.RESIDENTE}>
+                        <ManageAccountsIcon />
+                      </IconButton>
+                    </span>
+                  </Tooltip>
+                  <Tooltip title="Restablecer contraseña y enviarla a su correo">
+                    <span>
+                      <IconButton color="primary" disabled={!u.activo}
+                        onClick={() => mostrarCredenciales(restablecerPassword(u.id), { titulo: 'Contraseña restablecida', motivo: 'restablecer' })}>
+                        <KeyIcon />
+                      </IconButton>
+                    </span>
+                  </Tooltip>
+                  <Tooltip title={u.activo ? 'Desactiva la cuenta para poder eliminarla' : 'Eliminar usuario'}>
+                    <span>
+                      <IconButton color="error" disabled={u.activo || esYo(u)} onClick={() => setEliminando(u)}>
+                        <DeleteIcon />
+                      </IconButton>
+                    </span>
+                  </Tooltip>
+                </TableCell>
+              </TableRow>
+            ))}
           </TableBody>
         </Table>
       </Paper>
 
-      {/* Modal cambiar rol */}
+      {/* Modal cambiar rol (solo roles de gestion; el Residente no cambia de rol) */}
       <Dialog open={!!editando} onClose={() => setEditando(null)} fullWidth maxWidth="xs">
         <DialogTitle>
           Cambiar rol
           <Typography variant="body2" color="text.secondary">
-            {editando?.username} · {editando?.nombre}
+            {editando?.nombre}
           </Typography>
         </DialogTitle>
         <DialogContent>
           <Typography variant="body2" sx={{ mb: 1, mt: 1 }}>Rol asignado</Typography>
-          <Select fullWidth value={rolNuevo} onChange={(e) => cambiarRol(e.target.value)}>
-            {Object.values(ROLES).map((r) => (
-              <MenuItem key={r} value={r}>{r}</MenuItem>
-            ))}
+          <Select fullWidth value={rolNuevo} onChange={(e) => { setRolNuevo(e.target.value); setErrorRol(''); }}>
+            {ROLES_GESTION.map((r) => <MenuItem key={r} value={r}>{r}</MenuItem>)}
           </Select>
-
-          <Typography variant="body2" sx={{ mb: 1, mt: 2 }}>Personal del edificio</Typography>
-          <Select fullWidth displayEmpty value={empleadoNuevo} onChange={(e) => { setEmpleadoNuevo(e.target.value); setErrorRol(''); }}>
-            <MenuItem value=""><em>No es personal</em></MenuItem>
-            {EMPLEADOS_MOCK.filter((e) => e.estado === 'Activo').map((e) => (
-              <MenuItem key={e.id} value={e.id}>{e.nombre} · {e.cargo}</MenuItem>
-            ))}
-          </Select>
-          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
-            Se completa solo segun el rol: el Administrador es el empleado con cargo Administrador.
-            Directorio y Consulta no son personal del edificio.
-          </Typography>
           {errorRol && <Alert severity="error" sx={{ mt: 2 }}>{errorRol}</Alert>}
         </DialogContent>
         <DialogActions sx={{ p: 3, pt: 1 }}>
@@ -234,33 +286,51 @@ export default function Usuarios() {
             {Object.values(ROLES).map((r) => <MenuItem key={r} value={r}>{r}</MenuItem>)}
           </Select>
 
-          {nuevo.rol !== ROLES.ADMINISTRADOR && (
-            <ToggleButtonGroup exclusive fullWidth size="small" value={nuevo.origen} sx={{ mb: 2 }}
-              onChange={(_, v) => { if (v) cambiarNuevo('origen', v); }}>
-              <ToggleButton value="externo">Persona externa</ToggleButton>
-              <ToggleButton value="personal">Personal del edificio</ToggleButton>
-            </ToggleButtonGroup>
-          )}
-
-          {nuevo.origen === 'personal' ? (
+          {nuevo.rol === ROLES.ADMINISTRADOR && (
             <>
               <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Empleado</Typography>
               <Select fullWidth size="small" displayEmpty value={nuevo.empleadoId} error={!!errores.empleadoId}
                 onChange={(e) => cambiarNuevo('empleadoId', e.target.value)}>
                 <MenuItem value=""><em>Elige un empleado</em></MenuItem>
-                {empleadosSinCuenta(nuevo.rol).map((e) => (
+                {administradoresSinCuenta().map((e) => (
                   <MenuItem key={e.id} value={e.id}>{e.nombre} · {e.cargo} · {e.correo}</MenuItem>
                 ))}
               </Select>
               {errores.empleadoId && <Typography variant="caption" color="error">{errores.empleadoId}</Typography>}
-              {nuevo.rol === ROLES.ADMINISTRADOR && empleadosSinCuenta(nuevo.rol).length === 0 && (
+              {administradoresSinCuenta().length === 0 && (
                 <Alert severity="info" sx={{ mt: 2 }}>
                   No hay administradores sin cuenta. Al registrar un empleado con cargo Administrador en Personal,
                   su cuenta se crea sola.
                 </Alert>
               )}
             </>
-          ) : (
+          )}
+
+          {nuevo.rol === ROLES.RESIDENTE && (
+            <>
+              <ToggleButtonGroup exclusive fullWidth size="small" value={nuevo.tipoResidente} sx={{ mb: 2 }}
+                onChange={(_, v) => { if (v) cambiarNuevo('tipoResidente', v); }}>
+                {Object.values(TIPOS_RESIDENTE).map((t) => <ToggleButton key={t} value={t}>{t}</ToggleButton>)}
+              </ToggleButtonGroup>
+              <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>{nuevo.tipoResidente}</Typography>
+              <Select fullWidth size="small" displayEmpty value={nuevo.personaId} error={!!errores.personaId}
+                onChange={(e) => cambiarNuevo('personaId', e.target.value)}>
+                <MenuItem value=""><em>Elige una persona</em></MenuItem>
+                {personasSinCuenta(nuevo.tipoResidente).map((p) => (
+                  <MenuItem key={p.id} value={p.id}>{nombreCompleto(p)} · {deptoTexto(p.id)} · {p.correo || 'sin correo'}</MenuItem>
+                ))}
+              </Select>
+              {errores.personaId && <Typography variant="caption" color="error">{errores.personaId}</Typography>}
+              {personasSinCuenta(nuevo.tipoResidente).length === 0 && (
+                <Alert severity="info" sx={{ mt: 2 }}>
+                  Todos los {nuevo.tipoResidente.toLowerCase()}s ya tienen cuenta. Para uno nuevo, registralo
+                  primero en Copropietarios.
+                </Alert>
+              )}
+            </>
+          )}
+
+          {(nuevo.rol === ROLES.DIRECTORIO || nuevo.rol === ROLES.CONSULTA) && (
             <>
               <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', sm: 'row' } }}>
                 <TextField fullWidth size="small" label="Nombres" value={nuevo.nombres}
@@ -280,12 +350,26 @@ export default function Usuarios() {
               </Box>
             </>
           )}
-          <Alert severity="info" icon={false} sx={{ bgcolor: '#E4EEF5', color: 'text.primary', mt: 1 }}>
-            <Typography variant="body2">
-              Se generara su nombre de usuario y se le enviara a su correo un enlace para que el mismo
-              cree su contraseña. Nadie mas la conoce, ni el administrador.
-            </Typography>
-          </Alert>
+
+          {/* Unica vez que se ven el usuario y la contraseña: para dictarselos a la persona */}
+          {datosNuevos ? (
+            <Alert severity="info" icon={false} sx={{ bgcolor: '#E4EEF5', color: 'text.primary', mt: 2 }}>
+              <Typography variant="body2">Usuario: <strong>{generarUsername(datosNuevos)}</strong></Typography>
+              <Typography variant="body2">Contraseña inicial: <strong>{PASSWORD_INICIAL}</strong></Typography>
+              <Typography variant="caption" color="text.secondary">
+                Dictaselos ahora: al crear la cuenta se envian a su correo y ya no se vuelven a mostrar.
+              </Typography>
+            </Alert>
+          ) : (
+            <Alert severity="info" icon={false} sx={{ bgcolor: '#E4EEF5', color: 'text.primary', mt: 2 }}>
+              <Typography variant="body2">
+                {nuevo.rol === ROLES.RESIDENTE
+                  ? 'Su usuario sera su numero de departamento y su nombre en minusculas (ej. 101ana)'
+                  : 'Su usuario sera su nombre en minusculas'} y su contraseña inicial {PASSWORD_INICIAL}.
+                Se le enviaran a su correo.
+              </Typography>
+            </Alert>
+          )}
         </DialogContent>
         <DialogActions sx={{ p: 2 }}>
           <Button variant="outlined" onClick={() => setNuevoAbierto(false)}>Cancelar</Button>
@@ -293,27 +377,27 @@ export default function Usuarios() {
         </DialogActions>
       </Dialog>
 
-      {/* Credenciales generadas */}
-      <Dialog open={!!credenciales} onClose={() => setCredenciales(null)} maxWidth="xs" fullWidth>
-        <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1.5, fontWeight: 700 }}>
-          <KeyIcon color="primary" /> {credenciales?.titulo}
-        </DialogTitle>
+      {/* Confirmar eliminar */}
+      <Dialog open={!!eliminando} onClose={() => setEliminando(null)} maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ fontWeight: 700 }}>Eliminar usuario</DialogTitle>
         <DialogContent dividers>
-          <Box sx={{ bgcolor: '#F3F6FA', borderRadius: 2, p: 2, mb: 2 }}>
-            <Typography variant="body2">Usuario: <strong>{credenciales?.usuario.username}</strong></Typography>
-            <Typography variant="body2">Correo: <strong>{credenciales?.usuario.email}</strong></Typography>
-          </Box>
-          <Alert severity="success" icon={false} sx={{ bgcolor: '#E4F4EE', color: 'text.primary' }}>
-            <Typography variant="body2">
-              Se envio a su correo {credenciales?.texto}. El enlace es de un solo uso; la contraseña solo la conoce el usuario.
-            </Typography>
-            <Typography variant="caption" color="text.secondary">(Envio simulado: lo hara el backend.)</Typography>
-          </Alert>
+          <Typography variant="body2">
+            Se eliminara la cuenta de <strong>{eliminando?.nombre}</strong>.
+            La persona sigue registrada en el sistema, solo pierde el acceso.
+          </Typography>
         </DialogContent>
         <DialogActions sx={{ p: 2 }}>
-          <Button variant="contained" onClick={() => setCredenciales(null)}>Entendido</Button>
+          <Button variant="outlined" onClick={() => setEliminando(null)}>Cancelar</Button>
+          <Button variant="contained" color="error" onClick={confirmarEliminar}>Eliminar</Button>
         </DialogActions>
       </Dialog>
+
+      <CredencialesDialog credenciales={credenciales} onClose={cerrarCredenciales} />
+
+      <Snackbar open={!!aviso} autoHideDuration={4000} onClose={() => setAviso('')}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}>
+        <Alert severity="error" onClose={() => setAviso('')} sx={{ width: '100%' }}>{aviso}</Alert>
+      </Snackbar>
     </DashboardLayout>
   );
 }

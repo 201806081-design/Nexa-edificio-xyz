@@ -13,7 +13,7 @@
 
 import { PAGOS_PERSONAL_MOCK, ANTICIPOS_PERSONAL_MOCK, cargoEmpleado } from './personalMock';
 import { PAGOS_MOCK, HISTORIAL_ANTICIPOS } from './pagosMock';
-import { TODOS_LOS_PERIODOS } from './periodos';
+import { TODOS_LOS_PERIODOS, esPeriodoAnual, anioDePeriodo } from './periodos';
 
 // Opciones de los selectores del formulario y filtros.
 export const TIPOS_MOVIMIENTO = ['Todos', 'Ingreso', 'Gasto'];
@@ -25,6 +25,9 @@ export const CATEGORIAS_PERSONAL = ['Pago al personal', 'Anticipo al personal'];
 export const CATEGORIAS = ['Mantenimiento', 'Servicios basicos', 'Limpieza', 'Seguridad', 'Administracion', ...CATEGORIAS_PERSONAL, 'Otros'];
 // Categorias que se pueden elegir al registrar un movimiento a mano
 export const CATEGORIAS_MANUALES = CATEGORIAS.filter((c) => !CATEGORIAS_PERSONAL.includes(c));
+// Movimientos propios del banco (comisiones, intereses): se registran en Caja y bancos
+// a partir del extracto, no a mano en este libro.
+export const CATEGORIAS_BANCO = { GASTO: 'Gastos bancarios', INGRESO: 'Intereses bancarios' };
 
 // Medio por el que entra o sale el dinero, y en que cuenta impacta.
 // Efectivo -> Caja; el resto -> Banco (cuenta del edificio). Sirve para Caja y bancos.
@@ -122,7 +125,7 @@ export const todosLosMovimientos = () => [...MOVIMIENTOS_LISTA, ...gastosDePerso
 //  no ingresos, hasta que se pagan.
 // ============================================================
 export const CATEGORIAS_COBROS = ['Expensas', 'Anticipos de copropietarios'];
-export const CATEGORIAS_FILTRO = [...CATEGORIAS_COBROS, ...CATEGORIAS];
+export const CATEGORIAS_FILTRO = [...CATEGORIAS_COBROS, ...CATEGORIAS, ...Object.values(CATEGORIAS_BANCO)];
 
 const cobrosDeCopropietarios = () => [
     ...PAGOS_MOCK.filter((p) => (Number(p.monto) || 0) > 0).map((p) => ({
@@ -152,6 +155,7 @@ export const libroDiario = () => [...cobrosDeCopropietarios(), ...todosLosMovimi
 const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 export const enPeriodo = (fecha, periodo) => {
     if (periodo === TODOS_LOS_PERIODOS) return true; // acumulado desde el inicio del sistema
+    if (esPeriodoAnual(periodo)) return Number(String(fecha || '').split('/')[2]) === anioDePeriodo(periodo);
     const [, m, a] = String(fecha || '').split('/').map(Number);
     const [mes, anio] = String(periodo || '').split(' ');
     return m === MESES.indexOf(mes) + 1 && a === Number(anio);

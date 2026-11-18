@@ -14,12 +14,17 @@ import ReportProblemIcon from '@mui/icons-material/ReportProblem';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import NorthIcon from '@mui/icons-material/North';
 import SouthIcon from '@mui/icons-material/South';
-import { useNavigate } from 'react-router-dom';
+import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
+import { useNavigate, useLocation } from 'react-router-dom';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import {
-    CUENTAS_BANCARIAS, ESTADOS_CONCILIACION, TIPOS_MOV_BANCO,
-    movimientosBancarios, BANCOS_POR_MEDIO,
+    ESTADOS_CONCILIACION, TIPOS_MOV_BANCO,
+    movimientosConciliacion, conciliarMovimientos, marcarEnInvestigacion,
 } from '../../constants/conciliacionMock';
+import {
+    cuentasBancarias, cuentaPrincipal, cuentaBancariaPorId, etiquetaCuenta,
+    movimientosBanco, libroDelPeriodo,
+} from '../../constants/cajaBancosMock';
 import { periodosConMovimientos, periodoEnCurso } from '../../constants/periodos';
 
 // Periodos para conciliacion: meses cerrados MAS el mes en curso (fuente unica periodos.js).
@@ -69,6 +74,7 @@ const fechaEnPeriodo = (fecha, periodoSel) => {
 
 export default function ConciliacionBancaria() {
     const navigate = useNavigate();
+    const location = useLocation();
 
     // Periodos: meses cerrados + mes en curso (para seguimiento diario)
     const [tick, setTick] = useState(0);
@@ -84,63 +90,69 @@ export default function ConciliacionBancaria() {
         }
     }, [periodos, periodo]);
 
-    // Siempre una cuenta por vez (Mercantil por default porque tiene mas movimientos)
-    const [cuenta, setCuenta] = useState(CUENTAS_BANCARIAS[0]);
+    // Cuenta bancaria en uso (se registra en Caja y bancos). Se concilia una cuenta por vez.
+    // Abre la cuenta que se estaba viendo en Caja y bancos (o la principal)
+    const cuentasActivas = cuentasBancarias();
+    const principal = cuentaPrincipal();
+    const [cuentaId, setCuentaId] = useState(() => (
+        cuentasActivas.some((c) => c.id === location.state?.cuentaId) ? location.state.cuentaId : principal?.id ?? cuentasActivas[0]?.id ?? ''
+    ));
+    const cuenta = cuentaBancariaPorId(cuentaId);
     const [estado, setEstado] = useState('Todos');
     const [tipo, setTipo] = useState('Todos');
     const [busqueda, setBusqueda] = useState('');
-
-    // Overrides locales: cambios manuales que hace el usuario (conciliar, investigar).
-    // key = id del movimiento, value = { estado, coincidencia } nuevos.
-    // Al aplicarse sobre los derivados, los cambios persisten entre re-fetchs del useMemo.
-    const [overrides, setOverrides] = useState({});
 
     const [verMov, setVerMov] = useState(null);
     const [accionMov, setAccionMov] = useState(null);
     const [snack, setSnack] = useState({ open: false, msg: '', sev: 'success' });
 
-    // Movimientos derivados de PAGOS_MOCK + anticipos + alertas, con overrides aplicados
-    const movs = useMemo(() => {
-        return movimientosBancarios().map((m) => ({
-            ...m,
-            ...(overrides[m.id] || {}),
-        }));
+    // Movimientos de la cuenta (ingresos y egresos) con su estado de conciliacion.
+    // El estado se guarda en conciliacionMock: no se pierde al cambiar de pantalla.
+    const movs = useMemo(
+        () => (cuentaId ? movimientosConciliacion(cuentaId) : []),
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [overrides, tick]);
+        [cuentaId, tick],
+    );
+    const refrescar = () => setTick((t) => t + 1);
 
     // Acciones
     const conciliar = (id) => {
-        setOverrides((prev) => ({ ...prev, [id]: { estado: 'Conciliado', coincidencia: 'Exacta' } }));
+        conciliarMovimientos([id]);
+        refrescar();
         setSnack({ open: true, msg: 'Movimiento conciliado con el registro del sistema', sev: 'success' });
     };
 
+    // Concilia de una vez los pendientes del periodo que tienen registro en el sistema
     const conciliarAuto = () => {
-        const pendientesSugeridos = movs.filter((m) => m.estado === 'Pendiente' && m.coincidencia === 'Sugerida' && m.sistemaRef);
-        if (pendientesSugeridos.length === 0) {
-            setSnack({ open: true, msg: 'No hay movimientos pendientes con coincidencia sugerida', sev: 'warning' });
+        const sugeridos = movsEnVista.filter((m) => m.estado === 'Pendiente' && m.sistemaRef);
+        if (sugeridos.length === 0) {
+            setSnack({ open: true, msg: 'No hay movimientos pendientes con registro en el sistema', sev: 'warning' });
             return;
         }
-        const nuevos = { ...overrides };
-        pendientesSugeridos.forEach((m) => {
-            nuevos[m.id] = { estado: 'Conciliado', coincidencia: 'Exacta' };
-        });
-        setOverrides(nuevos);
-        setSnack({ open: true, msg: `${pendientesSugeridos.length} movimiento${pendientesSugeridos.length !== 1 ? 's' : ''} conciliado${pendientesSugeridos.length !== 1 ? 's' : ''}`, sev: 'success' });
+        conciliarMovimientos(sugeridos.map((m) => m.id));
+        refrescar();
+        setSnack({ open: true, msg: `${sugeridos.length} movimiento${sugeridos.length !== 1 ? 's' : ''} conciliado${sugeridos.length !== 1 ? 's' : ''}`, sev: 'success' });
     };
 
     const marcarInvestigado = () => {
-        setOverrides((prev) => ({ ...prev, [accionMov.id]: { estado: 'Pendiente' } }));
+        marcarEnInvestigacion(accionMov.id);
         setAccionMov(null);
+        refrescar();
         setSnack({ open: true, msg: 'Marcado como "en investigacion"', sev: 'warning' });
     };
 
     // KPIs calculados sobre lo filtrado por periodo + cuenta (siempre una cuenta por vez).
     // Ordenados por fecha descendente (mas reciente arriba) para seguimiento diario.
-    const movsEnVista = useMemo(() => {
-        return movs
-            .filter((m) => m.cuenta === cuenta && fechaEnPeriodo(m.fecha, periodo))
-            .sort((a, b) => timestampFecha(b.fecha) - timestampFecha(a.fecha));
-    }, [movs, cuenta, periodo]);
+    const movsEnVista = useMemo(() => movs
+        .filter((m) => fechaEnPeriodo(m.fecha, periodo))
+        .sort((a, b) => timestampFecha(b.fecha) - timestampFecha(a.fecha)), [movs, periodo]);
+
+    // Saldo segun el sistema al cierre del periodo (para comparar con el extracto)
+    const saldoSistema = useMemo(
+        () => (cuenta ? libroDelPeriodo(movimientosBanco(cuenta.id), cuenta.saldoInicial, periodo).saldoFinal : 0),
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        [cuenta, periodo, tick],
+    );
 
     const total = movsEnVista.length;
     const conciliados = movsEnVista.filter((m) => m.estado === 'Conciliado').length;
@@ -157,24 +169,24 @@ export default function ConciliacionBancaria() {
         { label: 'Total movimientos', valor: total, nota: `${periodo.toLowerCase()}`, icon: <AccountBalanceWalletIcon />, color: '#1F5F8B', bg: '#E4EEF5' },
         { label: 'Conciliados', valor: conciliados, nota: 'Coincidencia confirmada', icon: <CheckCircleIcon />, color: '#2E9D78', bg: '#E4F4EE' },
         { label: 'Pendientes', valor: pendientes, nota: 'Requieren confirmar', icon: <HourglassBottomIcon />, color: '#B6802A', bg: '#FDF0D5' },
-        { label: 'Alertas', valor: alertas, nota: 'Egreso sin registrar', icon: <ReportProblemIcon />, color: '#D9534F', bg: '#FBEAE9' },
+        { label: 'Alertas', valor: alertas, nota: 'Sin registro en el sistema', icon: <ReportProblemIcon />, color: '#D9534F', bg: '#FBEAE9' },
     ];
 
     return (
         <DashboardLayout>
             <Typography variant="h1" color="primary.main" sx={{ mb: 0.5 }}>Conciliacion bancaria</Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                Compara los movimientos del banco con los pagos registrados en el sistema. Los movimientos aparecen aqui
-                automaticamente cada vez que registras un pago (transferencia, QR o cheque).
+                Compara los movimientos del banco con los ingresos y egresos registrados en el sistema. Aparecen aqui
+                automaticamente cada vez que registras un cobro o un gasto por banco.
             </Typography>
 
             <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', justifyContent: { xs: 'stretch', md: 'flex-end' }, mb: 2 }}>
                 <Button variant="outlined" startIcon={<ArrowBackIcon />}
-                    onClick={() => navigate('/finanzas/pagos')}
+                    onClick={() => navigate('/finanzas/caja-bancos', { state: { tab: 'bancos', cuentaId } })}
                     sx={{ color: '#1a2733', borderColor: '#cdd8e3', width: { xs: '100%', md: 'auto' } }}>
-                    Volver a pagos
+                    Volver a caja y bancos
                 </Button>
-                <Button variant="contained" startIcon={<SyncIcon />} onClick={conciliarAuto}
+                <Button variant="contained" startIcon={<SyncIcon />} onClick={conciliarAuto} disabled={!cuenta}
                     sx={{ width: { xs: '100%', md: 'auto' } }}>
                     Conciliar automaticamente
                 </Button>
@@ -183,13 +195,27 @@ export default function ConciliacionBancaria() {
             <Alert severity="info" icon={false} sx={{ bgcolor: '#E4EEF5', color: 'text.primary', mb: 2 }}>
                 <Typography variant="body2" sx={{ fontWeight: 700, mb: 0.5 }}>¿Como funciona esta pantalla?</Typography>
                 <Typography variant="body2">
-                    Cada pago que registras con <strong>transferencia</strong> o <strong>QR</strong> entra como movimiento en
-                    <strong> Banco Mercantil (·7781)</strong>, y cada pago con <strong>cheque</strong> entra en
-                    <strong> Banco Union (·1024)</strong>. Los pagos en <strong>efectivo no aparecen</strong> porque no tocan al banco.
-                    <strong> Conciliar</strong> = confirmar que el movimiento del banco coincide con el pago registrado en el sistema.
+                    Todo lo que se cobra o se paga por <strong>transferencia, QR, cheque o deposito</strong> entra como movimiento en
+                    {principal ? <> la cuenta principal, <strong>{etiquetaCuenta(principal)}</strong></> : <strong> la cuenta principal del edificio</strong>}:
+                    cobros de expensas y anticipos, gastos, sueldos y depositos desde caja. Lo que se mueve en
+                    <strong> efectivo no aparece</strong> porque no pasa por el banco (se controla en Caja).
+                    <strong> Conciliar</strong> = confirmar que el movimiento del banco coincide con lo registrado en el sistema.
                     Si aparece un movimiento del banco <strong>sin registro</strong> en el sistema, hay que <strong>investigar</strong>.
                 </Typography>
             </Alert>
+
+            {!cuenta && (
+                <Paper sx={{ p: 4, borderRadius: 2, mb: 2, textAlign: 'center' }}>
+                    <AccountBalanceIcon sx={{ fontSize: 48, color: 'text.secondary', mb: 1 }} />
+                    <Typography sx={{ fontWeight: 700, mb: 0.5 }}>No hay una cuenta bancaria registrada</Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                        Registra la cuenta del edificio en Caja y bancos para poder conciliar sus movimientos.
+                    </Typography>
+                    <Button variant="contained" onClick={() => navigate('/finanzas/caja-bancos', { state: { tab: 'bancos' } })}>
+                        Ir a Caja y bancos
+                    </Button>
+                </Paper>
+            )}
 
             <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(4, 1fr)' }, gap: 2, mb: 2 }}>
                 {RESUMEN.map((r) => (
@@ -209,8 +235,9 @@ export default function ConciliacionBancaria() {
             <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'flex-end', mb: 3 }}>
                 <Box sx={{ flex: 1, minWidth: 180 }}>
                     <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Cuenta bancaria</Typography>
-                    <Select fullWidth value={cuenta} onChange={(e) => setCuenta(e.target.value)}>
-                        {CUENTAS_BANCARIAS.map((c) => <MenuItem key={c} value={c}>{c}</MenuItem>)}
+                    <Select fullWidth displayEmpty value={cuentaId} onChange={(e) => setCuentaId(e.target.value)} disabled={!cuenta}>
+                        {!cuenta && <MenuItem value=""><em>Sin cuenta registrada</em></MenuItem>}
+                        {cuentasActivas.map((c) => <MenuItem key={c.id} value={c.id}>{etiquetaCuenta(c)}</MenuItem>)}
                     </Select>
                 </Box>
                 <Box sx={{ flex: 1, minWidth: 140 }}>
@@ -240,9 +267,17 @@ export default function ConciliacionBancaria() {
 
             <Paper sx={{ p: 3, borderRadius: 2 }}>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1, flexWrap: 'wrap', gap: 1 }}>
-                    <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                        Movimientos — {cuenta} · {periodo}
-                    </Typography>
+                    <Box>
+                        <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                            Movimientos — {cuenta ? etiquetaCuenta(cuenta) : 'sin cuenta'} · {periodo}
+                        </Typography>
+                        {cuenta && (
+                            <Typography variant="caption" color="text.secondary">
+                                Saldo segun el sistema al cierre del periodo: <strong>{formatBs(saldoSistema)}</strong>
+                                {' '}(comparalo con el saldo del extracto)
+                            </Typography>
+                        )}
+                    </Box>
                     <Typography variant="body2" color="text.secondary">
                         {filtrados.length} de {movsEnVista.length}
                     </Typography>
@@ -264,7 +299,7 @@ export default function ConciliacionBancaria() {
                             {filtrados.length === 0 ? (
                                 <TableRow>
                                     <TableCell colSpan={7} align="center" sx={{ color: 'text.secondary', py: 3 }}>
-                                        No hay movimientos en {cuenta} para {periodo}.
+                                        No hay movimientos{cuenta ? ` en ${etiquetaCuenta(cuenta)}` : ''} para {periodo}.
                                     </TableCell>
                                 </TableRow>
                             ) : filtrados.map((m) => {
@@ -283,8 +318,11 @@ export default function ConciliacionBancaria() {
                                                 sx={tipoChipSx(m.tipo)}
                                             />
                                         </TableCell>
-                                        <TableCell>{m.descripcion}</TableCell>
-                                        <TableCell align="right" sx={{ fontWeight: 700, color: esIngreso ? '#2E9D78' : '#D9534F' }}>
+                                        <TableCell>
+                                            {m.descripcion}
+                                            <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>{m.concepto}</Typography>
+                                        </TableCell>
+                                        <TableCell align="right" sx={{ fontWeight: 700, whiteSpace: 'nowrap', color: esIngreso ? '#2E9D78' : '#D9534F' }}>
                                             {esIngreso ? '+' : '-'} {formatBs(m.monto)}
                                         </TableCell>
                                         <TableCell sx={{ color: m.sistemaRef ? 'primary.main' : '#D9534F', fontWeight: 600 }}>
@@ -321,9 +359,9 @@ export default function ConciliacionBancaria() {
                 </Box>
                 <Box sx={{ bgcolor: '#E4EEF5', borderRadius: 2, p: 1.5, mt: 2 }}>
                     <Typography variant="body2" color="text.secondary">
-                        <strong>Tip:</strong> cuando registres un pago en <em>Pagos → Registrar pago</em>, aparecera aqui al toque como
-                        movimiento <strong>Pendiente</strong> de la cuenta bancaria correspondiente. Un pago en Efectivo no aparece porque
-                        no pasa por el banco.
+                        <strong>Tip:</strong> cuando registres un cobro o un gasto por banco (en Pagos o en Ingresos y gastos), aparecera
+                        aqui al toque como movimiento <strong>Pendiente</strong>. Las comisiones e intereses que registras en
+                        <em> Caja y bancos</em> vienen del extracto, por eso entran ya conciliados.
                     </Typography>
                 </Box>
             </Paper>
@@ -337,7 +375,7 @@ export default function ConciliacionBancaria() {
                             <Typography variant="body2" sx={{ fontWeight: 700, mb: 1, color: 'primary.main' }}>Datos del banco</Typography>
                             <Box sx={{ display: 'flex', justifyContent: 'space-between', py: 0.5 }}>
                                 <Typography variant="body2" color="text.secondary">Cuenta</Typography>
-                                <Typography variant="body2" sx={{ fontWeight: 600 }}>{verMov.cuenta}</Typography>
+                                <Typography variant="body2" sx={{ fontWeight: 600 }}>{etiquetaCuenta(cuenta)}</Typography>
                             </Box>
                             <Box sx={{ display: 'flex', justifyContent: 'space-between', py: 0.5 }}>
                                 <Typography variant="body2" color="text.secondary">Fecha</Typography>

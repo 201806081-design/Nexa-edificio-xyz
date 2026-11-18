@@ -14,8 +14,9 @@ import {
     MEDIOS_PAGO, PAGOS_MOCK, HISTORIAL_ANTICIPOS,
 } from '../../constants/pagosMock';
 import { EXPENSAS_MOCK } from '../../constants/expensasMock';
-import { deudasPorDepto, situacionExpensa } from '../../constants/deudasMock';
+import { deudasPorDepto, registrarAbono, fechaDeTexto } from '../../constants/deudasMock';
 import { formatBs } from '../../constants/finanzasMock';
+import { cuentaPrincipal, etiquetaCuenta, codigoCuenta } from '../../constants/cajaBancosMock';
 
 function distribuir(deudas, monto) {
     let restante = Number(monto) || 0;
@@ -81,13 +82,18 @@ export default function RegistrarPago() {
     const navigate = useNavigate();
     const location = useLocation();
 
-    // Deptos con deuda (vencida o no): calculo unico de deudasMock,
-    // el mismo que usan Mora, Dashboard, Estado de cuenta y Comunicados.
-    // Solo expensas listas para cobrar: si falta registrar el agua, no se puede pagar
-    const deptosDisponibles = useMemo(() => deudasPorDepto({ soloCobrables: true }), []);
-
     const [deptoId, setDeptoId] = useState('');
     const [fecha, setFecha] = useState(hoyIso());
+
+    // Deptos con deuda (vencida o no): calculo unico de deudasMock,
+    // el mismo que usan Mora, Dashboard, Estado de cuenta y Comunicados.
+    // La deuda se calcula a la FECHA DE PAGO: si se registra un pago hecho
+    // antes de que corra la mora, no se le cobra esa mora.
+    // Solo expensas listas para cobrar: si falta registrar el agua, no se puede pagar
+    const deptosDisponibles = useMemo(
+        () => deudasPorDepto({ soloCobrables: true, hoy: fechaDeTexto(fechaBonita(fecha)) ?? new Date() }),
+        [fecha],
+    );
     const [monto, setMonto] = useState('');
     const [medio, setMedio] = useState('Transferencia');
     const [referencia, setReferencia] = useState('');
@@ -183,6 +189,18 @@ export default function RegistrarPago() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
+    // Al cambiar la fecha de pago cambia la deuda (con o sin mora): se redistribuye el monto
+    const cambiarFecha = (valor) => {
+        setFecha(valor);
+        if (!depto) return;
+        const d = deudasPorDepto({ soloCobrables: true, hoy: fechaDeTexto(fechaBonita(valor)) ?? new Date() })
+            .find((x) => x.id === depto.id);
+        if (!d) { cambiarDepto(''); return; }
+        const efectivo = Number(monto) || 0;
+        const credito = aplicarCredito ? Math.min(creditoDepto, Math.max(0, d.saldoPendiente - efectivo)) : 0;
+        setAplicaciones(distribuir(d.deudas, efectivo + credito));
+    };
+
     const cambiarMonto = (valor) => {
         setMonto(valor);
         const efectivo = Number(valor) || 0;
@@ -273,10 +291,9 @@ export default function RegistrarPago() {
             if (!a.expensaId || !a.aplicar) return;
             const exp = EXPENSAS_MOCK.find((e) => e.id === a.expensaId);
             if (!exp) return;
-            exp.pagado = (exp.pagado || 0) + Number(a.aplicar);
-            // Queda pagada cuando cubre la deuda completa, incluido el interes de mora
-            const { deudaActual } = situacionExpensa({ ...exp, estado: '' });
-            if (exp.pagado >= deudaActual - 0.005) exp.estado = 'Pagada';
+            // Se guarda con la fecha de pago: la mora se calcula sobre lo que queda debiendo.
+            // Queda pagada cuando cubre la deuda completa, incluida la mora.
+            registrarAbono(exp, Number(a.aplicar), fechaBonita(fecha));
         });
 
         if (creditoReal > 0) {
@@ -316,13 +333,17 @@ export default function RegistrarPago() {
         });
     };
 
+    // Cuenta principal del edificio: recibe los pagos por banco (se elige en Caja y bancos)
+    const cuentaBanco = cuentaPrincipal();
+    const codigoBanco = codigoCuenta(cuentaBanco);
+
     // Datos codificados en el QR mock (esto no realiza un pago real; en integracion con
     // backend se reemplaza por el QR dinamico que devuelva el banco)
     const datosQR = useMemo(() => {
         if (!depto) return '';
         const montoDisplay = efectivoNum > 0 ? efectivoNum : saldoPendiente;
-        return `EDIFICIO-XYZ|DEPTO=${depto.id}|MONTO=${montoDisplay}|REF=${referencia}|BANCO=MERCANTIL-7781`;
-    }, [depto, efectivoNum, saldoPendiente, referencia]);
+        return `EDIFICIO-XYZ|DEPTO=${depto.id}|MONTO=${montoDisplay}|REF=${referencia}|BANCO=${codigoBanco}`;
+    }, [depto, efectivoNum, saldoPendiente, referencia, codigoBanco]);
 
     return (
         <DashboardLayout>
@@ -398,8 +419,8 @@ export default function RegistrarPago() {
                     <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', mb: 2 }}>
                         <Box sx={{ flex: 1, minWidth: 150 }}>
                             <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Fecha de pago</Typography>
-                            <TextField fullWidth type="date" value={fecha} onChange={(e) => setFecha(e.target.value)}
-                                slotProps={{ inputLabel: { shrink: true } }} />
+                            <TextField fullWidth type="date" value={fecha} onChange={(e) => cambiarFecha(e.target.value)}
+                                slotProps={{ inputLabel: { shrink: true }, htmlInput: { max: hoyIso() } }} />
                         </Box>
                         <Box sx={{ flex: 1, minWidth: 150 }}>
                             <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>
@@ -482,7 +503,9 @@ export default function RegistrarPago() {
                                                 <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
                                                     Banco destino
                                                 </Typography>
-                                                <Typography variant="body2" sx={{ fontWeight: 700, mb: 1.5 }}>Banco Mercantil · 7781</Typography>
+                                                <Typography variant="body2" sx={{ fontWeight: 700, mb: 1.5 }} color={cuentaBanco ? 'text.primary' : 'error.main'}>
+                                                    {cuentaBanco ? etiquetaCuenta(cuentaBanco) : 'Sin cuenta bancaria registrada'}
+                                                </Typography>
                                                 <Button fullWidth variant="contained" startIcon={<ShareIcon />}
                                                     onClick={compartirPorComunicados}
                                                     sx={{ textTransform: 'none' }}>

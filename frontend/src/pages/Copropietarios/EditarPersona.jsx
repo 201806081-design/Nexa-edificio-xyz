@@ -1,18 +1,17 @@
 import { useNavigate, useParams } from 'react-router-dom';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import PersonaForm from './PersonaForm';
-import { COPROPIETARIOS_MOCK } from '../../constants/copropietariosMock';
-import { asignarDepto } from '../../constants/edificioMock';
+import { COPROPIETARIOS_MOCK, asignarUnidades } from '../../constants/copropietariosMock';
 
 export default function EditarPersona() {
   const navigate = useNavigate();
   const { id } = useParams();
   const persona = COPROPIETARIOS_MOCK.find((p) => p.id === Number(id));
 
-  const guardar = (datos) => {
+  const guardar = (datos, unidades) => {
     // MOCK: se actualiza el registro. Con backend, aqui iria el PUT.
     Object.assign(persona, datos);
-    asignarDepto(persona.id, datos.unidad); // actualiza la unidad asociada
+    asignarUnidades(persona.id, unidades); // las unidades que dejo quedan libres
     navigate(`/copropietarios/${id}`, {
       state: { mensaje: 'Datos actualizados correctamente' },
     });

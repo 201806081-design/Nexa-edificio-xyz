@@ -4,97 +4,38 @@ import {
   Divider, Drawer, IconButton, AppBar, Toolbar, Collapse,
 } from '@mui/material';
 import ApartmentIcon from '@mui/icons-material/Apartment';
-import HomeIcon from '@mui/icons-material/Home';
-import GroupIcon from '@mui/icons-material/Group';
-import ShieldIcon from '@mui/icons-material/Shield';
 import AccountCircleIcon from '@mui/icons-material/AccountCircle';
 import LogoutIcon from '@mui/icons-material/Logout';
 import MenuIcon from '@mui/icons-material/Menu';
-import PeopleIcon from '@mui/icons-material/People';
-import DomainIcon from '@mui/icons-material/Domain';
-import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
-import DescriptionIcon from '@mui/icons-material/Description';
-import PaymentIcon from '@mui/icons-material/Payment';
-import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
-import BarChartIcon from '@mui/icons-material/BarChart';
-import ScheduleIcon from '@mui/icons-material/Schedule';
-import WorkIcon from '@mui/icons-material/Work';
-import BadgeIcon from '@mui/icons-material/Badge';
-import PaidIcon from '@mui/icons-material/Paid';
-import CampaignIcon from '@mui/icons-material/Campaign';
-import EditIcon from '@mui/icons-material/Edit';
-import SendIcon from '@mui/icons-material/Send';
-import DraftsIcon from '@mui/icons-material/Drafts';
 import ExpandLess from '@mui/icons-material/ExpandLess';
 import ExpandMore from '@mui/icons-material/ExpandMore';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
-import { MENU_POR_ROL } from '../constants/permisos';
+import { usePermisos } from '../hooks/usePermisos';
+import { armarMenu } from '../constants/permisos';
+import { ICONO_PANTALLA, ICONO_GRUPO } from './iconosPantallas';
 
 const ANCHO = 260;
 
-const OPCIONES = {
-  Inicio: { icon: <HomeIcon />, ruta: '/dashboard' },
-  'Usuarios y roles': { icon: <GroupIcon />, ruta: '/usuarios' },
-  'Permisos por rol': { icon: <ShieldIcon />, ruta: '/permisos' },
-  Copropietarios: { icon: <PeopleIcon />, ruta: '/copropietarios' },
-  Unidades: { icon: <DomainIcon />, ruta: '/unidades' },
-  // Opciones con submenu desplegable (fieles al mockup).
-  // 'prefijo' se usa para marcar la opcion como activa cuando la ruta actual
-  // esta dentro de ese prefijo (ej: /finanzas/pagos -> Finanzas activo).
-  Finanzas: {
-    icon: <AccountBalanceWalletIcon />,
-    prefijo: '/finanzas',
-    subopciones: [
-      { nombre: 'Resumen', icon: <DescriptionIcon />, ruta: '/finanzas' },
-      { nombre: 'Dashboard', icon: <BarChartIcon />, ruta: '/finanzas/dashboard' },
-      { nombre: 'Expensas', icon: <DescriptionIcon />, ruta: '/finanzas/expensas' },
-      { nombre: 'Pagos', icon: <PaymentIcon />, ruta: '/finanzas/pagos' },
-      { nombre: 'Estado de cuenta', icon: <ReceiptLongIcon />, ruta: '/finanzas/estado-cuenta' },
-      { nombre: 'Ingresos y gastos', icon: <BarChartIcon />, ruta: '/finanzas/ingresos-gastos' },
-      { nombre: 'Mora e intereses', icon: <ScheduleIcon />, ruta: '/finanzas/mora' },
-    ],
-  },
-  Personal: {
-    icon: <WorkIcon />,
-    prefijo: '/personal',
-    subopciones: [
-      { nombre: 'Empleados', icon: <BadgeIcon />, ruta: '/personal/empleados' },
-      { nombre: 'Planilla', icon: <PaidIcon />, ruta: '/personal/planilla' },
-      { nombre: 'Historial de pagos', icon: <ScheduleIcon />, ruta: '/personal/historial-pagos' },
-    ],
-  },
-  // HU-CO-01 Comunicados: elaborar + ver enviados (admin-only via MENU_POR_ROL)
-  Comunicados: {
-    icon: <CampaignIcon />,
-    prefijo: '/comunicados',
-    subopciones: [
-      { nombre: 'Elaborar', icon: <EditIcon />, ruta: '/comunicados/elaborar' },
-      { nombre: 'Enviados', icon: <SendIcon />, ruta: '/comunicados/enviados' },
-      { nombre: 'Borradores', icon: <DraftsIcon />, ruta: '/comunicados/borradores' },
-    ],
-  },
-};
+// Las opciones salen de PANTALLAS (constants/permisos.js) filtradas por los permisos del rol.
+// Un submenu queda marcado como activo cuando la ruta actual esta dentro de su prefijo
+// (ej: /finanzas/pagos/registrar -> Finanzas).
+const prefijoDe = (pantallas) => `/${pantallas[0].ruta.split('/')[1]}`;
 
 // Contenido del menu (se usa tanto en escritorio como en el drawer movil)
 function ContenidoMenu({ onNavegar }) {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, logout } = useAuth();
+  const { puede } = usePermisos();
 
-  const rol = user?.rol ?? 'Consulta';
-  const opciones = MENU_POR_ROL[rol] ?? ['Inicio'];
+  const rol = user?.rol ?? '';
+  const menu = armarMenu(puede);
 
-  // Un unico diccionario de submenus abiertos (clave = nombre de la opcion).
-  // Arranca abierto el submenu cuya ruta coincida con la URL actual.
-  const [submenusAbiertos, setSubmenusAbiertos] = useState(() => {
-    const inicial = {};
-    Object.entries(OPCIONES).forEach(([nombre, cfg]) => {
-      if (cfg.subopciones) inicial[nombre] = location.pathname.startsWith(cfg.prefijo);
-    });
-    return inicial;
-  });
-  const toggleSubmenu = (nombre) => setSubmenusAbiertos((prev) => ({ ...prev, [nombre]: !prev[nombre] }));
+  // Submenus abiertos (clave = nombre del grupo). Arranca abierto el de la URL actual.
+  const [submenusAbiertos, setSubmenusAbiertos] = useState({});
+  const estaAbierto = (m) => submenusAbiertos[m.grupo] ?? location.pathname.startsWith(prefijoDe(m.pantallas));
+  const toggleSubmenu = (m) => setSubmenusAbiertos((prev) => ({ ...prev, [m.grupo]: !estaAbierto(m) }));
 
   const ir = (e, ruta) => {
     // Soltar el focus para evitar que el estilo "activo" quede pegado en movil
@@ -126,29 +67,26 @@ function ContenidoMenu({ onNavegar }) {
 
       {/* Opciones */}
       <List sx={{ flexGrow: 1 }}>
-        {opciones.map((nombre) => {
-          const opcion = OPCIONES[nombre];
-          if (!opcion) return null;
-
-          // Opcion con submenu (Finanzas, Personal, Comunicados...)
-          if (opcion.subopciones) {
-            const algunoActivo = location.pathname.startsWith(opcion.prefijo);
-            const abierto = !!submenusAbiertos[nombre];
+        {menu.map((m) => {
+          // Opcion con submenu (Finanzas, Personal, Comunicados)
+          if (m.tipo === 'grupo') {
+            const algunoActivo = location.pathname.startsWith(prefijoDe(m.pantallas));
+            const abierto = estaAbierto(m);
             return (
-              <Box key={nombre}>
-                <ListItemButton onClick={() => toggleSubmenu(nombre)} sx={estiloItem(algunoActivo && !abierto)}>
-                  <ListItemIcon sx={{ color: '#fff', minWidth: 40 }}>{opcion.icon}</ListItemIcon>
-                  <ListItemText primary={nombre} />
+              <Box key={m.grupo}>
+                <ListItemButton onClick={() => toggleSubmenu(m)} sx={estiloItem(algunoActivo && !abierto)}>
+                  <ListItemIcon sx={{ color: '#fff', minWidth: 40 }}>{ICONO_GRUPO[m.grupo]}</ListItemIcon>
+                  <ListItemText primary={m.grupo} />
                   {abierto ? <ExpandLess /> : <ExpandMore />}
                 </ListItemButton>
                 <Collapse in={abierto} timeout="auto" unmountOnExit>
                   <List disablePadding sx={{ pl: 1 }}>
-                    {opcion.subopciones.map((sub) => {
+                    {m.pantallas.map((sub) => {
                       const activo = location.pathname === sub.ruta;
                       return (
-                        <ListItemButton key={sub.nombre} onClick={(e) => ir(e, sub.ruta)} sx={estiloItem(activo)}>
-                          <ListItemIcon sx={{ color: '#fff', minWidth: 36 }}>{sub.icon}</ListItemIcon>
-                          <ListItemText primary={sub.nombre} primaryTypographyProps={{ fontSize: '0.9rem' }} />
+                        <ListItemButton key={sub.clave} onClick={(e) => ir(e, sub.ruta)} sx={estiloItem(activo)}>
+                          <ListItemIcon sx={{ color: '#fff', minWidth: 36 }}>{ICONO_PANTALLA[sub.clave]}</ListItemIcon>
+                          <ListItemText primary={sub.nombre} slotProps={{ primary: { sx: { fontSize: '0.9rem' } } }} />
                         </ListItemButton>
                       );
                     })}
@@ -159,15 +97,16 @@ function ContenidoMenu({ onNavegar }) {
           }
 
           // Opcion normal (un nivel)
-          const activo = location.pathname === opcion.ruta || location.pathname.startsWith(`${opcion.ruta}/`);
+          const { clave, nombre, ruta } = m.pantalla;
+          const activo = location.pathname === ruta || location.pathname.startsWith(`${ruta}/`);
           return (
             <ListItemButton
-              key={nombre}
+              key={clave}
               aria-current={activo ? 'page' : undefined}
-              onClick={(e) => ir(e, opcion.ruta)}
+              onClick={(e) => ir(e, ruta)}
               sx={estiloItem(activo)}
             >
-              <ListItemIcon sx={{ color: '#fff', minWidth: 40 }}>{opcion.icon}</ListItemIcon>
+              <ListItemIcon sx={{ color: '#fff', minWidth: 40 }}>{ICONO_PANTALLA[clave]}</ListItemIcon>
               <ListItemText primary={nombre} />
             </ListItemButton>
           );

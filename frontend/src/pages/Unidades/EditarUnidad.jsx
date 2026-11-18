@@ -1,23 +1,34 @@
 import { useNavigate, useParams } from 'react-router-dom';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import UnidadForm from './UnidadForm';
-import { UNIDADES_MOCK } from '../../constants/unidadesMock';
-import { sincronizarPersonas } from '../../constants/edificioMock';
+import { UNIDADES_MOCK, datosDepto } from '../../constants/unidadesMock';
+import { sincronizarPersonas, vincularAnexo, actualizarDepto, anexosDe } from '../../constants/edificioMock';
 import { sincronizarDepartamentosActivos } from '../../constants/expensasMock';
+
+const CAMPOS_DEPTO = ['propietarioId', 'inquilinoId', 'propietarioViveAhi', 'pagaPropietario'];
+const CAMPOS_OTROS = ['nivel', 'techado', 'deptoId'];
 
 // Aplica los cambios del formulario sobre la unidad existente
 function aplicarCambios(unidad, form) {
-    unidad.tipo = form.tipo;
+    // Si deja de ser departamento, primero se liberan sus personas (registra el historial)
+    if (unidad.tipo === 'Departamento' && form.tipo !== 'Departamento') {
+        actualizarDepto(unidad, { propietarioId: null, inquilinoId: null });
+        anexosDe(unidad).forEach((a) => vincularAnexo(a, null)); // su parqueo y baulera quedan libres
+    }
+
     unidad.identificador = form.identificador.trim();
-    unidad.personaId = form.personaId === '' ? null : form.personaId;
-    // Limpia campos que no aplican al tipo y setea los que si
-    delete unidad.piso; delete unidad.tipoDepartamento; delete unidad.nivel; delete unidad.techado;
+    // Limpia los campos que no aplican al tipo nuevo y setea los que si
+    const sobran = form.tipo === 'Departamento' ? CAMPOS_OTROS : [...CAMPOS_DEPTO, 'piso', 'categoria'];
+    sobran.forEach((campo) => delete unidad[campo]);
+    unidad.tipo = form.tipo;
     if (form.tipo === 'Departamento') {
         unidad.piso = Number(form.piso);
-        unidad.tipoDepartamento = form.tipoDepartamento;
+        unidad.categoria = form.categoria;
+        actualizarDepto(unidad, datosDepto(form)); // registra el historial si cambia quien vive
     } else {
         unidad.nivel = form.nivel;
         if (form.tipo === 'Parqueo') unidad.techado = form.techado === 'Si';
+        vincularAnexo(unidad, form.deptoId || null);
     }
 }
 

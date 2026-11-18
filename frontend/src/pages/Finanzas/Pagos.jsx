@@ -7,7 +7,6 @@ import {
 import AddIcon from '@mui/icons-material/Add';
 import SearchIcon from '@mui/icons-material/Search';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
-import AccountBalanceOutlinedIcon from '@mui/icons-material/AccountBalanceOutlined';
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
 import PrintOutlinedIcon from '@mui/icons-material/PrintOutlined';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
@@ -23,7 +22,7 @@ import {
 } from '../../constants/pagosMock';
 import * as ExpMod from '../../constants/expensasMock';
 import { periodosConMovimientos } from '../../constants/periodos';
-import { CONFIG_MORA } from '../../constants/moraMock';
+import { textoMora } from '../../constants/moraMock';
 import { formatBs } from '../../constants/finanzasMock';
 
 const EXPENSAS_MOCK = ExpMod.EXPENSAS_MOCK || [];
@@ -254,8 +253,6 @@ export default function Pagos() {
     const composicion = useMemo(() => calcularComposicion(pagoSel), [pagoSel]);
     // Total a cobrar en este pago = total de cada expensa menos lo ya pagado antes
     const totalComp = useMemo(() => composicion.reduce((s, c) => s + (c.total || 0) - (c.pagadoAntes || 0), 0), [composicion]);
-    const tasaMora = CONFIG_MORA?.interesMensual || 0;
-    const tipoCalc = (CONFIG_MORA?.tipoCalculo || 'Simple').toLowerCase();
 
     return (
         <DashboardLayout>
@@ -266,18 +263,11 @@ export default function Pagos() {
 
             <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', justifyContent: { xs: 'stretch', md: 'flex-end' }, mb: 2 }}>
                 {tab === 'expensas' && (
-                    <>
-                        <Button variant="outlined" startIcon={<AccountBalanceOutlinedIcon />}
-                            onClick={() => navigate('/finanzas/pagos/conciliacion')}
-                            sx={{ color: '#1a2733', borderColor: '#cdd8e3', width: { xs: '100%', md: 'auto' } }}>
-                            Conciliacion bancaria
-                        </Button>
-                        <Button variant="contained" startIcon={<AddIcon />}
-                            onClick={() => navigate('/finanzas/pagos/registrar')}
-                            sx={{ width: { xs: '100%', md: 'auto' } }}>
-                            Registrar pago
-                        </Button>
-                    </>
+                    <Button variant="contained" startIcon={<AddIcon />}
+                        onClick={() => navigate('/finanzas/pagos/registrar')}
+                        sx={{ width: { xs: '100%', md: 'auto' } }}>
+                        Registrar pago
+                    </Button>
                 )}
                 {tab === 'anticipados' && (
                     <Button variant="contained" startIcon={<AddIcon />}
@@ -626,7 +616,7 @@ export default function Pagos() {
 
                             <Typography variant="caption" color="text.secondary" sx={{ display: 'block', textAlign: 'center' }}>
                                 {pagoSel.saldoPosterior > 0
-                                    ? `El saldo pendiente no cobra mora hasta pasar la fecha de vencimiento. Despues: ${tasaMora}% mensual (${tipoCalc}) sobre la deuda original.`
+                                    ? `El saldo pendiente no cobra mora hasta pasar la fecha de vencimiento. Despues: ${textoMora()}.`
                                     : 'El depto quedo al dia con este pago.'}
                             </Typography>
                         </Box>

@@ -9,25 +9,23 @@ import HistoryIcon from '@mui/icons-material/History';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import { useNavigate } from 'react-router-dom';
 import DashboardLayout from '../../layouts/DashboardLayout';
+import CampoInteresMora from '../../components/CampoInteresMora';
 import {
     CONFIG_AGUA, CONFIG_MORA, ALICUOTAS,
     HISTORIAL_TARIFAS, EXPENSAS_MOCK, calcularAgua,
 } from '../../constants/expensasMock';
-// Imports defensivos de v1 (para sincronizar en ambos sentidos)
+// Configuracion compartida (expensa base y agua) para sincronizar en ambos sentidos
 import * as ConfigMod from '../../constants/configuracionMock';
-import * as MoraMod from '../../constants/moraMock';
+import {
+    METODOS_MORA, APLICAR_MORA_DESDE, OPCIONES_BASE_MORA, AYUDA_BASE_MORA,
+    textoMora, validarConfigMora, guardarConfigMora,
+} from '../../constants/moraMock';
 import { formatBs } from '../../constants/finanzasMock';
 
-// Mocks de v1 (pueden no existir en todas las instalaciones)
+// Objetos compartidos de configuracion (pueden no existir en todas las instalaciones)
 const EXPENSA_BASE_V1 = ConfigMod.EXPENSA_BASE || null;
 const CONFIG_AGUA_V1 = ConfigMod.CONFIG_AGUA || null;
-const REGLAS_PERIODO_V1 = ConfigMod.REGLAS_PERIODO || MoraMod.REGLAS_PERIODO || null;
-const CONFIG_MORA_V1 = MoraMod.CONFIG_MORA || null;
-const APLICAR_MORA_DESDE_V1 = MoraMod.APLICAR_MORA_DESDE || [
-    'Dia siguiente a la fecha de vencimiento',
-    'Fecha de vencimiento',
-    'Periodo vencido',
-];
+const { REGLAS_PERIODO } = ConfigMod;
 
 const MESES_ES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
     'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
@@ -63,7 +61,7 @@ function TarjetaTipo({ tipo, valor, onChange }) {
 export default function ConfiguracionFinanciera() {
     const navigate = useNavigate();
 
-    // Valores iniciales: leemos de v1 si existe, con fallback a v2 (sync bidireccional al abrir)
+    // Valores iniciales: se leen de la configuracion compartida (sync bidireccional al abrir)
     const inicialBase = {
         A: EXPENSA_BASE_V1?.A ?? ALICUOTAS.A,
         B: EXPENSA_BASE_V1?.B ?? ALICUOTAS.B,
@@ -71,14 +69,18 @@ export default function ConfiguracionFinanciera() {
     };
     const inicialAgua = {
         precioM3: CONFIG_AGUA_V1?.precioM3 ?? CONFIG_AGUA.tarifaPorM3,
-        minimoM3: CONFIG_AGUA.minimoM3,  // v1 no tenia este campo
+        minimoM3: CONFIG_AGUA.minimoM3,
         tarifaMinima: CONFIG_AGUA_V1?.tarifaMinima ?? CONFIG_AGUA.minimoBs,
     };
+    // Reglas de mora: la misma configuracion que usa "Mora e intereses"
     const inicialReglas = {
-        diaVencimiento: REGLAS_PERIODO_V1?.diaVencimiento ?? CONFIG_MORA.diaVencimiento ?? 15,
-        interesMensual: CONFIG_MORA_V1?.interesMensual ?? CONFIG_MORA.interesMensual,
-        tipoCalculo: CONFIG_MORA_V1?.tipoCalculo ?? CONFIG_MORA.tipoCalculo,
-        aplicarMoraDesde: CONFIG_MORA_V1?.aplicarMoraDesde ?? CONFIG_MORA.aplicarMoraDesde ?? APLICAR_MORA_DESDE_V1[0],
+        diaVencimiento: REGLAS_PERIODO.diaVencimiento,
+        metodo: CONFIG_MORA.metodo,
+        interesMensual: CONFIG_MORA.interesMensual,
+        montoFijo: CONFIG_MORA.montoFijo,
+        tipoCalculo: CONFIG_MORA.tipoCalculo,
+        baseMora: CONFIG_MORA.baseMora,
+        aplicarMoraDesde: CONFIG_MORA.aplicarMoraDesde,
     };
 
     const [base, setBase] = useState(inicialBase);
@@ -111,6 +113,8 @@ export default function ConfiguracionFinanciera() {
         setTarifaMinManual(false);
     };
     const cambiarReglas = (campo, valor) => setReglas((r) => ({ ...r, [campo]: valor }));
+    const errorMora = validarConfigMora(reglas);
+    const esFijo = reglas.metodo === METODOS_MORA.MONTO_FIJO;
 
     const vigenteDesde = useMemo(() => yyyyMmToTexto(vigenciaMes), [vigenciaMes]);
     const esRetroactivo = useMemo(() => vigenciaMes < hoyYyyyMm(), [vigenciaMes]);
@@ -121,7 +125,7 @@ export default function ConfiguracionFinanciera() {
     }, [esRetroactivo, vigenteDesde, tick]);
 
     const aplicarCambios = (recalcular) => {
-        // 1) Mutar los objetos de configuracion v2
+        // 1) Actualizar expensa base y agua
         ALICUOTAS.A = Number(base.A) || 0;
         ALICUOTAS.B = Number(base.B) || 0;
         ALICUOTAS.C = Number(base.C) || 0;
@@ -130,12 +134,10 @@ export default function ConfiguracionFinanciera() {
         CONFIG_AGUA.minimoM3 = Number(agua.minimoM3) || 0;
         CONFIG_AGUA.minimoBs = Number(agua.tarifaMinima) || 0;
 
-        CONFIG_MORA.diaVencimiento = Number(reglas.diaVencimiento) || 0;
-        CONFIG_MORA.interesMensual = Number(reglas.interesMensual) || 0;
-        CONFIG_MORA.tipoCalculo = reglas.tipoCalculo;
-        CONFIG_MORA.aplicarMoraDesde = reglas.aplicarMoraDesde;
+        // Mora y dia de vencimiento: se guardan en la configuracion compartida con "Mora e intereses"
+        guardarConfigMora({ ...reglas, vigenteDesde });
 
-        // 2) Sincronizar con mocks de v1 (Configuracion financiera + Mora e intereses + Expensas v1)
+        // 2) Sincronizar la expensa base y el agua con la configuracion compartida
         try {
             if (EXPENSA_BASE_V1) {
                 EXPENSA_BASE_V1.A = ALICUOTAS.A;
@@ -146,16 +148,7 @@ export default function ConfiguracionFinanciera() {
                 CONFIG_AGUA_V1.precioM3 = CONFIG_AGUA.tarifaPorM3;
                 CONFIG_AGUA_V1.tarifaMinima = CONFIG_AGUA.minimoBs;
             }
-            if (CONFIG_MORA_V1) {
-                CONFIG_MORA_V1.interesMensual = CONFIG_MORA.interesMensual;
-                CONFIG_MORA_V1.tipoCalculo = CONFIG_MORA.tipoCalculo;
-                CONFIG_MORA_V1.aplicarMoraDesde = CONFIG_MORA.aplicarMoraDesde;
-                CONFIG_MORA_V1.vigenteDesde = vigenteDesde;
-            }
-            if (REGLAS_PERIODO_V1) {
-                REGLAS_PERIODO_V1.diaVencimiento = CONFIG_MORA.diaVencimiento;
-            }
-        } catch (_e) { /* mocks v1 no disponibles, ok */ }
+        } catch { /* configuracion compartida no disponible, ok */ }
 
         // 3) Agregar entrada al historial
         const serie = HISTORIAL_TARIFAS.length + 1;
@@ -166,9 +159,8 @@ export default function ConfiguracionFinanciera() {
             precioPorM3: CONFIG_AGUA.tarifaPorM3,
             minimoBs: CONFIG_AGUA.minimoBs,
             minimoM3: CONFIG_AGUA.minimoM3,
-            interesMensual: CONFIG_MORA.interesMensual,
-            tipoCalculo: CONFIG_MORA.tipoCalculo,
-            diaVencimiento: CONFIG_MORA.diaVencimiento,
+            mora: textoMora(CONFIG_MORA),
+            diaVencimiento: REGLAS_PERIODO.diaVencimiento,
             alicuotaA: ALICUOTAS.A, alicuotaB: ALICUOTAS.B, alicuotaC: ALICUOTAS.C,
             admin: 'Oscar Tarque',
             razon: razon.trim() || '—',
@@ -195,6 +187,10 @@ export default function ConfiguracionFinanciera() {
     };
 
     const onGuardar = () => {
+        if (errorMora) {
+            setSnack({ open: true, msg: errorMora, sev: 'error' });
+            return;
+        }
         if (esRetroactivo && expensasAfectadas.length > 0) {
             setRecalcAbierto(true);
         } else {
@@ -212,7 +208,7 @@ export default function ConfiguracionFinanciera() {
             <Alert severity="info" icon={false} sx={{ bgcolor: '#E4EEF5', color: 'text.primary', mb: 3 }}>
                 <strong>Los montos A, B y C son fijos por tipo de departamentos.</strong><br />
                 Solo cambian cuando el administrador actualiza esta configuracion; no se escriben nuevamente cada mes.
-                Lo que guardes aqui se sincroniza con <strong>Mora e intereses</strong> y con <strong>Expensas v1</strong>.
+                Lo que guardes aqui se sincroniza con <strong>Mora e intereses</strong>.
             </Alert>
 
             {/* Expensa base por tipo */}
@@ -283,33 +279,49 @@ export default function ConfiguracionFinanciera() {
                     <Typography variant="h3" sx={{ fontSize: '1.1rem', fontWeight: 600, mb: 2 }}>
                         Reglas del periodo y mora
                     </Typography>
-                    <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', mb: 2 }}>
-                        <Box sx={{ flex: 1, minWidth: 140 }}>
+                    {/* Interes mensual (%) y, debajo, Interes mensual (fijo): solo uno activo */}
+                    <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))' }, gap: 2, mb: 2 }}>
+                        <Box sx={{ order: { xs: 0, sm: 'initial' } }}>
                             <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Dia de vencimiento</Typography>
                             <Select fullWidth value={reglas.diaVencimiento} onChange={(e) => cambiarReglas('diaVencimiento', e.target.value)}>
                                 {DIAS_VENCIMIENTO.map((d) => <MenuItem key={d} value={d}>{textoDiaVencimiento(d)}</MenuItem>)}
                             </Select>
                         </Box>
-                        <Box sx={{ flex: 1, minWidth: 140 }}>
-                            <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Interes mensual</Typography>
-                            <TextField fullWidth type="number" value={reglas.interesMensual}
-                                onChange={(e) => cambiarReglas('interesMensual', e.target.value)}
-                                slotProps={{ input: { endAdornment: <InputAdornment position="end">%</InputAdornment> } }} />
-                        </Box>
-                        <Box sx={{ flex: 1, minWidth: 140 }}>
-                            <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Tipo de calculo</Typography>
-                            <Select fullWidth value={reglas.tipoCalculo} onChange={(e) => cambiarReglas('tipoCalculo', e.target.value)}>
+                        <CampoInteresMora
+                            metodo={METODOS_MORA.PORCENTAJE} seleccion={reglas.metodo} valor={reglas.interesMensual}
+                            onMetodo={(m) => cambiarReglas('metodo', m)} onValor={(v) => cambiarReglas('interesMensual', v)}
+                            sx={{ order: { xs: 1, sm: 'initial' } }}
+                        />
+                        <Box sx={{ order: { xs: 3, sm: 'initial' } }}>
+                            <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5, color: esFijo ? 'text.secondary' : 'text.primary' }}>Tipo de calculo</Typography>
+                            <Select fullWidth value={reglas.tipoCalculo} disabled={esFijo} onChange={(e) => cambiarReglas('tipoCalculo', e.target.value)}>
                                 <MenuItem value="Simple">Simple</MenuItem>
                                 <MenuItem value="Compuesto">Compuesto</MenuItem>
                             </Select>
                         </Box>
+                        <CampoInteresMora
+                            metodo={METODOS_MORA.MONTO_FIJO} seleccion={reglas.metodo} valor={reglas.montoFijo}
+                            onMetodo={(m) => cambiarReglas('metodo', m)} onValor={(v) => cambiarReglas('montoFijo', v)}
+                            sx={{ order: { xs: 2, sm: 'initial' } }}
+                        />
+                    </Box>
+                    {errorMora && <Alert severity="error" sx={{ mb: 2 }}>{errorMora}</Alert>}
+                    {/* Mora con pagos parciales (sincronizado con Mora e intereses) */}
+                    <Box sx={{ mb: 2 }}>
+                        <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Mora con pagos parciales</Typography>
+                        <Select fullWidth value={reglas.baseMora} onChange={(e) => cambiarReglas('baseMora', e.target.value)}>
+                            {OPCIONES_BASE_MORA.map((b) => <MenuItem key={b} value={b}>{b}</MenuItem>)}
+                        </Select>
+                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+                            {AYUDA_BASE_MORA[reglas.baseMora]}
+                        </Typography>
                     </Box>
                     {/* Aplicar mora desde (sincronizado con Mora e intereses) */}
                     <Box sx={{ mb: 2 }}>
                         <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Aplicar mora desde</Typography>
                         <Select fullWidth value={reglas.aplicarMoraDesde}
                             onChange={(e) => cambiarReglas('aplicarMoraDesde', e.target.value)}>
-                            {APLICAR_MORA_DESDE_V1.map((a) => <MenuItem key={a} value={a}>{a}</MenuItem>)}
+                            {APLICAR_MORA_DESDE.map((a) => <MenuItem key={a} value={a}>{a}</MenuItem>)}
                         </Select>
                     </Box>
                     <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
@@ -393,7 +405,7 @@ export default function ConfiguracionFinanciera() {
                                     <TableCell sx={{ fontWeight: 600 }}>{h.vigenteDesde}</TableCell>
                                     <TableCell align="right">{formatBs(h.precioPorM3)}</TableCell>
                                     <TableCell align="right">{formatBs(h.minimoBs)}</TableCell>
-                                    <TableCell align="right">{h.interesMensual}% ({h.tipoCalculo})</TableCell>
+                                    <TableCell align="right">{h.mora}</TableCell>
                                     <TableCell>{h.admin}</TableCell>
                                     <TableCell sx={{ color: 'text.secondary' }}>{h.razon}</TableCell>
                                 </TableRow>
@@ -408,7 +420,7 @@ export default function ConfiguracionFinanciera() {
                 <Button variant="outlined" onClick={() => navigate('/finanzas/expensas')} sx={{ width: { xs: '100%', md: 'auto' } }}>
                     Cancelar
                 </Button>
-                <Button variant="contained" onClick={onGuardar} sx={{ width: { xs: '100%', md: 'auto' } }}>
+                <Button variant="contained" onClick={onGuardar} disabled={!!errorMora} sx={{ width: { xs: '100%', md: 'auto' } }}>
                     Guardar configuracion
                 </Button>
             </Box>

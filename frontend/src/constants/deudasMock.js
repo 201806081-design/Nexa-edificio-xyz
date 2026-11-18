@@ -2,15 +2,24 @@
 //  DEUDAS Y MOROSOS: CALCULO UNICO PARA TODO EL SISTEMA
 //
 //  Todas las pantallas que muestran deudas, saldos pendientes o morosos
-//  (Mora, Dashboard financiero, Gestion financiera, Estado de cuenta,
+//  (Mora, Resumen de finanzas, Estado de cuenta,
 //  Registrar pago y Comunicados) usan estas funciones. Asi, si un depto
 //  es moroso, lo es en todas partes al mismo tiempo.
 //
 //  La deuda sale SIEMPRE de las expensas (EXPENSAS_MOCK):
 //    - original    = total de la expensa (base + agua + extras)
-//    - meses       = cuantas fechas de vencimiento pasaron sin pagarla
-//    - deudaActual = original con el interes de mora aplicado
+//    - meses       = cuantas fechas de cobro de mora pasaron sin terminar de pagarla
+//    - deudaActual = original + mora generada (porcentaje o monto fijo)
 //    - pendiente   = deudaActual - pagado
+//
+//  MORA CON PAGOS PARCIALES (configurable en CONFIG_MORA.baseMora):
+//    - Sobre la deuda total (defecto): la mora se calcula sobre el total de
+//      la expensa aunque se haya pagado una parte.
+//    - Solo sobre lo que falta pagar: cada expensa guarda sus pagos con fecha
+//      (abonos: [{ fecha: 'DD/MM/AAAA', monto }]) y la mora de cada mes se
+//      calcula sobre lo que faltaba pagar ese dia:
+//        debe 400, paga 200 antes del vencimiento -> la mora se calcula sobre 200.
+//      Los pagos cubren primero la mora acumulada y despues la expensa.
 //  Una expensa con estado 'Pagada' no genera deuda.
 //
 //  Moroso = depto con al menos una expensa VENCIDA (meses > 0) y con saldo.
@@ -18,7 +27,7 @@
 // ============================================================
 
 import { EXPENSAS_MOCK } from './expensasMock';
-import { CONFIG_MORA } from './moraMock';
+import { CONFIG_MORA, APLICAR_DESDE, esMontoFijo, moraSobreSaldo, montoConMora } from './moraMock';
 import { REGLAS_PERIODO } from './configuracionMock';
 import { responsableDe } from './edificioMock';
 
@@ -51,29 +60,115 @@ const fechaVencimiento = (anio, idxMes, dia, k) => {
     return new Date(anio, mes, dia);
 };
 
-// Cuantas fechas de vencimiento pasaron desde que vencio el periodo hasta hoy.
+// Fecha desde la que se cobra la mora del vencimiento k, segun "Aplicar mora desde":
+//   Fecha de vencimiento     -> el mismo dia de vencimiento
+//   Dia siguiente (defecto)  -> el dia despues del vencimiento
+//   Periodo vencido          -> el dia 1 del mes siguiente al vencimiento
+const inicioMora = (vencimiento, aplicarDesde) => {
+    if (aplicarDesde === APLICAR_DESDE.VENCIMIENTO) return vencimiento;
+    if (aplicarDesde === APLICAR_DESDE.PERIODO_VENCIDO) {
+        return new Date(vencimiento.getFullYear(), vencimiento.getMonth() + 1, 1);
+    }
+    return new Date(vencimiento.getFullYear(), vencimiento.getMonth(), vencimiento.getDate() + 1);
+};
+
+// Fechas en las que se cobro mora a un periodo, hasta hoy (una por mes vencido).
 // Ej.: 'Octubre 2026' con vencimiento el 10 -> vence el 10/nov/2026.
-//      Hoy 09/nov -> 0 | hoy 10/nov -> 1 | hoy 15/dic -> 2
-export const mesesVencidos = (periodo, hoy = new Date(), dia = diaVencimiento()) => {
+//      Aplicar desde el dia siguiente: hoy 10/nov -> [] | 11/nov -> [11/nov] | 11/dic -> [11/nov, 11/dic]
+//      Aplicar desde el vencimiento:   hoy 10/nov -> [10/nov]
+export const fechasCobroMora = (
+    periodo,
+    hoy = new Date(),
+    dia = diaVencimiento(),
+    aplicarDesde = CONFIG_MORA.aplicarMoraDesde,
+) => {
     const [mesNombre, anioTxt] = String(periodo || '').split(' ');
     const idxMes = MESES_ES.indexOf(mesNombre);
     const anio = Number(anioTxt);
-    if (idxMes < 0 || !anio) return 0;
+    if (idxMes < 0 || !anio) return [];
     const finDelDia = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate(), 23, 59, 59);
-    let meses = 0;
-    while (fechaVencimiento(anio, idxMes, dia, meses) <= finDelDia && meses < 240) meses++;
-    return meses;
+    const fechas = [];
+    for (let k = 0; k < 240; k++) {
+        const inicio = inicioMora(fechaVencimiento(anio, idxMes, dia, k), aplicarDesde);
+        if (inicio > finDelDia) break;
+        fechas.push(inicio);
+    }
+    return fechas;
 };
 
-// Monto con interes de mora segun la configuracion vigente (simple o compuesto)
-export const montoConMora = (original, meses, config = CONFIG_MORA) => {
-    const tasa = (Number(config.interesMensual) || 0) / 100;
-    const m = Math.max(0, Number(meses) || 0);
-    const total = config.tipoCalculo === 'Simple'
-        ? original * (1 + tasa * m)
-        : original * (1 + tasa) ** m;
-    return round2(total);
+// Cuantos meses de mora acumula un periodo hasta hoy (sin contar pagos)
+export const mesesVencidos = (...args) => fechasCobroMora(...args).length;
+
+// 'DD/MM/AAAA' -> Date (a las 00:00). Fecha vacia o invalida -> null
+export const fechaDeTexto = (texto) => {
+    const [d, m, a] = String(texto || '').split('/').map(Number);
+    return d && m && a ? new Date(a, m - 1, d) : null;
 };
+
+// Pagos de una expensa ordenados por fecha. Si lo pagado no tiene fecha
+// registrada (datos antiguos), se toma como pagado antes de la primera mora.
+const abonosDe = (e) => {
+    const conFecha = (e.abonos || [])
+        .map((a) => ({ fecha: fechaDeTexto(a.fecha), monto: Number(a.monto) || 0 }))
+        .filter((a) => a.fecha && a.monto > 0)
+        .sort((a, b) => a.fecha - b.fecha);
+    const sinFecha = round2((Number(e.pagado) || 0) - conFecha.reduce((s, a) => s + a.monto, 0));
+    return sinFecha > 0 ? [{ fecha: new Date(0), monto: sinFecha }, ...conFecha] : conFecha;
+};
+
+// Mora mes a mes sobre el saldo pendiente de cada momento.
+// Un pago hecho ANTES de la fecha de cobro reduce la base de ese mes;
+// uno hecho ese mismo dia o despues, ya paga la mora generada.
+//   Compuesto -> % sobre todo lo que se debe (expensa + mora anterior)
+//   Simple    -> % solo sobre la parte de la expensa que falta pagar
+//   Fijo      -> monto fijo cada mes mientras quede saldo
+// Devuelve { interes, tramos: [{ fecha, base, recargo, saldo }] }
+const calcularMoraSobreSaldo = (original, abonos, fechas, config) => {
+    let capital = original; // parte de la expensa sin pagar
+    let mora = 0;           // mora generada y aun sin pagar
+    let interes = 0;        // mora total generada
+    let i = 0;
+    const pagar = (monto) => {
+        const aMora = Math.min(mora, monto);
+        mora -= aMora;
+        capital -= monto - aMora;
+    };
+    const tramos = fechas.map((fecha) => {
+        while (i < abonos.length && abonos[i].fecha < fecha) pagar(abonos[i++].monto);
+        const debe = Math.max(0, capital + mora);
+        let recargo = 0;
+        if (debe > 0.005) {
+            if (esMontoFijo(config)) {
+                recargo = Number(config.montoFijo) || 0;
+            } else {
+                const tasa = (Number(config.interesMensual) || 0) / 100;
+                const base = config.tipoCalculo === 'Simple' ? Math.max(0, capital) : debe;
+                recargo = base * tasa;
+            }
+        }
+        recargo = round2(recargo);
+        mora += recargo;
+        interes += recargo;
+        return { fecha, base: round2(debe), recargo, saldo: round2(debe + recargo) };
+    });
+    return { interes: round2(interes), tramos };
+};
+
+// Mora mes a mes sobre la deuda total (los pagos parciales no la reducen).
+// Mismo formato de resultado que calcularMoraSobreSaldo.
+const calcularMoraSobreTotal = (original, fechas, config) => {
+    const tramos = fechas.map((fecha, k) => {
+        const base = montoConMora(original, k, config);
+        const saldo = montoConMora(original, k + 1, config);
+        return { fecha, base, recargo: round2(saldo - base), saldo };
+    });
+    return { interes: round2(montoConMora(original, fechas.length, config) - original), tramos };
+};
+
+// Mora de una expensa segun la opcion configurada para pagos parciales
+const calcularMora = (e, original, fechas, config) => (moraSobreSaldo(config)
+    ? calcularMoraSobreSaldo(original, abonosDe(e), fechas, config)
+    : calcularMoraSobreTotal(original, fechas, config));
 
 // Situacion de UNA expensa a la fecha indicada.
 export const situacionExpensa = (e, { hoy = new Date(), config = CONFIG_MORA, dia = diaVencimiento() } = {}) => {
@@ -84,10 +179,14 @@ export const situacionExpensa = (e, { hoy = new Date(), config = CONFIG_MORA, di
     const pagado = round2(Number(e.pagado) || 0);
     const pagada = e.estado === 'Pagada';
 
-    const meses = pagada ? 0 : mesesVencidos(e.periodo, hoy, dia);
-    const deudaActual = pagada ? original : montoConMora(original, meses, config);
+    const { interes: moraGenerada, tramos } = pagada
+        ? { interes: 0, tramos: [] }
+        : calcularMora(e, original, fechasCobroMora(e.periodo, hoy, dia, config.aplicarMoraDesde), config);
+    // Meses con mora = meses en los que todavia se debia algo
+    const meses = tramos.filter((t) => t.base > 0.005).length;
+    const deudaActual = pagada ? original : round2(original + moraGenerada);
     const pendiente = pagada ? 0 : Math.max(0, round2(deudaActual - pagado));
-    const interes = pagada ? Math.max(0, round2(pagado - original)) : round2(deudaActual - original);
+    const interes = pagada ? Math.max(0, round2(pagado - original)) : moraGenerada;
 
     let estado = 'Pendiente';
     if (pagada || (pendiente < 0.01 && original > 0)) estado = 'Pagado';
@@ -98,6 +197,7 @@ export const situacionExpensa = (e, { hoy = new Date(), config = CONFIG_MORA, di
         depto: e.depto, responsable: responsableDe(e.depto), tipo: e.tipo, periodo: e.periodo,
         base, expensaBase: base, agua, extras,
         deudaOriginal: original, meses, interes, deudaActual, pagado, pendiente,
+        tramosMora: tramos.filter((t) => t.base > 0.005),
         vencida: meses > 0 && pendiente >= 0.01,
         estado,
         // Sin el agua registrada la expensa no esta completa: todavia no se puede cobrar
@@ -159,4 +259,21 @@ export const historialDepto = (depto, opts) => EXPENSAS_MOCK
 export const estadoVisibleExpensa = (e, opts) => {
     if (e.estado !== 'Lista') return e.estado;
     return situacionExpensa(e, opts).vencida ? 'Vencida' : 'Lista';
+};
+
+// ------------------------------------------------------------
+//  REGISTRO DE PAGOS (unico punto que escribe lo pagado de una expensa)
+// ------------------------------------------------------------
+
+// Suma un pago a la expensa con su fecha ('DD/MM/AAAA') y la marca 'Pagada'
+// si con eso cubre la expensa mas la mora QUE TENIA ESE DIA (un pago hecho
+// antes de que corra la mora no la debe). Devuelve el saldo que queda.
+export const registrarAbono = (expensa, monto, fecha) => {
+    const valor = round2(monto);
+    if (!expensa || valor <= 0) return 0;
+    expensa.abonos = [...(expensa.abonos || []), { fecha, monto: valor }];
+    expensa.pagado = round2((Number(expensa.pagado) || 0) + valor);
+    const { pendiente } = situacionExpensa({ ...expensa, estado: '' }, { hoy: fechaDeTexto(fecha) ?? new Date() });
+    if (pendiente < 0.01) expensa.estado = 'Pagada';
+    return pendiente;
 };

@@ -8,6 +8,7 @@ import '@fontsource/roboto/500.css';
 import '@fontsource/roboto/700.css';
 import theme from './theme/theme';
 import { AuthProvider } from './context/AuthContext';
+import { PermisosProvider } from './context/PermisosContext';
 import App from './App.jsx';
 
 createRoot(document.getElementById('root')).render(
@@ -16,7 +17,9 @@ createRoot(document.getElementById('root')).render(
       <CssBaseline />
       <BrowserRouter>
         <AuthProvider>
-          <App />
+          <PermisosProvider>
+            <App />
+          </PermisosProvider>
         </AuthProvider>
       </BrowserRouter>
     </ThemeProvider>

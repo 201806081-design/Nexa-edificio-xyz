@@ -5,95 +5,186 @@
 // Quien tiene cuenta:
 //   - Administrador: SIEMPRE es personal del edificio (empleado con cargo
 //     Administrador). Al registrar a ese empleado se le crea la cuenta sola.
-//   - Directorio y Consulta: pueden ser personas externas (miembros del
-//     directorio, contador, auditor). Se crean desde Usuarios > Agregar usuario.
-//   - El resto del personal (portero, limpieza...) no necesita cuenta.
+//   - Directorio y Consulta: personas externas (miembros del directorio, contador, auditor).
+//   - Residente: copropietarios e inquilinos registrados en Copropietarios.
+//     Solo ven el estado de cuenta de su departamento.
+//   - El resto del personal (portero, limpieza...) no tiene cuenta.
 //
-// empleadoId: vinculo con el personal. Es solo del frontend: en el backend las
-// tablas Usuario y Empleado todavia no estan relacionadas.
+// CREDENCIALES: usuario = nombre en minusculas (los residentes con su numero de
+// depto adelante: "101ana") y contraseña inicial 1234. Se muestran UNA sola vez,
+// al crear la cuenta, y se envian a su correo. Despues nadie las ve, ni el administrador.
 //
-// CONTRASEÑAS: nadie las ve, ni el administrador. Al crear una cuenta (o al
-// restablecerla) se "envia" al CORREO del usuario un enlace de un solo uso para
-// que el mismo cree su contraseña. Mientras no lo use, la cuenta queda
-// "pendiente de activacion" (debeCambiarPassword). Aqui el envio es simulado:
-// en el backend la contraseña se guarda cifrada (bcrypt) y el correo lo envia el servidor.
-import { ROLES } from './permisos';
+// enBackend: la cuenta existe en el seed del backend y se autentica contra la API.
+// Las demas se autentican aqui (autenticarLocal) hasta que el backend las tenga.
+import { ROLES, TIPOS_RESIDENTE } from './permisos';
 import { EMPLEADOS_MOCK } from './personalMock';
+import { PERSONAS, deptoDePersona, numeroDe, personaPorId } from './edificioMock';
+
+export const PASSWORD_INICIAL = '1234';
 
 export const USUARIOS_MOCK = [
     // nombre: en el seed del backend dice 'Administrador General'; conviene cambiarlo alli a 'Oscar Montenegro'
-    { id: 1, username: 'usuario1', nombre: 'Oscar Montenegro', email: 'admin@nexa.bo', celular: '71456230', rol: ROLES.ADMINISTRADOR, empleadoId: 'EM-001', activo: true, debeCambiarPassword: false },
-    { id: 2, username: 'usuario2', nombre: 'Miembro del Directorio', email: 'directorio@nexa.bo', celular: '', rol: ROLES.DIRECTORIO, empleadoId: null, activo: true, debeCambiarPassword: false },
-    { id: 3, username: 'usuario3', nombre: 'Usuario de Consulta', email: 'consulta@nexa.bo', celular: '', rol: ROLES.CONSULTA, empleadoId: null, activo: true, debeCambiarPassword: false },
+    { id: 1, username: 'usuario1', nombre: 'Oscar Montenegro', email: 'admin@nexa.bo', celular: '71456230', rol: ROLES.ADMINISTRADOR, empleadoId: 'EM-001', personaId: null, activo: true, enBackend: true },
+    { id: 2, username: 'usuario2', nombre: 'Miembro del Directorio', email: 'directorio@nexa.bo', celular: '', rol: ROLES.DIRECTORIO, empleadoId: null, personaId: null, activo: true, enBackend: true },
+    { id: 3, username: 'usuario3', nombre: 'Usuario de Consulta', email: 'consulta@nexa.bo', celular: '', rol: ROLES.CONSULTA, empleadoId: null, personaId: null, activo: true, enBackend: true },
 ];
 
+// ------------------------------------------------------------
+//  VINCULOS (personal / residente)
+// ------------------------------------------------------------
 export const empleadoDeUsuario = (u) => EMPLEADOS_MOCK.find((e) => e.id === u?.empleadoId) ?? null;
 
 export const usuarioDeEmpleado = (empleadoId) => USUARIOS_MOCK.find((u) => u.empleadoId === empleadoId) ?? null;
 
-// Personal que corresponde a un rol: el Administrador es el empleado activo con
-// cargo Administrador; Directorio y Consulta no son personal del edificio.
-export const personalSugeridoParaRol = (rol) => {
-    if (rol !== ROLES.ADMINISTRADOR) return null;
-    return EMPLEADOS_MOCK.find((e) => e.cargo === 'Administrador' && e.estado === 'Activo')?.id ?? null;
+export const usuarioDePersona = (personaId) => USUARIOS_MOCK.find((u) => u.personaId === personaId) ?? null;
+
+// 'Copropietario' | 'Inquilino' segun el registro de la persona (o null si no es residente)
+export const tipoResidente = (u) => TIPOS_RESIDENTE[personaPorId(u?.personaId)?.tipo] ?? null;
+
+// Numero del depto del residente ('101') o null
+export const deptoDeUsuario = (u) => {
+    const d = deptoDePersona(u?.personaId);
+    return d ? numeroDe(d) : null;
 };
 
-// Guarda el rol y el personal vinculado de un usuario. Un empleado solo puede
-// estar vinculado a un usuario: si ya lo estaba con otro, se le quita.
-export const actualizarUsuario = (id, { rol, empleadoId }) => {
-    if (empleadoId) {
-        USUARIOS_MOCK.forEach((u) => { if (u.id !== id && u.empleadoId === empleadoId) u.empleadoId = null; });
-    }
-    const u = USUARIOS_MOCK.find((x) => x.id === id);
-    if (u) { u.rol = rol; u.empleadoId = empleadoId || null; }
-};
+// Copropietarios o inquilinos que todavia no tienen cuenta
+export const personasSinCuenta = (tipo) => PERSONAS.filter((p) => TIPOS_RESIDENTE[p.tipo] === tipo && !usuarioDePersona(p.id));
+
+const administradoresActivos = () => USUARIOS_MOCK.filter((u) => u.rol === ROLES.ADMINISTRADOR && u.activo);
 
 // ------------------------------------------------------------
 //  ALTA DE USUARIOS
 // ------------------------------------------------------------
-const sinTildes = (t) => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+const sinTildes = (t) => String(t || '').normalize('NFD').replace(/[̀-ͯ]/g, '');
+const limpiar = (t) => sinTildes(t).toLowerCase().split(/\s+/)[0].replace(/[^a-z0-9]/g, '');
 
-// "Oscar Montenegro" -> "oscar.montenegro" (si existe: "oscar.montenegro2")
-export const generarUsername = (nombres, apellidos) => {
-    const n = sinTildes(nombres).toLowerCase().split(/\s+/)[0] || 'usuario';
-    const a = sinTildes(apellidos).toLowerCase().split(/\s+/)[0] || '';
-    const base = (a ? `${n}.${a}` : n).replace(/[^a-z0-9.]/g, '');
-    let u = base; let i = 2;
-    while (USUARIOS_MOCK.some((x) => x.username === u)) { u = `${base}${i}`; i += 1; }
+// Residente: numero de depto + primer nombre. Ana Lopez (Depto. 101) -> "101ana".
+// Personal y externos: primer nombre. Oscar Montenegro -> "oscar".
+// Si ya existe se agrega el primer apellido ("101analopez") y despues un numero ("101analopez2").
+// Se usa tambien para mostrar el usuario en el formulario ANTES de crear la cuenta.
+export const generarUsername = ({ nombres, apellidos, personaId = null }) => {
+    const existe = (u) => USUARIOS_MOCK.some((x) => x.username === u);
+    const depto = personaId ? deptoDeUsuario({ personaId }) ?? '' : '';
+    const base = `${depto}${limpiar(nombres) || 'usuario'}`;
+    if (!existe(base)) return base;
+    const conApellido = `${base}${limpiar(apellidos)}`;
+    let u = conApellido; let i = 2;
+    while (existe(u)) { u = `${conApellido}${i}`; i += 1; }
     return u;
 };
 
-// Crea una cuenta y "envia" el enlace de activacion a su correo. Devuelve { usuario }.
-export const crearUsuario = ({ nombre, nombres, apellidos, email, celular = '', rol, empleadoId = null }) => {
+// Crea una cuenta activa con la contraseña inicial y "envia" las credenciales a su correo.
+// Devuelve { usuario, password } para mostrar el aviso.
+export const crearUsuario = ({ nombres, apellidos, email = '', celular = '', rol, empleadoId = null, personaId = null }) => {
     const id = USUARIOS_MOCK.reduce((m, u) => Math.max(m, u.id), 0) + 1;
-    const [n1, ...resto] = String(nombre || '').trim().split(/\s+/);
     const usuario = {
         id,
-        username: generarUsername(nombres ?? n1, apellidos ?? resto.join(' ')),
-        nombre: nombre || `${nombres} ${apellidos}`.trim(),
-        email, celular, rol, empleadoId, activo: true, debeCambiarPassword: true,
+        username: generarUsername({ nombres, apellidos, personaId }),
+        nombre: `${nombres} ${apellidos}`.trim(),
+        email, celular, rol, empleadoId, personaId,
+        activo: true, enBackend: false, password: PASSWORD_INICIAL,
     };
-    if (empleadoId) USUARIOS_MOCK.forEach((u) => { if (u.empleadoId === empleadoId) u.empleadoId = null; });
     USUARIOS_MOCK.push(usuario);
-    return { usuario };
+    return { usuario, password: PASSWORD_INICIAL };
 };
 
-// "Envia" al correo del usuario un enlace para crear una contraseña nueva
+// Cuenta de residente para un copropietario o inquilino registrado
+export const crearCuentaResidente = (persona) => crearUsuario({
+    nombres: persona.nombres, apellidos: persona.apellidos, email: persona.correo || '',
+    celular: persona.telefono || '', rol: ROLES.RESIDENTE, personaId: persona.id,
+});
+
+// Los copropietarios e inquilinos del mock ya tienen su cuenta
+PERSONAS.forEach((p) => { if (!usuarioDePersona(p.id)) crearCuentaResidente(p); });
+
+// ------------------------------------------------------------
+//  ACCIONES SOBRE UNA CUENTA
+//  Devuelven un mensaje de error (string) o null si se hizo el cambio.
+// ------------------------------------------------------------
+const buscar = (id) => USUARIOS_MOCK.find((x) => x.id === id);
+
+export const cambiarRol = (id, rol) => {
+    const u = buscar(id);
+    if (!u) return 'Usuario no encontrado';
+    if (u.rol === rol) return null;
+    if (rol === ROLES.ADMINISTRADOR && empleadoDeUsuario(u)?.cargo !== 'Administrador') {
+        return 'El Administrador debe ser un empleado con cargo Administrador. Registralo en Personal y su cuenta se crea sola.';
+    }
+    if (u.rol === ROLES.ADMINISTRADOR && u.activo && administradoresActivos().length === 1) {
+        return 'Es el unico Administrador activo: el sistema no puede quedarse sin Administrador.';
+    }
+    u.rol = rol;
+    return null;
+};
+
+export const cambiarEstado = (id, activo) => {
+    const u = buscar(id);
+    if (!u) return 'Usuario no encontrado';
+    if (!activo && u.rol === ROLES.ADMINISTRADOR && administradoresActivos().length === 1) {
+        return 'Es el unico Administrador activo: no se puede desactivar.';
+    }
+    u.activo = activo;
+    return null;
+};
+
+// Solo se elimina una cuenta desactivada
+export const eliminarUsuario = (id) => {
+    const i = USUARIOS_MOCK.findIndex((x) => x.id === id);
+    if (i === -1) return 'Usuario no encontrado';
+    if (USUARIOS_MOCK[i].activo) return 'Desactiva la cuenta antes de eliminarla.';
+    if (USUARIOS_MOCK[i].enBackend) return 'Esta cuenta esta en el backend: se podra eliminar al integrar la API. Por ahora queda desactivada.';
+    USUARIOS_MOCK.splice(i, 1);
+    return null;
+};
+
+// Si se elimina a un copropietario o inquilino, su cuenta tambien se elimina
+export const eliminarCuentaDePersona = (personaId) => {
+    const i = USUARIOS_MOCK.findIndex((u) => u.personaId === personaId);
+    if (i !== -1) USUARIOS_MOCK.splice(i, 1);
+};
+
+// Vuelve la contraseña a la inicial y la "envia" a su correo. Devuelve { usuario, password }.
 export const restablecerPassword = (id) => {
-    const u = USUARIOS_MOCK.find((x) => x.id === id);
+    const u = buscar(id);
     if (!u) return null;
-    u.debeCambiarPassword = true;
-    return { usuario: u };
+    u.password = PASSWORD_INICIAL;
+    return { usuario: u, password: PASSWORD_INICIAL };
 };
 
-// El Administrador es personal: al registrar (o pasar a) un empleado con cargo
-// Administrador se le crea su cuenta, si aun no tiene. Devuelve { usuario } o null.
+// ------------------------------------------------------------
+//  LOGIN LOCAL (cuentas que todavia no existen en el backend)
+//  Devuelve null si la cuenta se valida en el backend, o
+//  { estado: 'ok' | 'inactivo' | 'incorrecto', user? }.
+// ------------------------------------------------------------
+// Se puede entrar con el usuario o con el correo (igual que en el backend)
+export const autenticarLocal = (identificador, password) => {
+    const id = String(identificador ?? '').trim().toLowerCase();
+    const u = USUARIOS_MOCK.find((x) => x.username === id || (x.email && x.email.toLowerCase() === id));
+    if (!u) return null;
+    if (!u.activo) return { estado: 'inactivo' };
+    if (u.enBackend) return null;
+    if (u.password !== password) return { estado: 'incorrecto' };
+    return {
+        estado: 'ok',
+        user: {
+            id: u.id, usuario: u.username, nombre: u.nombre, email: u.email, rol: u.rol,
+            personaId: u.personaId, tipoResidente: tipoResidente(u), depto: deptoDeUsuario(u),
+        },
+    };
+};
+
+// ------------------------------------------------------------
+//  ADMINISTRADOR = PERSONAL (se usa desde Personal > Empleados)
+// ------------------------------------------------------------
+
+// Al registrar (o pasar a) un empleado con cargo Administrador se le crea su cuenta,
+// si aun no tiene. Devuelve { usuario, password } o null.
 export const asegurarCuentaAdministrador = (empleado) => {
     if (!empleado || empleado.cargo !== 'Administrador' || empleado.estado !== 'Activo') return null;
     const existente = usuarioDeEmpleado(empleado.id);
     if (existente) { existente.activo = true; return null; }
     return crearUsuario({
-        nombres: empleado.nombres, apellidos: empleado.apellidos, nombre: empleado.nombre,
+        nombres: empleado.nombres, apellidos: empleado.apellidos,
         email: empleado.correo, celular: empleado.celular, rol: ROLES.ADMINISTRADOR, empleadoId: empleado.id,
     });
 };

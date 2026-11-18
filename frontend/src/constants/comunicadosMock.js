@@ -29,7 +29,7 @@ export const PRIORIDADES = ['Normal', 'Importante', 'Urgente'];
 
 export const ESTADOS_COMUNICADO = ['Todos', 'Enviado', 'Programado', 'Fallido'];
 
-// Canales de envio y su estado tecnico.
+// Canales de envio (app, correo y WhatsApp) y su estado tecnico.
 // 'disponible'       -> seleccionable Y funcional en el mock (solo 'app' por ahora).
 // 'pendiente-backend' -> seleccionable pero no envia nada real; el backend lo integrara.
 // 'no configurado'   -> deshabilitado.
@@ -37,10 +37,9 @@ export const CANALES = [
     { id: 'app', nombre: 'Notificacion en la aplicacion', estado: 'disponible', etiqueta: 'App' },
     { id: 'correo', nombre: 'Correo electronico', estado: 'pendiente-backend', etiqueta: 'Correo' },
     { id: 'whatsapp', nombre: 'WhatsApp', estado: 'pendiente-backend', etiqueta: 'WhatsApp' },
-    { id: 'sms', nombre: 'SMS', estado: 'no configurado', etiqueta: 'SMS' },
 ];
 export const canalPorId = (id) => CANALES.find((c) => c.id === id);
-// Solo 'disponible' es seleccionable (hoy = app). Correo/WhatsApp/SMS quedan deshabilitados
+// Solo 'disponible' es seleccionable (hoy = app). Correo y WhatsApp quedan deshabilitados
 // visualmente hasta que el backend los integre.
 export const canalEstaDisponible = (id) => canalPorId(id)?.estado === 'disponible';
 

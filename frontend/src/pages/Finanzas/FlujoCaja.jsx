@@ -1,12 +1,9 @@
 import { useState, useMemo } from 'react';
 import {
-    Box, Typography, Paper, Button, Select, MenuItem, Chip,
+    Box, Typography, Paper, Button, Select, MenuItem,
     Table, TableHead, TableBody, TableRow, TableCell,
     ToggleButton, ToggleButtonGroup,
 } from '@mui/material';
-import NorthIcon from '@mui/icons-material/North';
-import SouthIcon from '@mui/icons-material/South';
-import DragHandleIcon from '@mui/icons-material/DragHandle';
 import BarChartIcon from '@mui/icons-material/BarChart';
 import DonutLargeIcon from '@mui/icons-material/DonutLarge';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
@@ -17,37 +14,11 @@ import {
 import { useNavigate } from 'react-router-dom';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import { formatBs } from '../../constants/finanzasMock';
-import { periodosConMovimientos } from '../../constants/periodos';
+import { periodosConTodos, periodosConMovimientos, TODOS_LOS_PERIODOS } from '../../constants/periodos';
 import { PAGOS_MOCK, HISTORIAL_ANTICIPOS } from '../../constants/pagosMock';
-import { todosLosMovimientos } from '../../constants/movimientosMock';
-
-// Semana del mes a partir del dia (1-7 S1, 8-14 S2, 15-21 S3, 22-fin S4)
-const semanaMes = (dia) => {
-    if (dia <= 7) return 'Sem. 1';
-    if (dia <= 14) return 'Sem. 2';
-    if (dia <= 21) return 'Sem. 3';
-    return 'Sem. 4';
-};
-
-// 'DD/MM/YYYY' -> {dia, mes, anio}
-const parseFecha = (f) => {
-    const [d, m, y] = (f || '').split('/').map(Number);
-    return { dia: d || 0, mes: m || 0, anio: y || 0 };
-};
-
-// 'Octubre 2026' -> {mes: 10, anio: 2026}
-const MES_IDX = {
-    enero: 1, febrero: 2, marzo: 3, abril: 4, mayo: 5, junio: 6,
-    julio: 7, agosto: 8, septiembre: 9, octubre: 10, noviembre: 11, diciembre: 12,
-};
-const parsePeriodo = (p) => {
-    const [mes, anio] = (p || '').toLowerCase().split(' ');
-    return { mes: MES_IDX[mes] || 0, anio: Number(anio) || 0 };
-};
-
-const tipoChipSx = (tipo) => (tipo === 'Ingreso'
-    ? { bgcolor: '#E4F4EE', color: '#2E9D78' }
-    : { bgcolor: '#FBEAE9', color: '#D9534F' });
+import { todosLosMovimientos, enPeriodo as fechaEnPeriodo } from '../../constants/movimientosMock';
+import { fondosDelPeriodo } from '../../constants/cajaBancosMock';
+import CuadreFondos from '../../components/CuadreFondos';
 
 const toggleSx = {
     bgcolor: '#fff',
@@ -68,15 +39,14 @@ const PALETA_EGRESOS = ['#D9534F', '#E5A33B', '#A05A2C', '#5B8DEF', '#C13584'];
 
 export default function FlujoCaja() {
     const navigate = useNavigate();
-    // Periodos: mes en curso + meses cerrados desde el inicio del sistema (periodos.js)
-    const periodos = useMemo(() => periodosConMovimientos(), []);
+    // "Todos los periodos" (acumulado) + cada mes desde el inicio del sistema (periodos.js)
+    const periodos = useMemo(() => periodosConTodos(), []);
     const [periodo, setPeriodo] = useState(() => periodos[0] || '');
     const [vista, setVista] = useState('barras');
 
     // Agregacion desde los mocks reales, FILTRADA por periodo (mes y anio)
     const flujo = useMemo(() => {
-        const { mes, anio } = parsePeriodo(periodo);
-        const enPeriodo = (f) => { const p = parseFecha(f); return p.mes === mes && p.anio === anio; };
+        const enPeriodo = (f) => fechaEnPeriodo(f, periodo);
 
         // Solo pagos con dinero nuevo: los cubiertos con credito ya entraron como anticipo
         const pagos = PAGOS_MOCK.filter((p) => enPeriodo(p.fecha) && (p.monto || 0) > 0);
@@ -105,51 +75,21 @@ export default function FlujoCaja() {
             { name: 'Otros ingresos', value: sumOtros, color: COLORES_INGRESOS['Otros ingresos'] },
         ].filter((x) => x.value > 0);
 
-        // Evolucion por semana — una columna por categoria (para barras apiladas)
-        const sem = {
-            'Sem. 1': { sem: 'Sem. 1' },
-            'Sem. 2': { sem: 'Sem. 2' },
-            'Sem. 3': { sem: 'Sem. 3' },
-            'Sem. 4': { sem: 'Sem. 4' },
-        };
-        const addCat = (semana, cat, monto) => {
-            sem[semana][cat] = (sem[semana][cat] || 0) + monto;
-        };
-        pagos.forEach((p) => addCat(semanaMes(parseFecha(p.fecha).dia), 'Pagos de expensas', p.monto || 0));
-        anticipos.forEach((a) => addCat(semanaMes(parseFecha(a.fecha).dia), 'Pagos anticipados', a.recibido || 0));
-        movimientos.forEach((m) => {
-            const semana = semanaMes(parseFecha(m.fecha).dia);
-            if (m.tipo === 'Ingreso') addCat(semana, 'Otros ingresos', m.monto || 0);
-            else addCat(semana, m.categoria, m.monto || 0);
-        });
-        const evolucion = Object.values(sem);
-
-        // Ultimos movimientos del periodo (unificado y ordenado desc)
-        const ultimos = [
-            ...pagos.map((p) => ({ fecha: p.fecha, descripcion: `Pago ${p.id} — Dpto. ${p.depto}`, categoria: 'Pago de expensa', tipo: 'Ingreso', monto: p.monto })),
-            ...anticipos.map((a) => ({ fecha: a.fecha, descripcion: `Anticipo ${a.id} — Dpto. ${a.depto}`, categoria: 'Pago anticipado', tipo: 'Ingreso', monto: a.recibido })),
-            ...movimientos.map((m) => ({ fecha: m.fecha, descripcion: m.descripcion, categoria: m.categoria, tipo: m.tipo === 'Ingreso' ? 'Ingreso' : 'Egreso', monto: m.monto })),
-        ].sort((a, b) => {
-            const fa = parseFecha(a.fecha); const fb = parseFecha(b.fecha);
-            return (fb.anio - fa.anio) || (fb.mes - fa.mes) || (fb.dia - fa.dia);
-        }).slice(0, 6);
-
         const sinDatos = totalIngresos === 0 && totalEgresos === 0;
 
-        return { totalIngresos, totalEgresos, balance, ingresosList, egresosList, evolucion, ultimos, sinDatos };
+        return { totalIngresos, totalEgresos, balance, ingresosList, egresosList, sinDatos };
     }, [periodo]);
 
-    const RESUMEN = [
-        { clave: 'ingresos', label: 'Total ingresos', valor: flujo.totalIngresos, icon: <NorthIcon />, color: '#2E9D78', bg: '#E4F4EE' },
-        { clave: 'egresos', label: 'Total gastos', valor: flujo.totalEgresos, icon: <SouthIcon />, color: '#D9534F', bg: '#FBEAE9' },
-        { clave: 'balance', label: 'Balance', valor: flujo.balance, icon: <DragHandleIcon />, color: flujo.balance >= 0 ? '#2E9D78' : '#D9534F', bg: '#E4EEF5' },
-    ];
+    // Flujo mes a mes desde el inicio del sistema (saldo inicial -> saldo final).
+    // Mismas cifras que el cuadre de fondos, Ingresos y gastos y Caja y bancos.
+    const meses = useMemo(() => periodosConMovimientos().reverse().map((p) => ({ periodo: p, ...fondosDelPeriodo(p) })), []);
+    const total = fondosDelPeriodo(TODOS_LOS_PERIODOS);
 
     return (
         <DashboardLayout>
             <Typography variant="h1" color="primary.main" sx={{ mb: 0.5 }}>Flujo de caja</Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                Analiza ingresos, egresos y anticipos del periodo
+                De donde vino el dinero, en que se gasto y como cambio el saldo de caja y banco
             </Typography>
 
             <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', justifyContent: { xs: 'stretch', md: 'flex-end' }, mb: 2 }}>
@@ -160,23 +100,16 @@ export default function FlujoCaja() {
                 </Button>
             </Box>
 
-            {/* KPIs + Periodo */}
-            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(3, 1fr) 180px' }, gap: 2, mb: 3, alignItems: 'center' }}>
-                {RESUMEN.map((r) => (
-                    <Paper key={r.clave} sx={{ p: 2.5, borderRadius: 2, display: 'flex', alignItems: 'center', gap: 2 }}>
-                        <Box sx={{ width: 48, height: 48, borderRadius: '50%', bgcolor: r.bg, color: r.color, display: 'grid', placeItems: 'center' }}>
-                            {r.icon}
-                        </Box>
-                        <Box>
-                            <Typography variant="body2" color="text.secondary">{r.label}</Typography>
-                            <Typography variant="h3" sx={{ fontWeight: 700, color: r.color }}>{formatBs(r.valor)}</Typography>
-                        </Box>
-                    </Paper>
-                ))}
-                <Select value={periodo} onChange={(e) => setPeriodo(e.target.value)} fullWidth size="small" sx={{ bgcolor: '#fff' }}>
+            {/* Periodo */}
+            <Box sx={{ maxWidth: 320, mb: 2 }}>
+                <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Periodo</Typography>
+                <Select fullWidth value={periodo} onChange={(e) => setPeriodo(e.target.value)}>
                     {periodos.map((p) => <MenuItem key={p} value={p}>{p}</MenuItem>)}
                 </Select>
             </Box>
+
+            {/* Saldo inicial + ingresos - gastos = saldo final */}
+            <CuadreFondos periodo={periodo} />
 
             {flujo.sinDatos ? (
                 <Paper sx={{ p: 4, borderRadius: 2, mb: 2, bgcolor: '#FDF0D5', color: '#8A5A00', textAlign: 'center' }}>
@@ -401,41 +334,54 @@ export default function FlujoCaja() {
                 </Box>
             )}
 
-            {/* Ultimos movimientos */}
+            {/* Flujo mes a mes (reporte mensual y acumulado) */}
             <Paper sx={{ p: 3, borderRadius: 2 }}>
-                <Typography variant="body2" sx={{ fontWeight: 700, mb: 1 }}>Ultimos movimientos del periodo</Typography>
+                <Typography variant="body2" sx={{ fontWeight: 700, mb: 0.5 }}>Flujo mes a mes</Typography>
+                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.5 }}>
+                    Cada mes empieza con el saldo con el que cerro el anterior. El primero empieza con el saldo de apertura.
+                </Typography>
                 <Box sx={{ overflowX: 'auto' }}>
                     <Table size="small" sx={{ minWidth: 700 }}>
                         <TableHead>
                             <TableRow sx={{ bgcolor: '#F1F5FA' }}>
-                                <TableCell><strong>Fecha</strong></TableCell>
-                                <TableCell><strong>Descripcion</strong></TableCell>
-                                <TableCell><strong>Categoria</strong></TableCell>
-                                <TableCell><strong>Tipo</strong></TableCell>
-                                <TableCell align="right"><strong>Monto</strong></TableCell>
+                                <TableCell><strong>Mes</strong></TableCell>
+                                <TableCell align="right"><strong>Saldo inicial</strong></TableCell>
+                                <TableCell align="right"><strong>Ingresos</strong></TableCell>
+                                <TableCell align="right"><strong>Gastos</strong></TableCell>
+                                <TableCell align="right"><strong>Flujo neto</strong></TableCell>
+                                <TableCell align="right"><strong>Saldo final</strong></TableCell>
                             </TableRow>
                         </TableHead>
                         <TableBody>
-                            {flujo.ultimos.length === 0 ? (
-                                <TableRow>
-                                    <TableCell colSpan={5} align="center" sx={{ color: 'text.secondary', py: 3 }}>
-                                        Sin movimientos registrados en {periodo}.
-                                    </TableCell>
-                                </TableRow>
-                            ) : flujo.ultimos.map((m, i) => {
-                                const esIngreso = m.tipo === 'Ingreso';
+                            {meses.map((m) => {
+                                const neto = m.ingresos - m.gastos;
                                 return (
-                                    <TableRow key={i}>
-                                        <TableCell>{m.fecha}</TableCell>
-                                        <TableCell>{m.descripcion}</TableCell>
-                                        <TableCell>{m.categoria}</TableCell>
-                                        <TableCell><Chip label={m.tipo} size="small" sx={tipoChipSx(m.tipo)} /></TableCell>
-                                        <TableCell align="right" sx={{ color: esIngreso ? '#2E9D78' : '#D9534F', fontWeight: 700 }}>
-                                            {esIngreso ? '+' : '-'} {formatBs(m.monto)}
+                                    <TableRow key={m.periodo} hover selected={m.periodo === periodo}
+                                        onClick={() => setPeriodo(m.periodo)} sx={{ cursor: 'pointer' }}>
+                                        <TableCell sx={{ fontWeight: 600 }}>{m.periodo}</TableCell>
+                                        <TableCell align="right">
+                                            {formatBs(m.saldoInicial)}
+                                            {m.esApertura && <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>Apertura</Typography>}
                                         </TableCell>
+                                        <TableCell align="right" sx={{ color: '#2E9D78', fontWeight: 600 }}>{formatBs(m.ingresos)}</TableCell>
+                                        <TableCell align="right" sx={{ color: '#D9534F', fontWeight: 600 }}>{formatBs(m.gastos)}</TableCell>
+                                        <TableCell align="right" sx={{ fontWeight: 600, color: neto < 0 ? '#D9534F' : '#2E9D78' }}>
+                                            {neto > 0 ? '+ ' : neto < 0 ? '− ' : ''}{formatBs(Math.abs(neto))}
+                                        </TableCell>
+                                        <TableCell align="right" sx={{ fontWeight: 700 }}>{formatBs(m.saldoFinal)}</TableCell>
                                     </TableRow>
                                 );
                             })}
+                            <TableRow sx={{ bgcolor: '#F1F5FA', '& td': { fontWeight: 700 } }}>
+                                <TableCell>Total</TableCell>
+                                <TableCell align="right">{formatBs(total.saldoInicial)}</TableCell>
+                                <TableCell align="right" sx={{ color: '#2E9D78' }}>{formatBs(total.ingresos)}</TableCell>
+                                <TableCell align="right" sx={{ color: '#D9534F' }}>{formatBs(total.gastos)}</TableCell>
+                                <TableCell align="right" sx={{ color: total.ingresos - total.gastos < 0 ? '#D9534F' : '#2E9D78' }}>
+                                    {total.ingresos - total.gastos < 0 ? '− ' : '+ '}{formatBs(Math.abs(total.ingresos - total.gastos))}
+                                </TableCell>
+                                <TableCell align="right">{formatBs(total.saldoFinal)}</TableCell>
+                            </TableRow>
                         </TableBody>
                     </Table>
                 </Box>

@@ -4,7 +4,10 @@ import HistoryIcon from '@mui/icons-material/History';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import { UNIDADES_MOCK } from '../../constants/unidadesMock';
-import { COPROPIETARIOS_MOCK, nombreCompleto } from '../../constants/copropietariosMock';
+import {
+    etiquetaTipoDepto, personaPorId, estadoDepto, responsablePagoDe, estadoAnexo, usuarioDeAnexo,
+} from '../../constants/edificioMock';
+import { nombreCompleto } from '../../constants/copropietariosMock';
 
 function Dato({ etiqueta, valor }) {
     return (
@@ -21,10 +24,7 @@ function chipSx(tipo) {
     return { bgcolor: '#FCE7CB', color: '#C06E00' }; // Baulera
 }
 
-function personaAsociada(personaId) {
-    const p = COPROPIETARIOS_MOCK.find((c) => c.id === personaId);
-    return p ? `${nombreCompleto(p)} — ${p.tipo}` : 'Sin asociación';
-}
+const nombreDe = (id, vacio) => (personaPorId(id) ? nombreCompleto(personaPorId(id)) : vacio);
 
 export default function DetalleUnidad() {
     const navigate = useNavigate();
@@ -68,7 +68,7 @@ export default function DetalleUnidad() {
                     {esDepto ? (
                         <>
                             <Box sx={{ width: { xs: '100%', md: '50%' } }}><Dato etiqueta="Piso" valor={`Piso ${unidad.piso}`} /></Box>
-                            <Box sx={{ width: { xs: '100%', md: '50%' } }}><Dato etiqueta="Tipo de departamento" valor={unidad.tipoDepartamento} /></Box>
+                            <Box sx={{ width: { xs: '100%', md: '50%' } }}><Dato etiqueta="Tipo de departamento" valor={etiquetaTipoDepto(unidad.categoria)} /></Box>
                         </>
                     ) : (
                         <>
@@ -83,7 +83,29 @@ export default function DetalleUnidad() {
                 <Divider sx={{ my: 2 }} />
 
                 <Typography variant="body2" sx={{ fontWeight: 600, mb: 1 }}>Asociacion</Typography>
-                <Dato etiqueta="Persona asociada" valor={personaAsociada(unidad.personaId)} />
+                {esDepto ? (
+                    <Box sx={{ display: 'flex', flexWrap: 'wrap' }}>
+                        <Box sx={{ width: { xs: '100%', md: '50%' } }}>
+                            <Dato etiqueta="Propietario"
+                                valor={`${nombreDe(unidad.propietarioId, 'Sin propietario')}${unidad.propietarioId && !unidad.propietarioViveAhi ? ' (no vive aqui)' : ''}`} />
+                        </Box>
+                        <Box sx={{ width: { xs: '100%', md: '50%' } }}><Dato etiqueta="Inquilino" valor={nombreDe(unidad.inquilinoId, 'Sin inquilino')} /></Box>
+                        <Box sx={{ width: { xs: '100%', md: '50%' } }}><Dato etiqueta="Estado" valor={estadoDepto(unidad)} /></Box>
+                        <Box sx={{ width: { xs: '100%', md: '50%' } }}>
+                            <Dato etiqueta="Responsable de pago" valor={responsablePagoDe(unidad) ? nombreCompleto(responsablePagoDe(unidad)) : 'Sin responsable'} />
+                        </Box>
+                    </Box>
+                ) : (
+                    <Box sx={{ display: 'flex', flexWrap: 'wrap' }}>
+                        <Box sx={{ width: { xs: '100%', md: '50%' } }}>
+                            <Dato etiqueta="Departamento" valor={UNIDADES_MOCK.find((d) => d.id === unidad.deptoId)?.identificador ?? 'Libre (sin departamento)'} />
+                        </Box>
+                        <Box sx={{ width: { xs: '100%', md: '50%' } }}><Dato etiqueta="Estado" valor={estadoAnexo(unidad)} /></Box>
+                        <Box sx={{ width: { xs: '100%', md: '50%' } }}>
+                            <Dato etiqueta="Lo usa" valor={usuarioDeAnexo(unidad) ? nombreCompleto(usuarioDeAnexo(unidad)) : 'Nadie'} />
+                        </Box>
+                    </Box>
+                )}
 
                 <Box sx={{
                     display: 'flex', gap: 2, mt: 3,

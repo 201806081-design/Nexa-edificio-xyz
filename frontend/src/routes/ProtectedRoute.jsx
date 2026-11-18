@@ -1,17 +1,21 @@
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
+import { usePermisos } from '../hooks/usePermisos';
 import AccesoRestringido from '../pages/AccesoRestringido/AccesoRestringido';
 
-export default function ProtectedRoute({ children, rolesPermitidos }) {
-  const { autenticado, user } = useAuth();
+// pantalla = clave de PANTALLAS (constants/permisos.js) que se necesita para entrar
+export default function ProtectedRoute({ children, pantalla }) {
+  const { autenticado } = useAuth();
+  const { cargando, puede } = usePermisos();
 
   // Si no inicio sesion, al login
   if (!autenticado) return <Navigate to="/login" replace />;
 
-  // Si la ruta exige roles y el usuario no lo tiene, muestra "Acceso restringido" (CA-06)
-  if (rolesPermitidos && !rolesPermitidos.includes(user?.rol)) {
-    return <AccesoRestringido />;
-  }
+  // Mientras llegan los permisos no se muestra nada (evita un parpadeo de "Acceso restringido")
+  if (cargando) return null;
+
+  // Si su rol no tiene permiso para esta pantalla, muestra "Acceso restringido" (CA-06)
+  if (pantalla && !puede(pantalla)) return <AccesoRestringido />;
 
   return children;
 }

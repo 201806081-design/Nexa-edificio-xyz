@@ -1,10 +1,11 @@
 import { useState, useMemo, useEffect } from 'react';
 import {
     Box, Typography, Select, MenuItem, Paper, Button, Chip, Alert,
-    Table, TableHead, TableBody, TableRow, TableCell, Snackbar, Divider,
+    Table, TableHead, TableBody, TableRow, TableCell, Snackbar,
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
-import DownloadIcon from '@mui/icons-material/Download';
+import PictureAsPdfOutlinedIcon from '@mui/icons-material/PictureAsPdfOutlined';
+import FileDownloadOutlinedIcon from '@mui/icons-material/FileDownloadOutlined';
 import ApartmentIcon from '@mui/icons-material/Apartment';
 import PeopleAltIcon from '@mui/icons-material/PeopleAlt';
 import DescriptionOutlinedIcon from '@mui/icons-material/DescriptionOutlined';
@@ -19,9 +20,15 @@ import { formatBs } from '../../constants/finanzasMock';
 import { EXPENSAS_MOCK, DEPARTAMENTOS_ACTIVOS } from '../../constants/expensasMock';
 import { periodosConMovimientos, periodoEnCurso } from '../../constants/periodos';
 import { PAGOS_MOCK, HISTORIAL_ANTICIPOS, totalPago } from '../../constants/pagosMock';
-import { CONFIG_MORA } from '../../constants/moraMock';
+import { textoMora } from '../../constants/moraMock';
 import { historialDepto, round2 } from '../../constants/deudasMock';
 import { responsableDe } from '../../constants/edificioMock';
+import { deptoDeUsuario } from '../../constants/usuariosMock';
+import { ROLES } from '../../constants/permisos';
+import { useLocation } from 'react-router-dom';
+import { useAuth } from '../../hooks/useAuth';
+import { datosHistorialDepto, reporteHistorialDepto } from '../../constants/reportesMock';
+import { exportarPDF, exportarExcel } from '../../utils/exportarReporte';
 
 const MES_IDX = {
     enero: 1, febrero: 2, marzo: 3, abril: 4, mayo: 5, junio: 6,
@@ -148,7 +155,7 @@ function computeEstadoCuenta(deptoId, deptos, periodoFiltro) {
     const detalleMora = vencidos.length === 0
         ? 'Sin mora: el departamento no tiene periodos vencidos.'
         : vencidos
-            .map((h) => `${h.periodo}: Bs ${(h.base + h.agua).toFixed(0)} vencido × ${CONFIG_MORA.interesMensual}% = Bs ${h.mora.toFixed(2)} de interes acumulado.`)
+            .map((h) => `${h.periodo}: Bs ${(h.base + h.agua).toFixed(0)} vencido con mora de ${textoMora()} = Bs ${h.mora.toFixed(2)} de mora acumulada.`)
             .join(' ');
 
     // Si el periodo seleccionado es el mes en curso y aun no hay expensa generada,
@@ -199,12 +206,33 @@ const chipEstadoMovimientoSx = (m) => {
 };
 
 export default function EstadoCuenta() {
+    // El Residente solo ve el estado de cuenta de su departamento
+    const { user } = useAuth();
+    const esResidente = user?.rol === ROLES.RESIDENTE;
+    const miDepto = esResidente ? deptoDeUsuario(user) : null;
+
     // Periodos dinamicos (igual que Conciliacion): meses cerrados + mes en curso + "Todos"
     const [tick, setTick] = useState(0);
     const periodosOptions = useMemo(() => periodosParaCuenta(), [tick]);
-    const [seleccion, setSeleccion] = useState('');
+    // Desde la Lista de morosos llega con el departamento ya elegido
+    const location = useLocation();
+    const [seleccion, setSeleccion] = useState(() => miDepto ?? location.state?.depto ?? '');
     const [periodo, setPeriodo] = useState('Todos los periodos');
-    const [snack, setSnack] = useState(false);
+    const [aviso, setAviso] = useState(null);
+
+    // Descarga el estado de cuenta completo del departamento: es el mismo
+    // documento que el reporte "Historial por departamento".
+    const descargar = (formato) => {
+        try {
+            const reporte = reporteHistorialDepto(datosHistorialDepto(seleccion), {
+                titulo: `Estado de cuenta — Depto. ${seleccion}`, archivo: 'estado-de-cuenta',
+            });
+            const nombre = (formato === 'pdf' ? exportarPDF : exportarExcel)(reporte);
+            setAviso({ sev: 'success', msg: `Archivo descargado: ${nombre}` });
+        } catch {
+            setAviso({ sev: 'error', msg: 'No se pudo generar el archivo. Intenta de nuevo.' });
+        }
+    };
 
     useEffect(() => {
         const id = setInterval(() => setTick((t) => t + 1), 5000);
@@ -216,7 +244,10 @@ export default function EstadoCuenta() {
         }
     }, [periodosOptions, periodo]);
 
-    const deptosDisponibles = useMemo(() => buildDeptosDelSistema(), []);
+    const deptosDisponibles = useMemo(
+        () => buildDeptosDelSistema().filter((d) => !esResidente || d.id === miDepto),
+        [esResidente, miDepto],
+    );
 
     const consultado = useMemo(() => {
         if (!seleccion) return null;
@@ -237,20 +268,26 @@ export default function EstadoCuenta() {
 
     return (
         <DashboardLayout>
-            <Typography variant="h1" color="primary.main" sx={{ mb: 0.5 }}>Estado de cuenta por departamento</Typography>
+            <Typography variant="h1" color="primary.main" sx={{ mb: 0.5 }}>
+                {esResidente ? 'Mi estado de cuenta' : 'Estado de cuenta por departamento'}
+            </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                Consulta las expensas, pagos, anticipos y saldos de una unidad.
+                {esResidente
+                    ? 'Consulta tus expensas, pagos, anticipos y deudas pendientes.'
+                    : 'Consulta las expensas, pagos, anticipos y saldos de una unidad, y descarga su historial en PDF o Excel.'}
             </Typography>
 
             <Paper sx={{ p: 3, borderRadius: 2, mb: 3 }}>
                 <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', md: 'row' }, alignItems: { md: 'flex-end' } }}>
-                    <Box sx={{ flex: 1, minWidth: 0 }}>
-                        <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Departamento</Typography>
-                        <Select fullWidth displayEmpty value={seleccion} onChange={(e) => setSeleccion(e.target.value)}>
-                            <MenuItem value=""><em>Seleccionar departamento</em></MenuItem>
-                            {deptosDisponibles.map((d) => <MenuItem key={d.id} value={d.id}>{d.etiqueta}</MenuItem>)}
-                        </Select>
-                    </Box>
+                    {!esResidente && (
+                        <Box sx={{ flex: 1, minWidth: 0 }}>
+                            <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Departamento</Typography>
+                            <Select fullWidth displayEmpty value={seleccion} onChange={(e) => setSeleccion(e.target.value)}>
+                                <MenuItem value=""><em>Seleccionar departamento</em></MenuItem>
+                                {deptosDisponibles.map((d) => <MenuItem key={d.id} value={d.id}>{d.etiqueta}</MenuItem>)}
+                            </Select>
+                        </Box>
+                    )}
                     <Box sx={{ flex: 1, minWidth: 0 }}>
                         <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Periodo</Typography>
                         <Select fullWidth value={periodo} onChange={(e) => setPeriodo(e.target.value)}>
@@ -268,8 +305,17 @@ export default function EstadoCuenta() {
             {!consultado && (
                 <Paper sx={{ p: 8, borderRadius: 2, textAlign: 'center', color: 'text.secondary' }}>
                     <ApartmentIcon sx={{ fontSize: 72, color: '#9aa8b6', mb: 1 }} />
-                    <Typography variant="h6" sx={{ fontWeight: 600 }}>Seleccione un departamento</Typography>
-                    <Typography variant="body2">Elige una unidad para consultar su informacion financiera</Typography>
+                    {esResidente ? (
+                        <>
+                            <Typography variant="h6" sx={{ fontWeight: 600 }}>No tienes un departamento asignado</Typography>
+                            <Typography variant="body2">Comunicate con la administracion del edificio.</Typography>
+                        </>
+                    ) : (
+                        <>
+                            <Typography variant="h6" sx={{ fontWeight: 600 }}>Seleccione un departamento</Typography>
+                            <Typography variant="body2">Elige una unidad para consultar su informacion financiera</Typography>
+                        </>
+                    )}
                 </Paper>
             )}
 
@@ -442,21 +488,24 @@ export default function EstadoCuenta() {
                         <Typography variant="body2">{consultado.detalleMora}</Typography>
                     </Alert>
 
-                    <Box sx={{ display: 'flex', justifyContent: { xs: 'stretch', md: 'flex-end' } }}>
-                        <Button variant="contained" startIcon={<DownloadIcon />}
-                            onClick={() => setSnack(true)}
-                            sx={{ width: { xs: '100%', md: 'auto' } }}>
-                            Descargar estado
+                    <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', justifyContent: { xs: 'stretch', md: 'flex-end' } }}>
+                        <Button variant="outlined" startIcon={<PictureAsPdfOutlinedIcon />} onClick={() => descargar('pdf')}
+                            sx={{ flex: { xs: 1, md: 'none' }, color: '#1a2733', borderColor: '#cdd8e3' }}>
+                            Descargar PDF
+                        </Button>
+                        <Button variant="contained" startIcon={<FileDownloadOutlinedIcon />} onClick={() => descargar('excel')}
+                            sx={{ flex: { xs: 1, md: 'none' } }}>
+                            Descargar Excel
                         </Button>
                     </Box>
                 </Box>
             )}
 
-            <Snackbar open={snack} autoHideDuration={2500} onClose={() => setSnack(false)}
+            <Snackbar open={!!aviso} autoHideDuration={3000} onClose={() => setAviso(null)}
                 anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}>
-                <Alert severity="success" onClose={() => setSnack(false)} sx={{ width: '100%' }}>
-                    Estado de cuenta descargado (simulado en mock)
-                </Alert>
+                {aviso ? (
+                    <Alert severity={aviso.sev} onClose={() => setAviso(null)} sx={{ width: '100%' }}>{aviso.msg}</Alert>
+                ) : <span />}
             </Snackbar>
         </DashboardLayout>
     );
