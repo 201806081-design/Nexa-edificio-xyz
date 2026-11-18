@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import {
-    Box, Typography, Select, MenuItem, Paper, Button, TextField, Alert, Chip,
+    Box, Typography, Select, MenuItem, Paper, Button, TextField, Alert, Chip, InputAdornment,
     ToggleButton, ToggleButtonGroup, IconButton, Tooltip,
     Dialog, DialogTitle, DialogContent, DialogActions,
 } from '@mui/material';
@@ -23,6 +23,18 @@ const fechaBonita = (iso) => {
     if (!iso) return '';
     const [y, m, d] = iso.split('-');
     return `${d}/${m}/${y}`;
+};
+
+// Monto maximo de un movimiento: 99.999.999,99 (cabe completo en el campo de ancho fijo)
+const MONTO_MAXIMO = 99999999.99;
+
+// Mensaje de error del monto, o '' si es valido
+const errorMonto = (valor) => {
+    const n = Number(valor);
+    if (!(n > 0)) return 'Ingrese un monto mayor a 0';
+    if (n > MONTO_MAXIMO) return `El monto maximo es ${formatBs(MONTO_MAXIMO)}`;
+    if (!/^\d+(\.\d{1,2})?$/.test(String(valor))) return 'Ingrese un monto valido (hasta 2 decimales)';
+    return '';
 };
 
 const VACIO = {
@@ -75,7 +87,7 @@ export default function RegistrarMovimiento() {
         const err = {};
         if (!form.categoria) err.categoria = true;
         if (!form.fecha) err.fecha = true;
-        if (!(Number(form.monto) > 0)) err.monto = true;
+        if (errorMonto(form.monto)) err.monto = true;
         if (!form.descripcion.trim()) err.descripcion = true;
         // Si no es efectivo, debe quedar la referencia (N.º de cheque, transferencia...)
         if (form.medio !== 'Efectivo' && !form.referencia.trim()) err.referencia = true;
@@ -97,7 +109,8 @@ export default function RegistrarMovimiento() {
             medio: form.medio, cuenta: form.cuenta, referencia: form.referencia.trim(),
             comprobante: form.comprobante || 'Sin comprobante',
             archivo, // { name, type, url } para verlo en el detalle
-            codigo: `MOV-2026-10-${String(MOVIMIENTOS_LISTA.length + 1).padStart(3, '0')}`,
+            // Codigo con el anio y mes de la fecha del movimiento: MOV-AAAA-MM-NNN
+            codigo: `MOV-${form.fecha.slice(0, 7)}-${String(MOVIMIENTOS_LISTA.length + 1).padStart(3, '0')}`,
         };
         MOVIMIENTOS_LISTA.unshift(nuevo); // los totales se calculan en vivo en cada pantalla
 
@@ -195,9 +208,17 @@ export default function RegistrarMovimiento() {
 
                 {/* Monto */}
                 <Box sx={{ mb: 2 }}>
-                    <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Monto (Bs)</Typography>
-                    <TextField fullWidth type="number" placeholder="0" value={form.monto} onChange={(e) => cambiar('monto', e.target.value)}
-                        error={!!errores.monto} helperText={errores.monto && 'Ingrese un monto mayor a 0'} />
+                    <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Monto</Typography>
+                    {/* Ancho fijo: no se estira con la pantalla y admite hasta Bs 99.999.999,99 */}
+                    <TextField type="number" placeholder="0.00" value={form.monto}
+                        onChange={(e) => cambiar('monto', e.target.value)}
+                        onWheel={(e) => e.currentTarget.querySelector('input')?.blur()}
+                        error={!!errores.monto} helperText={errores.monto && errorMonto(form.monto)}
+                        sx={{ width: { xs: '100%', sm: 280 } }}
+                        slotProps={{
+                            htmlInput: { min: 0, max: MONTO_MAXIMO, step: 0.01, inputMode: 'decimal', 'aria-label': 'Monto en bolivianos' },
+                            input: { startAdornment: <InputAdornment position="start">Bs</InputAdornment> },
+                        }} />
                 </Box>
 
                 {/* Descripcion */}

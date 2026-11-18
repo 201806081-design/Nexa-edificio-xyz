@@ -11,6 +11,7 @@ import DashboardLayout from '../../layouts/DashboardLayout';
 import { MEDIOS_PAGO, HISTORIAL_ANTICIPOS } from '../../constants/pagosMock';
 import { DEPARTAMENTOS_ACTIVOS, EXPENSAS_MOCK } from '../../constants/expensasMock';
 import { formatBs } from '../../constants/finanzasMock';
+import { cuentaBancariaActiva, etiquetaCuenta, codigoCuenta } from '../../constants/cajaBancosMock';
 
 const fechaBonita = (iso) => {
     if (!iso) return '';
@@ -140,11 +141,15 @@ export default function RegistrarAnticipo() {
         });
     };
 
+    // Cuenta bancaria del edificio que recibe el pago (se registra en Caja y bancos)
+    const cuentaBanco = cuentaBancariaActiva();
+    const codigoBanco = codigoCuenta(cuentaBanco);
+
     // Datos codificados en el QR mock
     const datosQR = useMemo(() => {
         if (!depto) return '';
-        return `EDIFICIO-XYZ|TIPO=ANTICIPO|DEPTO=${depto.id}|MONTO=${montoNum || 0}|REF=${referencia}|BANCO=MERCANTIL-7781`;
-    }, [depto, montoNum, referencia]);
+        return `EDIFICIO-XYZ|TIPO=ANTICIPO|DEPTO=${depto.id}|MONTO=${montoNum || 0}|REF=${referencia}|BANCO=${codigoBanco}`;
+    }, [depto, montoNum, referencia, codigoBanco]);
 
     return (
         <DashboardLayout>
@@ -254,7 +259,9 @@ export default function RegistrarAnticipo() {
                                         <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
                                             Banco destino
                                         </Typography>
-                                        <Typography variant="body2" sx={{ fontWeight: 700, mb: 1.5 }}>Banco Mercantil · 7781</Typography>
+                                        <Typography variant="body2" sx={{ fontWeight: 700, mb: 1.5 }} color={cuentaBanco ? 'text.primary' : 'error.main'}>
+                                            {cuentaBanco ? etiquetaCuenta(cuentaBanco) : 'Sin cuenta bancaria registrada'}
+                                        </Typography>
                                         <Button fullWidth variant="contained" startIcon={<ShareIcon />}
                                             onClick={compartirPorComunicados}
                                             sx={{ textTransform: 'none' }}>

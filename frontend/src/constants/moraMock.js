@@ -30,6 +30,19 @@ export const APLICAR_MORA_DESDE = Object.values(APLICAR_DESDE);
 // Solo aplica al metodo Porcentaje
 export const TIPOS_CALCULO = ['Compuesto', 'Simple'];
 
+// Sobre que monto se calcula la mora cuando hubo pagos parciales
+export const BASES_MORA = {
+    DEUDA_TOTAL: 'Sobre la deuda total',          // aunque haya pagado una parte (por defecto)
+    SALDO_PENDIENTE: 'Solo sobre lo que falta pagar',
+};
+export const OPCIONES_BASE_MORA = Object.values(BASES_MORA);
+
+// Explicacion de cada opcion (se muestra bajo el selector)
+export const AYUDA_BASE_MORA = {
+    [BASES_MORA.DEUDA_TOTAL]: 'Los pagos parciales no reducen la mora: se calcula sobre el total de la expensa.',
+    [BASES_MORA.SALDO_PENDIENTE]: 'Lo pagado antes de que corra la mora no genera mora; si sigue debiendo, la mora se calcula sobre el saldo.',
+};
+
 // ============================================================
 //  CONFIGURACION VIGENTE
 // ============================================================
@@ -40,6 +53,7 @@ export const CONFIG_MORA = {
     metodo: METODOS_MORA.PORCENTAJE,
     interesMensual: 10, // % mensual (metodo Porcentaje)
     tipoCalculo: 'Compuesto', // metodo Porcentaje
+    baseMora: BASES_MORA.DEUDA_TOTAL,
     montoFijo: 50, // Bs por mes vencido (metodo Monto fijo)
     aplicarMoraDesde: APLICAR_DESDE.DIA_SIGUIENTE,
     vigenteDesde: 'Noviembre 2026',
@@ -52,6 +66,7 @@ export const CONFIG_MORA = {
 const redondear = (n) => Math.round((Number(n) || 0) * 100) / 100;
 
 export const esMontoFijo = (config = CONFIG_MORA) => config.metodo === METODOS_MORA.MONTO_FIJO;
+export const moraSobreSaldo = (config = CONFIG_MORA) => config.baseMora === BASES_MORA.SALDO_PENDIENTE;
 
 // Deuda con la mora de "meses" meses vencidos, segun el metodo configurado:
 //   Monto fijo -> original + montoFijo × meses
@@ -100,12 +115,15 @@ export const describirReglaMora = (config = CONFIG_MORA) => {
         if (!(Number(config.montoFijo) > 0)) {
             return { texto: 'El monto fijo es Bs 0: las deudas vencidas no generan recargo por mora.', ejemplo: '' };
         }
-        return { texto: `Por cada mes vencido se suma un recargo fijo de ${valorMora(config)} a la deuda.`, ejemplo };
+        return { texto: `Por cada mes vencido con saldo pendiente se suma un recargo fijo de ${valorMora(config)}.`, ejemplo };
     }
     if (!(Number(config.interesMensual) > 0)) {
         return { texto: 'El interes mensual es 0 %: las deudas vencidas no generan recargo por mora.', ejemplo: '' };
     }
-    const sobre = config.tipoCalculo === 'Simple' ? 'la deuda original' : 'la deuda actualizada';
+    const simple = config.tipoCalculo === 'Simple';
+    const sobre = moraSobreSaldo(config)
+        ? (simple ? 'la parte de la expensa que falta pagar' : 'lo que falta pagar, incluida la mora anterior')
+        : `${simple ? 'la deuda original' : 'la deuda actualizada'}, aunque se haya pagado una parte`;
     return { texto: `La mora se calcula una vez por cada mes vencido sobre ${sobre}.`, ejemplo };
 };
 
@@ -137,6 +155,7 @@ export const guardarConfigMora = ({ diaVencimiento, ...config }) => {
         metodo: config.metodo ?? CONFIG_MORA.metodo,
         interesMensual: Number(config.interesMensual) || 0,
         tipoCalculo: config.tipoCalculo ?? CONFIG_MORA.tipoCalculo,
+        baseMora: config.baseMora ?? CONFIG_MORA.baseMora,
         montoFijo: Number(config.montoFijo) || 0,
         aplicarMoraDesde: config.aplicarMoraDesde ?? CONFIG_MORA.aplicarMoraDesde,
         vigenteDesde: config.vigenteDesde ?? CONFIG_MORA.vigenteDesde,

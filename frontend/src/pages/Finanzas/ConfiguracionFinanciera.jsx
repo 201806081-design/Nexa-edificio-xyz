@@ -17,7 +17,8 @@ import {
 // Configuracion compartida (expensa base y agua) para sincronizar en ambos sentidos
 import * as ConfigMod from '../../constants/configuracionMock';
 import {
-    METODOS_MORA, APLICAR_MORA_DESDE, textoMora, validarConfigMora, guardarConfigMora,
+    METODOS_MORA, APLICAR_MORA_DESDE, OPCIONES_BASE_MORA, AYUDA_BASE_MORA,
+    textoMora, validarConfigMora, guardarConfigMora,
 } from '../../constants/moraMock';
 import { formatBs } from '../../constants/finanzasMock';
 
@@ -78,6 +79,7 @@ export default function ConfiguracionFinanciera() {
         interesMensual: CONFIG_MORA.interesMensual,
         montoFijo: CONFIG_MORA.montoFijo,
         tipoCalculo: CONFIG_MORA.tipoCalculo,
+        baseMora: CONFIG_MORA.baseMora,
         aplicarMoraDesde: CONFIG_MORA.aplicarMoraDesde,
     };
 
@@ -146,7 +148,7 @@ export default function ConfiguracionFinanciera() {
                 CONFIG_AGUA_V1.precioM3 = CONFIG_AGUA.tarifaPorM3;
                 CONFIG_AGUA_V1.tarifaMinima = CONFIG_AGUA.minimoBs;
             }
-        } catch (_e) { /* configuracion compartida no disponible, ok */ }
+        } catch { /* configuracion compartida no disponible, ok */ }
 
         // 3) Agregar entrada al historial
         const serie = HISTORIAL_TARIFAS.length + 1;
@@ -304,6 +306,16 @@ export default function ConfiguracionFinanciera() {
                         />
                     </Box>
                     {errorMora && <Alert severity="error" sx={{ mb: 2 }}>{errorMora}</Alert>}
+                    {/* Mora con pagos parciales (sincronizado con Mora e intereses) */}
+                    <Box sx={{ mb: 2 }}>
+                        <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Mora con pagos parciales</Typography>
+                        <Select fullWidth value={reglas.baseMora} onChange={(e) => cambiarReglas('baseMora', e.target.value)}>
+                            {OPCIONES_BASE_MORA.map((b) => <MenuItem key={b} value={b}>{b}</MenuItem>)}
+                        </Select>
+                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+                            {AYUDA_BASE_MORA[reglas.baseMora]}
+                        </Typography>
+                    </Box>
                     {/* Aplicar mora desde (sincronizado con Mora e intereses) */}
                     <Box sx={{ mb: 2 }}>
                         <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Aplicar mora desde</Typography>

@@ -16,6 +16,7 @@ import CampaignIcon from '@mui/icons-material/Campaign';
 import EditIcon from '@mui/icons-material/Edit';
 import SendIcon from '@mui/icons-material/Send';
 import DraftsIcon from '@mui/icons-material/Drafts';
+import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
 
 // Iconos del menu lateral y de los accesos de Inicio (claves de PANTALLAS en constants/permisos.js)
 export const ICONO_PANTALLA = {
@@ -30,6 +31,7 @@ export const ICONO_PANTALLA = {
   'finanzas.pagos': <PaymentIcon />,
   'finanzas.estadoCuenta': <ReceiptLongIcon />,
   'finanzas.ingresosGastos': <BarChartIcon />,
+  'finanzas.cajaBancos': <AccountBalanceIcon />,
   'finanzas.mora': <ScheduleIcon />,
   'personal.empleados': <BadgeIcon />,
   'personal.planilla': <PaidIcon />,

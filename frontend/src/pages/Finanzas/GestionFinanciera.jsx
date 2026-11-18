@@ -9,6 +9,7 @@ import CreditCardOutlinedIcon from '@mui/icons-material/CreditCardOutlined';
 import BarChartIcon from '@mui/icons-material/BarChart';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
+import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
 import { useNavigate } from 'react-router-dom';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import { usePermisos } from '../../hooks/usePermisos';
@@ -23,6 +24,7 @@ const ACCESOS = [
     { clave: 'finanzas.pagos', titulo: 'Pagos', desc: 'Registra pagos y consulta el historial', texto: 'Ir a pagos', icon: <CreditCardOutlinedIcon />, ruta: '/finanzas/pagos' },
     { clave: 'finanzas.estadoCuenta', titulo: 'Estado de cuenta', desc: 'Consulta saldos por departamento', texto: 'Consultar estado', icon: <DescriptionOutlinedIcon />, ruta: '/finanzas/estado-cuenta' },
     { clave: 'finanzas.ingresosGastos', titulo: 'Ingresos y gastos', desc: 'Controla los movimientos economicos', texto: 'Ver movimientos', icon: <BarChartIcon />, ruta: '/finanzas/ingresos-gastos' },
+    { clave: 'finanzas.cajaBancos', titulo: 'Caja y bancos', desc: 'Controla la caja, la cuenta bancaria y la conciliacion', texto: 'Ir a caja y bancos', icon: <AccountBalanceIcon />, ruta: '/finanzas/caja-bancos' },
     { clave: 'finanzas.mora', titulo: 'Mora e intereses', desc: 'Configura intereses y actualiza deudas vencidas', texto: 'Gestionar mora', icon: <AccessTimeIcon />, ruta: '/finanzas/mora' },
 ];
 

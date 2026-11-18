@@ -19,8 +19,8 @@ import { useNavigate } from 'react-router-dom';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import CampoInteresMora from '../../components/CampoInteresMora';
 import {
-    CONFIG_MORA, METODOS_MORA, APLICAR_MORA_DESDE, TIPOS_CALCULO,
-    esMontoFijo, montoConMora, valorMora, etiquetaMora, formaCalculoMora, textoMora,
+    CONFIG_MORA, METODOS_MORA, APLICAR_MORA_DESDE, TIPOS_CALCULO, OPCIONES_BASE_MORA, AYUDA_BASE_MORA,
+    esMontoFijo, valorMora, etiquetaMora, formaCalculoMora, textoMora,
     describirReglaMora, validarConfigMora, guardarConfigMora,
 } from '../../constants/moraMock';
 import { REGLAS_PERIODO, DIAS_VENCIMIENTO, textoDiaVencimiento } from '../../constants/configuracionMock';
@@ -309,6 +309,14 @@ export default function Mora() {
                         {TIPOS_CALCULO.map((t) => <MenuItem key={t} value={t}>{t}</MenuItem>)}
                     </Select>
 
+                    <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Mora con pagos parciales</Typography>
+                    <Select fullWidth value={cfgDraft.baseMora} onChange={(e) => cambiarDraft('baseMora', e.target.value)} sx={{ mb: 0.5 }}>
+                        {OPCIONES_BASE_MORA.map((b) => <MenuItem key={b} value={b}>{b}</MenuItem>)}
+                    </Select>
+                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 2 }}>
+                        {AYUDA_BASE_MORA[cfgDraft.baseMora]}
+                    </Typography>
+
                     <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Vigente desde</Typography>
                     <TextField fullWidth type="month" value={cfgDraft.vigenciaMes || ''}
                         onChange={(e) => cambiarDraft('vigenciaMes', e.target.value)} sx={{ mb: 1 }} />
@@ -407,25 +415,32 @@ export default function Mora() {
 
                             <Divider sx={{ my: 1.5 }} />
                             <Typography variant="body2" sx={{ fontWeight: 700, mb: 0.5 }}>Interes mes a mes</Typography>
-                            {Array.from({ length: detalle.meses }).map((_, i) => {
-                                const prev = montoConMora(detalle.deudaOriginal, i, config);
-                                const actual = montoConMora(detalle.deudaOriginal, i + 1, config);
-                                return (
-                                    <Box key={i} sx={{ display: 'flex', justifyContent: 'space-between', py: 0.5 }}>
-                                        <Typography variant="body2" color="text.secondary">Mes {i + 1}</Typography>
-                                        <Typography variant="body2">{formatBs(prev)} → <strong>{formatBs(actual)}</strong></Typography>
-                                    </Box>
-                                );
-                            })}
+                            {/* Mora de cada mes segun la opcion configurada para pagos parciales */}
+                            {(detalle.tramosMora || []).map((t, i) => (
+                                <Box key={t.fecha.getTime()} sx={{ display: 'flex', justifyContent: 'space-between', gap: 1, py: 0.5 }}>
+                                    <Typography variant="body2" color="text.secondary">
+                                        Mes {i + 1} ({t.fecha.toLocaleDateString('es-BO')})
+                                    </Typography>
+                                    <Typography variant="body2" sx={{ textAlign: 'right' }}>
+                                        {formatBs(t.base)} + {formatBs(t.recargo)} → <strong>{formatBs(t.saldo)}</strong>
+                                    </Typography>
+                                </Box>
+                            ))}
 
                             <Divider sx={{ my: 1.5 }} />
                             <Box sx={{ display: 'flex', justifyContent: 'space-between', py: 0.5 }}>
                                 <Typography variant="body2" sx={{ fontWeight: 600 }}>Interes acumulado</Typography>
                                 <Typography variant="body2" sx={{ fontWeight: 700, color: '#D9534F' }}>{formatBs(detalle.interes)}</Typography>
                             </Box>
+                            {detalle.pagado > 0 && (
+                                <Box sx={{ display: 'flex', justifyContent: 'space-between', py: 0.5 }}>
+                                    <Typography variant="body2" sx={{ fontWeight: 600 }}>Pagado</Typography>
+                                    <Typography variant="body2" sx={{ fontWeight: 700, color: '#2E9D78' }}>− {formatBs(detalle.pagado)}</Typography>
+                                </Box>
+                            )}
                             <Box sx={{ display: 'flex', justifyContent: 'space-between', py: 0.5 }}>
-                                <Typography variant="body2" sx={{ fontWeight: 700 }}>Deuda actual</Typography>
-                                <Typography variant="h3" sx={{ fontWeight: 700, color: '#D9534F' }}>{formatBs(detalle.deudaActual)}</Typography>
+                                <Typography variant="body2" sx={{ fontWeight: 700 }}>{detalle.pagado > 0 ? 'Saldo pendiente' : 'Deuda actual'}</Typography>
+                                <Typography variant="h3" sx={{ fontWeight: 700, color: '#D9534F' }}>{formatBs(detalle.pendiente)}</Typography>
                             </Box>
                         </DialogContent>
                     </>

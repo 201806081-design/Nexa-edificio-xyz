@@ -25,6 +25,9 @@ export const CATEGORIAS_PERSONAL = ['Pago al personal', 'Anticipo al personal'];
 export const CATEGORIAS = ['Mantenimiento', 'Servicios basicos', 'Limpieza', 'Seguridad', 'Administracion', ...CATEGORIAS_PERSONAL, 'Otros'];
 // Categorias que se pueden elegir al registrar un movimiento a mano
 export const CATEGORIAS_MANUALES = CATEGORIAS.filter((c) => !CATEGORIAS_PERSONAL.includes(c));
+// Movimientos propios del banco (comisiones, intereses): se registran en Caja y bancos
+// a partir del extracto, no a mano en este libro.
+export const CATEGORIAS_BANCO = { GASTO: 'Gastos bancarios', INGRESO: 'Intereses bancarios' };
 
 // Medio por el que entra o sale el dinero, y en que cuenta impacta.
 // Efectivo -> Caja; el resto -> Banco (cuenta del edificio). Sirve para Caja y bancos.
@@ -122,7 +125,7 @@ export const todosLosMovimientos = () => [...MOVIMIENTOS_LISTA, ...gastosDePerso
 //  no ingresos, hasta que se pagan.
 // ============================================================
 export const CATEGORIAS_COBROS = ['Expensas', 'Anticipos de copropietarios'];
-export const CATEGORIAS_FILTRO = [...CATEGORIAS_COBROS, ...CATEGORIAS];
+export const CATEGORIAS_FILTRO = [...CATEGORIAS_COBROS, ...CATEGORIAS, ...Object.values(CATEGORIAS_BANCO)];
 
 const cobrosDeCopropietarios = () => [
     ...PAGOS_MOCK.filter((p) => (Number(p.monto) || 0) > 0).map((p) => ({

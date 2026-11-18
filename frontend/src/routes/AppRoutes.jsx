@@ -25,6 +25,7 @@ import Pagos from '../pages/Finanzas/Pagos';
 import RegistrarPago from '../pages/Finanzas/RegistrarPago';
 import PagoRegistrado from '../pages/Finanzas/PagoRegistrado';
 import ConciliacionBancaria from '../pages/Finanzas/ConciliacionBancaria';
+import CajaBancos from '../pages/Finanzas/CajaBancos';
 import RegistrarAnticipo from '../pages/Finanzas/RegistrarAnticipo';
 import AnticipoRegistrado from '../pages/Finanzas/AnticipoRegistrado';
 import GenerarExpensas from '../pages/Finanzas/GenerarExpensas';
@@ -88,6 +89,8 @@ export default function AppRoutes() {
       <Route path="/finanzas/ingresos-gastos/registrar" element={<ProtectedRoute pantalla="finanzas.ingresosGastos"><RegistrarMovimiento /></ProtectedRoute>} />
       <Route path="/finanzas/ingresos-gastos/:id" element={<ProtectedRoute pantalla="finanzas.ingresosGastos"><DetalleMovimiento /></ProtectedRoute>} />
       <Route path="/finanzas/flujo-caja" element={<ProtectedRoute pantalla="finanzas.ingresosGastos"><FlujoCaja /></ProtectedRoute>} />
+      <Route path="/finanzas/caja-bancos" element={<ProtectedRoute pantalla="finanzas.cajaBancos"><CajaBancos /></ProtectedRoute>} />
+      <Route path="/finanzas/caja-bancos/conciliacion" element={<ProtectedRoute pantalla="finanzas.cajaBancos"><ConciliacionBancaria /></ProtectedRoute>} />
       <Route path="/finanzas/mora" element={<ProtectedRoute pantalla="finanzas.mora"><Mora /></ProtectedRoute>} />
 
       {/* HU-AP-01 Administracion de personal */}

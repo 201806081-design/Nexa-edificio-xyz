@@ -252,7 +252,8 @@ export const EXPENSAS_MOCK = [
         id: 'EX-0002', depto: '102', departamento: 'Depto. 102', tipo: 'B', periodo: 'Octubre 2026',
         base: 350, agua: 15, m3: 5, lecturaAnt: 115, lecturaAct: 120, lecturaAnterior: 115, lecturaActual: 120,
         extras: [],
-        monto: 365, total: 365, estado: 'Lista', pagado: 200, aguaNota: '', fechaGen: '01/11/2026', fechaAgua: '03/11/2026'
+        monto: 365, total: 365, estado: 'Lista', pagado: 200, abonos: [{ fecha: '05/11/2026', monto: 200 }],
+        aguaNota: '', fechaGen: '01/11/2026', fechaAgua: '03/11/2026'
     },
     {
         id: 'EX-0003', depto: '103', departamento: 'Depto. 103', tipo: 'A', periodo: 'Octubre 2026',

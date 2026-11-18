@@ -16,7 +16,7 @@
 
 import { EXPENSAS_MOCK } from './expensasMock';
 import { PAGOS_MOCK, HISTORIAL_ANTICIPOS } from './pagosMock';
-import { situacionExpensa, round2 } from './deudasMock';
+import { situacionExpensa, round2, registrarAbono } from './deudasMock';
 import { responsableDe, vincularResponsable } from './edificioMock';
 
 const fechaHoy = () => {
@@ -85,7 +85,6 @@ export const aplicarCreditoAutomatico = (expensaId) => {
         });
 
     // 3) La expensa suma lo pagado
-    exp.pagado = round2((exp.pagado || 0) + aplicar);
-    if (saldoDespues <= 0.005) exp.estado = 'Pagada';
+    registrarAbono(exp, aplicar, fecha);
     return aplicar;
 };
