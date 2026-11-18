@@ -10,6 +10,7 @@ import {
     PieChart, Pie, Cell, ResponsiveContainer,
 } from 'recharts';
 import DashboardLayout from '../../layouts/DashboardLayout';
+import CuadreFondos from '../../components/CuadreFondos';
 import { formatBs } from '../../constants/finanzasMock';
 import { periodosConMovimientos, periodosConTodos, TODOS_LOS_PERIODOS } from '../../constants/periodos';
 import { resumenFinanciero, libroDiario, enPeriodo as enPeriodoLibro } from '../../constants/movimientosMock';
@@ -156,6 +157,9 @@ export default function DashboardFinanciero() {
                     </Paper>
                 ))}
             </Box>
+
+            {/* Saldo de apertura + ingresos - gastos = disponible (caja + banco) */}
+            <CuadreFondos periodo={periodo} />
 
             {/* Graficos */}
             <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 2, mb: 2 }}>
