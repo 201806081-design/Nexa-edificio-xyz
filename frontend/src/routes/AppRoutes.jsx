@@ -33,7 +33,13 @@ import EstadoCuenta from '../pages/Finanzas/EstadoCuenta';
 import IngresosGastos from '../pages/Finanzas/IngresosGastos';
 import RegistrarMovimiento from '../pages/Finanzas/RegistrarMovimiento';
 import DetalleMovimiento from '../pages/Finanzas/DetalleMovimiento';
-import FlujoCaja from '../pages/Finanzas/FlujoCaja';
+import CentroReportes from '../pages/Reportes/CentroReportes';
+import EstadoFinanciero from '../pages/Reportes/EstadoFinanciero';
+import BalanceMensual from '../pages/Reportes/BalanceMensual';
+import FlujoCaja from '../pages/Reportes/FlujoCaja';
+import ListaMorosos from '../pages/Reportes/ListaMorosos';
+import ReporteIngresosGastos from '../pages/Reportes/ReporteIngresosGastos';
+import HistorialDepartamento from '../pages/Reportes/HistorialDepartamento';
 import Mora from '../pages/Finanzas/Mora';
 // HU-AP-01 Administracion de personal
 import Empleados from '../pages/Personal/Empleados';
@@ -88,7 +94,7 @@ export default function AppRoutes() {
       <Route path="/finanzas/ingresos-gastos" element={<ProtectedRoute pantalla="finanzas.ingresosGastos"><IngresosGastos /></ProtectedRoute>} />
       <Route path="/finanzas/ingresos-gastos/registrar" element={<ProtectedRoute pantalla="finanzas.ingresosGastos"><RegistrarMovimiento /></ProtectedRoute>} />
       <Route path="/finanzas/ingresos-gastos/:id" element={<ProtectedRoute pantalla="finanzas.ingresosGastos"><DetalleMovimiento /></ProtectedRoute>} />
-      <Route path="/finanzas/flujo-caja" element={<ProtectedRoute pantalla="finanzas.ingresosGastos"><FlujoCaja /></ProtectedRoute>} />
+      <Route path="/finanzas/flujo-caja" element={<Navigate to="/reportes/flujo-caja" replace />} />
       <Route path="/finanzas/caja-bancos" element={<ProtectedRoute pantalla="finanzas.cajaBancos"><CajaBancos /></ProtectedRoute>} />
       <Route path="/finanzas/caja-bancos/conciliacion" element={<ProtectedRoute pantalla="finanzas.cajaBancos"><ConciliacionBancaria /></ProtectedRoute>} />
       <Route path="/finanzas/mora" element={<ProtectedRoute pantalla="finanzas.mora"><Mora /></ProtectedRoute>} />
@@ -102,6 +108,15 @@ export default function AppRoutes() {
       <Route path="/comunicados/elaborar" element={<ProtectedRoute pantalla="comunicados.elaborar"><Elaborar /></ProtectedRoute>} />
       <Route path="/comunicados/enviados" element={<ProtectedRoute pantalla="comunicados.enviados"><Enviados /></ProtectedRoute>} />
       <Route path="/comunicados/borradores" element={<ProtectedRoute pantalla="comunicados.borradores"><Borradores /></ProtectedRoute>} />
+
+      {/* HU-RE-01 Reportes financieros */}
+      <Route path="/reportes" element={<ProtectedRoute pantalla="reportes.centro"><CentroReportes /></ProtectedRoute>} />
+      <Route path="/reportes/estado-financiero" element={<ProtectedRoute pantalla="reportes.estadoFinanciero"><EstadoFinanciero /></ProtectedRoute>} />
+      <Route path="/reportes/balance-mensual" element={<ProtectedRoute pantalla="reportes.balanceMensual"><BalanceMensual /></ProtectedRoute>} />
+      <Route path="/reportes/flujo-caja" element={<ProtectedRoute pantalla="reportes.flujoCaja"><FlujoCaja /></ProtectedRoute>} />
+      <Route path="/reportes/morosos" element={<ProtectedRoute pantalla="reportes.morosos"><ListaMorosos /></ProtectedRoute>} />
+      <Route path="/reportes/ingresos-gastos" element={<ProtectedRoute pantalla="reportes.ingresosGastos"><ReporteIngresosGastos /></ProtectedRoute>} />
+      <Route path="/reportes/historial-departamento" element={<ProtectedRoute pantalla="reportes.historialDepto"><HistorialDepartamento /></ProtectedRoute>} />
 
       <Route path="*" element={<Navigate to="/login" replace />} />
     </Routes>

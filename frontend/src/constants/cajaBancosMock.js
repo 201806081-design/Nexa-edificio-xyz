@@ -23,7 +23,9 @@
 // ============================================================
 
 import { libroDiario, MOVIMIENTOS_LISTA, CATEGORIAS_BANCO, enPeriodo, resumenFinanciero } from './movimientosMock';
-import { MESES, PRIMER_PERIODO, TODOS_LOS_PERIODOS, nombrePeriodo } from './periodos';
+import {
+    MESES, PRIMER_PERIODO, TODOS_LOS_PERIODOS, nombrePeriodo, esPeriodoAnual, anioDePeriodo,
+} from './periodos';
 import { formatBs } from './finanzasMock';
 
 // ------------------------------------------------------------
@@ -39,10 +41,21 @@ export const claveFecha = (f) => String(f || '').split('/').reverse().join('');
 export const isoATexto = (iso) => (iso ? iso.split('-').reverse().join('/') : '');
 export const textoAIso = (texto) => (texto ? texto.split('/').reverse().join('-') : '');
 
-// Primer dia de un periodo: 'Noviembre 2026' -> '20261101'
-const inicioPeriodo = (periodo) => {
+// Primer dia de un periodo: 'Noviembre 2026' -> '20261101' | 'Año 2026' -> '20260101'
+export const inicioPeriodo = (periodo) => {
+    if (esPeriodoAnual(periodo)) return `${anioDePeriodo(periodo)}0101`;
     const [mes, anio] = String(periodo || '').split(' ');
     return `${anio}${dosDigitos(MESES.indexOf(mes) + 1)}01`;
+};
+
+// Fecha de corte de un periodo ('DD/MM/AAAA'): su ultimo dia, o hoy si todavia no termino
+export const fechaCorte = (periodo, hoy = new Date()) => {
+    if (periodo === TODOS_LOS_PERIODOS) return fechaTexto(hoy);
+    const inicio = inicioPeriodo(periodo);
+    const anio = Number(inicio.slice(0, 4));
+    const mes = Number(inicio.slice(4, 6)) - 1;
+    const fin = esPeriodoAnual(periodo) ? new Date(anio, 11, 31) : new Date(anio, mes + 1, 0);
+    return fechaTexto(fin < hoy ? fin : hoy);
 };
 
 const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
@@ -241,6 +254,14 @@ export const saldoBanco = (cuentaId) => {
     return cuenta ? round2(cuenta.saldoInicial + neto(movimientosBanco(cuentaId))) : 0;
 };
 
+// Saldo del banco al cierre de una fecha: el de la cuenta que estaba en uso ese dia
+export const saldoBancoAl = (fecha) => {
+    const cuenta = cuentaBancariaEn(fecha);
+    if (!cuenta) return 0;
+    return round2(cuenta.saldoInicial
+        + neto(movimientosBanco(cuenta.id).filter((m) => claveFecha(m.fecha) <= claveFecha(fecha))));
+};
+
 // Libro de un periodo con saldo acumulado en cada fila.
 // Devuelve { saldoInicial, ingresos, egresos, saldoFinal, filas } (filas: mas reciente primero)
 export const libroDelPeriodo = (movs, saldoApertura, periodo) => {
@@ -324,7 +345,7 @@ export const fondosDelPeriodo = (periodo) => {
     const saldoFinal = round2(saldoInicial + ingresos - gastos);
     const caja = todos ? saldoCaja() : libroDelPeriodo(movimientosCaja(), CAJA.saldoInicial, periodo).saldoFinal;
     return {
-        esApertura: todos || periodo === PRIMER_MES,
+        esApertura: todos || periodo === PRIMER_MES || (esPeriodoAnual(periodo) && anioDePeriodo(periodo) === PRIMER_PERIODO.anio),
         apertura, saldoInicial, ingresos, gastos, saldoFinal,
         caja, banco: round2(saldoFinal - caja),
     };

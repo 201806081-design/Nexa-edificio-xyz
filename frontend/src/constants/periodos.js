@@ -47,6 +47,26 @@ export const TODOS_LOS_PERIODOS = 'Todos los periodos';
 // Para los resumenes financieros: "Todos los periodos" (por defecto) + cada mes
 export const periodosConTodos = (hoy = new Date()) => [TODOS_LOS_PERIODOS, ...periodosConMovimientos(hoy)];
 
+// ------------------------------------------------------------
+//  PERIODOS ANUALES (reportes mensuales y anuales)
+//  'Año 2026' = del 1 de enero al 31 de diciembre (o hasta hoy).
+// ------------------------------------------------------------
+const PREFIJO_ANUAL = 'Año ';
+
+export const periodoAnual = (anio) => `${PREFIJO_ANUAL}${anio}`;
+export const esPeriodoAnual = (periodo) => String(periodo || '').startsWith(PREFIJO_ANUAL);
+export const anioDePeriodo = (periodo) => Number(String(periodo || '').split(' ').pop()) || 0;
+
+// Años con movimientos, del mas reciente al mas antiguo: ['Año 2026']
+export const periodosAnuales = (hoy = new Date()) => {
+    const anios = [];
+    for (let a = hoy.getFullYear(); a >= PRIMER_PERIODO.anio; a--) anios.push(periodoAnual(a));
+    return anios;
+};
+
+// Para los reportes: cada mes (mas reciente primero) y despues cada año
+export const periodosDeReporte = (hoy = new Date()) => [...periodosConMovimientos(hoy), ...periodosAnuales(hoy)];
+
 // Mes en curso + meses cerrados (mas reciente primero).
 // Hoy 9/nov/2026 -> ['Noviembre 2026', 'Octubre 2026']
 export const periodosConMovimientos = (hoy = new Date()) => {

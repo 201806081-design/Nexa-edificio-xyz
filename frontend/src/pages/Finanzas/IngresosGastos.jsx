@@ -83,7 +83,7 @@ export default function IngresosGastos() {
 
             <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', justifyContent: { xs: 'stretch', md: 'flex-end' }, mb: 2 }}>
                 <Button variant="outlined" startIcon={<TimelineIcon />}
-                    onClick={() => navigate('/finanzas/flujo-caja')}
+                    onClick={() => navigate('/reportes/flujo-caja')}
                     sx={{ color: '#1a2733', borderColor: '#cdd8e3', width: { xs: '100%', md: 'auto' } }}>
                     Ver flujo de caja
                 </Button>

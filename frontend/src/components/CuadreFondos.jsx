@@ -37,7 +37,7 @@ export default function CuadreFondos({ periodo }) {
             </Typography>
             <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', lg: 'repeat(4, 1fr)' }, gap: 1.5 }}>
                 <Bloque
-                    titulo={f.esApertura ? `Saldo de apertura (${f.apertura.fecha})` : 'Saldo al inicio del mes'}
+                    titulo={f.esApertura ? `Saldo de apertura (${f.apertura.fecha})` : 'Saldo al inicio del periodo'}
                     monto={f.saldoInicial}
                     detalle={f.esApertura ? `Caja ${formatBs(f.apertura.caja)} · Banco ${formatBs(f.apertura.banco)}` : null}
                     color="#1F5F8B" bg="#E4EEF5"
@@ -46,7 +46,7 @@ export default function CuadreFondos({ periodo }) {
                 <Bloque signo="−" titulo="Gastos" monto={f.gastos} color="#D9534F" bg="#FBEAE9" />
                 <Bloque
                     signo="="
-                    titulo={todos ? 'Disponible hoy' : 'Saldo al cierre del mes'}
+                    titulo={todos ? 'Disponible hoy' : 'Saldo al cierre del periodo'}
                     monto={f.saldoFinal}
                     detalle={`Caja ${formatBs(f.caja)} · Banco ${formatBs(f.banco)}`}
                     color="#132B3E" bg="#F1F5FA"

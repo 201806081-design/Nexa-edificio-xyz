@@ -13,7 +13,7 @@
 
 import { PAGOS_PERSONAL_MOCK, ANTICIPOS_PERSONAL_MOCK, cargoEmpleado } from './personalMock';
 import { PAGOS_MOCK, HISTORIAL_ANTICIPOS } from './pagosMock';
-import { TODOS_LOS_PERIODOS } from './periodos';
+import { TODOS_LOS_PERIODOS, esPeriodoAnual, anioDePeriodo } from './periodos';
 
 // Opciones de los selectores del formulario y filtros.
 export const TIPOS_MOVIMIENTO = ['Todos', 'Ingreso', 'Gasto'];
@@ -155,6 +155,7 @@ export const libroDiario = () => [...cobrosDeCopropietarios(), ...todosLosMovimi
 const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 export const enPeriodo = (fecha, periodo) => {
     if (periodo === TODOS_LOS_PERIODOS) return true; // acumulado desde el inicio del sistema
+    if (esPeriodoAnual(periodo)) return Number(String(fecha || '').split('/')[2]) === anioDePeriodo(periodo);
     const [, m, a] = String(fecha || '').split('/').map(Number);
     const [mes, anio] = String(periodo || '').split(' ');
     return m === MESES.indexOf(mes) + 1 && a === Number(anio);

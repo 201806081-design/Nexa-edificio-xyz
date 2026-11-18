@@ -46,6 +46,14 @@ export const PANTALLAS = [
   { clave: 'comunicados.elaborar', nombre: 'Elaborar', grupo: 'Comunicados', ruta: '/comunicados/elaborar', descripcion: 'Redactar y enviar comunicados' },
   { clave: 'comunicados.enviados', nombre: 'Enviados', grupo: 'Comunicados', ruta: '/comunicados/enviados', descripcion: 'Comunicados ya enviados' },
   { clave: 'comunicados.borradores', nombre: 'Borradores', grupo: 'Comunicados', ruta: '/comunicados/borradores', descripcion: 'Comunicados guardados sin enviar' },
+
+  { clave: 'reportes.centro', nombre: 'Centro de reportes', grupo: 'Reportes', ruta: '/reportes', descripcion: 'Catalogo de reportes y exportaciones' },
+  { clave: 'reportes.estadoFinanciero', nombre: 'Estado financiero', grupo: 'Reportes', ruta: '/reportes/estado-financiero', descripcion: 'Resultado, fondos y validacion de totales' },
+  { clave: 'reportes.balanceMensual', nombre: 'Balance mensual', grupo: 'Reportes', ruta: '/reportes/balance-mensual', descripcion: 'El mes comparado con el anterior' },
+  { clave: 'reportes.flujoCaja', nombre: 'Flujo de caja', grupo: 'Reportes', ruta: '/reportes/flujo-caja', descripcion: 'Entradas, salidas y saldo mes a mes' },
+  { clave: 'reportes.morosos', nombre: 'Lista de morosos', grupo: 'Reportes', ruta: '/reportes/morosos', descripcion: 'Departamentos con deuda vencida' },
+  { clave: 'reportes.ingresosGastos', nombre: 'Ingresos y gastos', grupo: 'Reportes', ruta: '/reportes/ingresos-gastos', descripcion: 'Movimientos por categoria (mensual o anual)' },
+  { clave: 'reportes.historialDepto', nombre: 'Historial por dpto.', grupo: 'Reportes', ruta: '/reportes/historial-departamento', descripcion: 'Cargos, pagos y saldo de un departamento' },
 ];
 
 export const GRUPOS = [...new Set(PANTALLAS.map((p) => p.grupo))];
@@ -69,8 +77,8 @@ export const esPermisoFijo = (rol, clave) => (PERMISOS_FIJOS[rol] ?? []).include
 // Permisos con los que arranca el sistema (el Administrador los cambia en "Permisos por rol")
 export const PERMISOS_INICIALES = {
   [ROLES.ADMINISTRADOR]: PANTALLAS.map((p) => p.clave),
-  [ROLES.DIRECTORIO]: ['inicio', ...clavesDe('Edificio', 'Finanzas')],
-  [ROLES.CONSULTA]: ['inicio', ...clavesDe('Edificio', 'Finanzas')],
+  [ROLES.DIRECTORIO]: ['inicio', ...clavesDe('Edificio', 'Finanzas', 'Reportes')],
+  [ROLES.CONSULTA]: ['inicio', ...clavesDe('Edificio', 'Finanzas', 'Reportes')],
   [ROLES.RESIDENTE]: ['inicio', 'finanzas.estadoCuenta'],
 };
 
@@ -85,7 +93,7 @@ export const normalizarPermisos = (rol, claves) => {
 //   { tipo: 'grupo', grupo, pantallas: [...] } -> opcion con submenu
 // Finanzas, Personal y Comunicados son submenus; si de un grupo solo queda
 // una pantalla, se muestra directa (ej. el Residente ve "Estado de cuenta").
-const GRUPOS_CON_SUBMENU = ['Finanzas', 'Personal', 'Comunicados'];
+const GRUPOS_CON_SUBMENU = ['Finanzas', 'Personal', 'Comunicados', 'Reportes'];
 
 export const armarMenu = (puede) => {
   const menu = [];
