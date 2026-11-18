@@ -14,7 +14,9 @@ import {
     EncabezadoReporte, KpiReporte, GrillaKpis, BarraFiltros, SelectorPeriodo, TablaDeslizable,
 } from './componentesReporte';
 
-// 8.2 Balance mensual: lo emitido y cobrado del mes y el movimiento de dinero, frente al mes anterior.
+// 8.2 Balance mensual: el cierre de un mes. Lo emitido y cobrado en expensas y el
+// dinero que entro y salio, frente al mes anterior. Abre en el ultimo mes con
+// expensas generadas (el mes en curso todavia no tiene expensas).
 
 // Conceptos donde subir es malo (se pintan en rojo cuando aumentan)
 const SUBIR_ES_MALO = ['Pendiente de cobro', 'Gastos operativos', 'Personal'];
@@ -34,7 +36,9 @@ function Variacion({ fila }) {
 
 export default function BalanceMensual() {
     const periodos = useMemo(() => periodosConMovimientos(), []);
-    const [periodo, setPeriodo] = useState(() => periodos[0] || '');
+    const [periodo, setPeriodo] = useState(() => (
+        periodos.find((p) => datosBalanceMensual(p).actual.expensas.generadas) ?? periodos[0] ?? ''
+    ));
     const d = useMemo(() => datosBalanceMensual(periodo), [periodo]);
     const { expensas, caja } = d.actual;
     const positivo = caja.resultado >= 0;
@@ -44,7 +48,7 @@ export default function BalanceMensual() {
         <DashboardLayout>
             <EncabezadoReporte
                 titulo="Balance mensual"
-                descripcion="Expensas emitidas y cobradas, y el dinero que entro y salio del edificio, comparado con el mes anterior"
+                descripcion="Cierre del mes: cuanto se emitio y cobro en expensas, y cuanto dinero entro y salio del edificio, comparado con el mes anterior"
                 crearReporte={() => reporteBalanceMensual(d)}
             />
 
@@ -57,8 +61,8 @@ export default function BalanceMensual() {
 
             {!expensas.generadas && (
                 <Alert severity="info" sx={{ mb: 2 }}>
-                    Las expensas de {periodo} todavia no se generaron: se generan a inicios del mes siguiente.
-                    El dinero que entro y salio en {periodo} si esta incluido.
+                    {periodo} todavia no se cerro: sus expensas se generan a inicios del mes siguiente.
+                    Por ahora solo muestra el dinero que entro y salio en el mes.
                 </Alert>
             )}
 

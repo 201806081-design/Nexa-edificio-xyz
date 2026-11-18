@@ -1,10 +1,11 @@
 import { useState, useMemo, useEffect } from 'react';
 import {
     Box, Typography, Select, MenuItem, Paper, Button, Chip, Alert,
-    Table, TableHead, TableBody, TableRow, TableCell, Snackbar, Divider,
+    Table, TableHead, TableBody, TableRow, TableCell, Snackbar,
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
-import DownloadIcon from '@mui/icons-material/Download';
+import PictureAsPdfOutlinedIcon from '@mui/icons-material/PictureAsPdfOutlined';
+import FileDownloadOutlinedIcon from '@mui/icons-material/FileDownloadOutlined';
 import ApartmentIcon from '@mui/icons-material/Apartment';
 import PeopleAltIcon from '@mui/icons-material/PeopleAlt';
 import DescriptionOutlinedIcon from '@mui/icons-material/DescriptionOutlined';
@@ -25,6 +26,8 @@ import { responsableDe } from '../../constants/edificioMock';
 import { deptoDeUsuario } from '../../constants/usuariosMock';
 import { ROLES } from '../../constants/permisos';
 import { useAuth } from '../../hooks/useAuth';
+import { datosHistorialDepto, reporteHistorialDepto } from '../../constants/reportesMock';
+import { exportarPDF, exportarExcel } from '../../utils/exportarReporte';
 
 const MES_IDX = {
     enero: 1, febrero: 2, marzo: 3, abril: 4, mayo: 5, junio: 6,
@@ -212,7 +215,21 @@ export default function EstadoCuenta() {
     const periodosOptions = useMemo(() => periodosParaCuenta(), [tick]);
     const [seleccion, setSeleccion] = useState(miDepto ?? '');
     const [periodo, setPeriodo] = useState('Todos los periodos');
-    const [snack, setSnack] = useState(false);
+    const [aviso, setAviso] = useState(null);
+
+    // Descarga el estado de cuenta completo del departamento: es el mismo
+    // documento que el reporte "Historial por departamento".
+    const descargar = (formato) => {
+        try {
+            const reporte = reporteHistorialDepto(datosHistorialDepto(seleccion), {
+                titulo: `Estado de cuenta — Depto. ${seleccion}`, archivo: 'estado-de-cuenta',
+            });
+            const nombre = (formato === 'pdf' ? exportarPDF : exportarExcel)(reporte);
+            setAviso({ sev: 'success', msg: `Archivo descargado: ${nombre}` });
+        } catch {
+            setAviso({ sev: 'error', msg: 'No se pudo generar el archivo. Intenta de nuevo.' });
+        }
+    };
 
     useEffect(() => {
         const id = setInterval(() => setTick((t) => t + 1), 5000);
@@ -468,21 +485,24 @@ export default function EstadoCuenta() {
                         <Typography variant="body2">{consultado.detalleMora}</Typography>
                     </Alert>
 
-                    <Box sx={{ display: 'flex', justifyContent: { xs: 'stretch', md: 'flex-end' } }}>
-                        <Button variant="contained" startIcon={<DownloadIcon />}
-                            onClick={() => setSnack(true)}
-                            sx={{ width: { xs: '100%', md: 'auto' } }}>
-                            Descargar estado
+                    <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', justifyContent: { xs: 'stretch', md: 'flex-end' } }}>
+                        <Button variant="outlined" startIcon={<PictureAsPdfOutlinedIcon />} onClick={() => descargar('pdf')}
+                            sx={{ flex: { xs: 1, md: 'none' }, color: '#1a2733', borderColor: '#cdd8e3' }}>
+                            Descargar PDF
+                        </Button>
+                        <Button variant="contained" startIcon={<FileDownloadOutlinedIcon />} onClick={() => descargar('excel')}
+                            sx={{ flex: { xs: 1, md: 'none' } }}>
+                            Descargar Excel
                         </Button>
                     </Box>
                 </Box>
             )}
 
-            <Snackbar open={snack} autoHideDuration={2500} onClose={() => setSnack(false)}
+            <Snackbar open={!!aviso} autoHideDuration={3000} onClose={() => setAviso(null)}
                 anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}>
-                <Alert severity="success" onClose={() => setSnack(false)} sx={{ width: '100%' }}>
-                    Estado de cuenta descargado (simulado en mock)
-                </Alert>
+                {aviso ? (
+                    <Alert severity={aviso.sev} onClose={() => setAviso(null)} sx={{ width: '100%' }}>{aviso.msg}</Alert>
+                ) : <span />}
             </Snackbar>
         </DashboardLayout>
     );

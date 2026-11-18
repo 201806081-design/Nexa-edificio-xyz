@@ -376,14 +376,14 @@ export const reporteMorosos = (d, filas = d.filas) => ({
     subtitulo: `Deuda vencida al ${d.corte}`,
     resumen: [
         { etiqueta: 'Departamentos morosos', valor: `${filas.length} (${d.porcentajeEdificio} % del edificio)` },
-        { etiqueta: 'Capital vencido', valor: suma(filas, (f) => f.capital), tipo: 'monto' },
+        { etiqueta: 'Expensas impagas', valor: suma(filas, (f) => f.capital), tipo: 'monto' },
         { etiqueta: 'Mora acumulada', valor: suma(filas, (f) => f.mora), tipo: 'monto' },
     ],
     secciones: [{
         titulo: 'Morosidad por departamento',
         columnas: [
             { titulo: 'Tipo' }, { titulo: 'Dpto.' }, { titulo: 'Responsable' }, { titulo: 'Meses vencidos', tipo: 'numero' },
-            { titulo: 'Capital', tipo: 'monto' }, { titulo: 'Mora', tipo: 'monto' }, { titulo: 'Total deuda', tipo: 'monto' },
+            { titulo: 'Expensas impagas', tipo: 'monto' }, { titulo: 'Mora', tipo: 'monto' }, { titulo: 'Total deuda', tipo: 'monto' },
             { titulo: 'Ultimo pago' },
         ],
         filas: filas.map((f) => [f.tipo, f.depto, f.responsable, f.meses, f.capital, f.mora, f.total, f.ultimoPago]),
@@ -485,8 +485,9 @@ export const datosHistorialDepto = (depto, periodo = TODO_EL_HISTORIAL) => {
     };
 };
 
-export const reporteHistorialDepto = (d) => ({
-    titulo: `Historial del departamento ${d.depto}`,
+// Estado de cuenta usa el mismo documento con su propio titulo y nombre de archivo
+export const reporteHistorialDepto = (d, { titulo = `Historial del departamento ${d.depto}`, archivo = 'historial-departamento' } = {}) => ({
+    titulo,
     subtitulo: `${d.periodo} · Responsable: ${d.responsable}`,
     resumen: [
         { etiqueta: 'Cargos generados', valor: d.cargos, tipo: 'monto' },
@@ -505,5 +506,5 @@ export const reporteHistorialDepto = (d) => ({
         vacio: 'El departamento no tiene expensas en este periodo.',
     }],
     notas: [`Saldo = cargos ${d.cargos.toFixed(2)} - pagos ${d.pagado.toFixed(2)} = ${d.saldo.toFixed(2)}.`],
-    archivo: nombreArchivo('historial-departamento', d.depto, d.periodo),
+    archivo: nombreArchivo(archivo, d.depto, d.periodo),
 });

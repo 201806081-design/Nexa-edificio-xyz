@@ -1,5 +1,7 @@
 import { useState, useMemo } from 'react';
-import { Box, Typography, Select, MenuItem, Paper, Chip, Divider } from '@mui/material';
+import { Box, Typography, Select, MenuItem, Paper, Chip, Divider, Button } from '@mui/material';
+import AssessmentOutlinedIcon from '@mui/icons-material/AssessmentOutlined';
+import { useNavigate } from 'react-router-dom';
 import NorthIcon from '@mui/icons-material/North';
 import SouthIcon from '@mui/icons-material/South';
 import DragHandleIcon from '@mui/icons-material/DragHandle';
@@ -10,6 +12,7 @@ import {
     PieChart, Pie, Cell, ResponsiveContainer,
 } from 'recharts';
 import DashboardLayout from '../../layouts/DashboardLayout';
+import { usePermisos } from '../../hooks/usePermisos';
 import CuadreFondos from '../../components/CuadreFondos';
 import { formatBs } from '../../constants/finanzasMock';
 import { periodosConMovimientos, periodosConTodos, TODOS_LOS_PERIODOS } from '../../constants/periodos';
@@ -54,6 +57,8 @@ export default function DashboardFinanciero() {
     // "Todos los periodos" (por defecto) muestra el acumulado; luego cada mes
     const periodos = useMemo(() => periodosConTodos(), []);
     const [periodo, setPeriodo] = useState(() => periodos[0] || '');
+    const navigate = useNavigate();
+    const { puede } = usePermisos();
 
     const datos = useMemo(() => {
         const { mes, anio } = parsePeriodo(periodo);
@@ -135,12 +140,21 @@ export default function DashboardFinanciero() {
                 Resumen del estado financiero del edificio
             </Typography>
 
-            {/* Periodo */}
-            <Box sx={{ maxWidth: 360, mb: 3 }}>
-                <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Periodo</Typography>
-                <Select fullWidth value={periodo} onChange={(e) => setPeriodo(e.target.value)}>
-                    {periodos.map((p) => <MenuItem key={p} value={p}>{p}</MenuItem>)}
-                </Select>
+            {/* Periodo + acceso al reporte exportable */}
+            <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'flex-end', justifyContent: 'space-between', mb: 3 }}>
+                <Box sx={{ flex: 1, maxWidth: { sm: 360 }, minWidth: { xs: '100%', sm: 240 } }}>
+                    <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Periodo</Typography>
+                    <Select fullWidth value={periodo} onChange={(e) => setPeriodo(e.target.value)}>
+                        {periodos.map((p) => <MenuItem key={p} value={p}>{p}</MenuItem>)}
+                    </Select>
+                </Box>
+                {puede('reportes.estadoFinanciero') && (
+                    <Button variant="outlined" startIcon={<AssessmentOutlinedIcon />}
+                        onClick={() => navigate('/reportes/estado-financiero', { state: { periodo } })}
+                        sx={{ color: '#1a2733', borderColor: '#cdd8e3', width: { xs: '100%', sm: 'auto' }, py: 1.5 }}>
+                        Ver estado financiero
+                    </Button>
+                )}
             </Box>
 
             {/* KPIs */}
@@ -162,7 +176,7 @@ export default function DashboardFinanciero() {
             <CuadreFondos periodo={periodo} />
 
             {/* Graficos */}
-            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 2, mb: 2 }}>
+            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'minmax(0, 1fr)', md: 'repeat(2, minmax(0, 1fr))' }, gap: 2, mb: 2 }}>
                 <Paper sx={{ p: 3, borderRadius: 2 }}>
                     <Typography variant="h3" color="primary.main" sx={{ fontWeight: 600, mb: 0.5 }}>Ingresos vs. gastos</Typography>
                     <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 2 }}>
@@ -243,7 +257,7 @@ export default function DashboardFinanciero() {
             </Box>
 
             {/* Listas: mora + movimientos */}
-            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 2 }}>
+            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'minmax(0, 1fr)', md: 'repeat(2, minmax(0, 1fr))' }, gap: 2 }}>
                 <Paper sx={{ p: 3, borderRadius: 2 }}>
                     <Typography variant="h3" color="primary.main" sx={{ fontWeight: 600, mb: 1.5 }}>Departamentos con mora</Typography>
                     {datos.departamentosMora.length === 0 ? (

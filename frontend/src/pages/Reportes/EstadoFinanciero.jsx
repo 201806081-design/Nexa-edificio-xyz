@@ -7,6 +7,7 @@ import SouthIcon from '@mui/icons-material/South';
 import BalanceIcon from '@mui/icons-material/Balance';
 import ScheduleIcon from '@mui/icons-material/Schedule';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { useLocation } from 'react-router-dom';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import CuadreFondos from '../../components/CuadreFondos';
 import { datosEstadoFinanciero, reporteEstadoFinanciero } from '../../constants/reportesMock';
@@ -23,7 +24,11 @@ const COLOR_GASTO = '#E5A33B';
 
 export default function EstadoFinanciero() {
     const periodos = useMemo(() => periodosDeReporte(), []);
-    const [periodo, setPeriodo] = useState(() => periodos[0] || '');
+    const location = useLocation();
+    // Se puede abrir desde Finanzas con el mismo periodo elegido
+    const [periodo, setPeriodo] = useState(() => (
+        periodos.includes(location.state?.periodo) ? location.state.periodo : periodos[0] || ''
+    ));
     const d = useMemo(() => datosEstadoFinanciero(periodo), [periodo]);
 
     const totalComposicion = Math.max(1, ...d.composicion.map((c) => c.monto));

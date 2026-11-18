@@ -60,7 +60,7 @@ export default function ListaMorosos() {
             <GrillaKpis columnas={3}>
                 <KpiReporte etiqueta="Departamentos morosos" valor={`${d.cantidad} departamento${d.cantidad !== 1 ? 's' : ''}`}
                     nota={`${d.porcentajeEdificio} % del edificio`} icono={<PersonOffOutlinedIcon />} color="#D9534F" fondo="#FBEAE9" />
-                <KpiReporte etiqueta="Capital vencido" valor={formatBs(d.capital)} nota="Sin incluir la mora"
+                <KpiReporte etiqueta="Expensas impagas" valor={formatBs(d.capital)} nota="Lo que se debe de expensas, sin la mora"
                     icono={<AccountBalanceWalletOutlinedIcon />} color="#B6802A" fondo="#FDF0D5" />
                 <KpiReporte etiqueta="Mora acumulada" valor={formatBs(d.mora)} nota="Segun la regla de mora vigente"
                     icono={<ScheduleIcon />} />
@@ -79,7 +79,7 @@ export default function ListaMorosos() {
                                 <TableCell><strong>Dpto.</strong></TableCell>
                                 <TableCell><strong>Responsable</strong></TableCell>
                                 <TableCell align="center"><strong>Meses vencidos</strong></TableCell>
-                                <TableCell align="right"><strong>Capital</strong></TableCell>
+                                <TableCell align="right"><strong>Expensas impagas</strong></TableCell>
                                 <TableCell align="right"><strong>Mora</strong></TableCell>
                                 <TableCell align="right"><strong>Total deuda</strong></TableCell>
                                 <TableCell><strong>Ultimo pago</strong></TableCell>
@@ -118,7 +118,7 @@ export default function ListaMorosos() {
                 {filas.length > 0 && (
                     <Box sx={{ mt: 2, p: 1.5, borderRadius: 2, bgcolor: '#FBEAE9' }}>
                         <Typography variant="body2" sx={{ fontWeight: 700, color: '#D9534F' }}>
-                            Total del reporte: capital {formatBs(total('capital'))} + mora {formatBs(total('mora'))} = {formatBs(total('total'))}
+                            Total del reporte: expensas impagas {formatBs(total('capital'))} + mora {formatBs(total('mora'))} = {formatBs(total('total'))}
                         </Typography>
                     </Box>
                 )}

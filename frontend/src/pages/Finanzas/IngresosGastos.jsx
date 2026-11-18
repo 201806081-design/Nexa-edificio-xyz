@@ -6,6 +6,7 @@ import {
 import AddIcon from '@mui/icons-material/Add';
 import SearchIcon from '@mui/icons-material/Search';
 import TimelineIcon from '@mui/icons-material/Timeline';
+import AssessmentOutlinedIcon from '@mui/icons-material/AssessmentOutlined';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import NorthIcon from '@mui/icons-material/North';
 import SouthIcon from '@mui/icons-material/South';
@@ -13,6 +14,7 @@ import DragHandleIcon from '@mui/icons-material/DragHandle';
 import DescriptionOutlinedIcon from '@mui/icons-material/DescriptionOutlined';
 import { useNavigate } from 'react-router-dom';
 import DashboardLayout from '../../layouts/DashboardLayout';
+import { usePermisos } from '../../hooks/usePermisos';
 import {
     TIPOS_MOVIMIENTO, CATEGORIAS_FILTRO, libroDiario, resumenFinanciero,
 } from '../../constants/movimientosMock';
@@ -53,6 +55,7 @@ const RESUMEN = [
 
 export default function IngresosGastos() {
     const navigate = useNavigate();
+    const { puede } = usePermisos();
     // Periodos: mes en curso + meses cerrados desde el inicio del sistema (periodos.js)
     // "Todos los periodos" (por defecto) muestra el acumulado; luego cada mes
     const periodos = useMemo(() => periodosConTodos(), []);
@@ -82,6 +85,13 @@ export default function IngresosGastos() {
             </Typography>
 
             <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', justifyContent: { xs: 'stretch', md: 'flex-end' }, mb: 2 }}>
+                {puede('reportes.ingresosGastos') && (
+                    <Button variant="outlined" startIcon={<AssessmentOutlinedIcon />}
+                        onClick={() => navigate('/reportes/ingresos-gastos', { state: { periodo } })}
+                        sx={{ color: '#1a2733', borderColor: '#cdd8e3', width: { xs: '100%', md: 'auto' } }}>
+                        Reporte por categoria
+                    </Button>
+                )}
                 <Button variant="outlined" startIcon={<TimelineIcon />}
                     onClick={() => navigate('/reportes/flujo-caja')}
                     sx={{ color: '#1a2733', borderColor: '#cdd8e3', width: { xs: '100%', md: 'auto' } }}>

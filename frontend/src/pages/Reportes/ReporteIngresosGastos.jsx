@@ -7,6 +7,7 @@ import SearchIcon from '@mui/icons-material/Search';
 import NorthIcon from '@mui/icons-material/North';
 import SouthIcon from '@mui/icons-material/South';
 import BalanceIcon from '@mui/icons-material/Balance';
+import { useLocation } from 'react-router-dom';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import { datosIngresosGastos, reporteIngresosGastos } from '../../constants/reportesMock';
 import { periodosDeReporte } from '../../constants/periodos';
@@ -48,7 +49,11 @@ function Categorias({ titulo, total, categorias, color, fondo }) {
 
 export default function ReporteIngresosGastos() {
     const periodos = useMemo(() => periodosDeReporte(), []);
-    const [periodo, setPeriodo] = useState(() => periodos[0] || '');
+    const location = useLocation();
+    // Se puede abrir desde Finanzas con el mismo periodo elegido
+    const [periodo, setPeriodo] = useState(() => (
+        periodos.includes(location.state?.periodo) ? location.state.periodo : periodos[0] || ''
+    ));
     const [tipo, setTipo] = useState('Todos');
     const [busqueda, setBusqueda] = useState('');
 

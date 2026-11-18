@@ -104,8 +104,9 @@ export default function CentroReportes() {
             )}
 
             <Alert severity="info" icon={false} sx={{ bgcolor: '#E4EEF5', color: 'text.primary', mt: 2 }}>
-                Los totales se calculan desde los registros del sistema (pagos, anticipos, gastos, planilla, caja y banco).
-                Si un total no coincide con sus registros, el reporte no deja exportar hasta revisarlo.
+                En <strong>Finanzas</strong> se registra y se consulta el dia a dia; aqui estan esos mismos datos como documentos
+                para presentar (asamblea, directorio, copropietarios) y exportar a PDF o Excel. Los totales salen de los registros
+                del sistema: si alguno no coincide, el reporte no deja exportar hasta revisarlo.
             </Alert>
         </DashboardLayout>
     );
