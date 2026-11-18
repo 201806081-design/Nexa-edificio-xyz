@@ -1,23 +1,25 @@
 import { useState } from 'react';
 import {
-    Box, Typography, Button, TextField, Select, MenuItem, Alert, Autocomplete, InputAdornment,
+    Box, Typography, Button, TextField, Select, MenuItem, Autocomplete, InputAdornment,
+    FormControlLabel, Checkbox,
     Dialog, DialogTitle, DialogContent, DialogActions,
 } from '@mui/material';
 import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
 import {
     BANCOS_BOLIVIA, TIPOS_CUENTA_BANCARIA,
     validarCuentaBancaria, registrarCuentaBancaria, etiquetaCuenta,
-    fechaTexto, isoATexto, textoAIso,
+    fechaTexto, isoATexto, textoAIso, INICIO_SISTEMA,
 } from '../../../constants/cajaBancosMock';
 
-// Registra la cuenta bancaria del edificio. Si ya hay una en uso, la reemplaza
-// desde la fecha indicada (la anterior conserva su historial).
+// Registra una cuenta bancaria del edificio. Se AGREGA a las que ya hay.
+// Si se marca como principal, recibe los cobros y pagos por banco desde su
+// fecha de apertura. La primera cuenta registrada siempre es la principal.
 //
-// props: open, cuentaActual (o null), onClose, onGuardada(cuentaNueva)
+// props: open, principalActual (o null), onClose, onGuardada(cuentaNueva)
 
 const vacio = () => ({
     banco: '', nroCuenta: '', tipoCuenta: TIPOS_CUENTA_BANCARIA[0],
-    titular: 'Edificio XYZ', saldoInicial: '', desde: textoAIso(fechaTexto()),
+    titular: 'Edificio XYZ', saldoInicial: '', desde: textoAIso(fechaTexto()), principal: false,
 });
 
 function Campo({ etiqueta, children, ayuda }) {
@@ -30,7 +32,7 @@ function Campo({ etiqueta, children, ayuda }) {
     );
 }
 
-export default function CuentaBancariaDialog({ open, cuentaActual, onClose, onGuardada }) {
+export default function CuentaBancariaDialog({ open, principalActual, onClose, onGuardada }) {
     // El formulario arranca limpio cada vez: la pantalla monta el dialogo solo al abrirlo
     const [form, setForm] = useState(vacio);
     const [errores, setErrores] = useState({});
@@ -48,7 +50,7 @@ export default function CuentaBancariaDialog({ open, cuentaActual, onClose, onGu
         onGuardada(registrarCuentaBancaria(datos));
     };
 
-    const reemplaza = !!cuentaActual;
+    const esPrimera = !principalActual;
 
     return (
         <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
@@ -59,17 +61,12 @@ export default function CuentaBancariaDialog({ open, cuentaActual, onClose, onGu
                 Registrar cuenta bancaria
             </DialogTitle>
             <DialogContent dividers>
-                {reemplaza ? (
-                    <Alert severity="info" sx={{ mb: 2 }}>
-                        El edificio usa una sola cuenta. Al registrar esta, <strong>{etiquetaCuenta(cuentaActual)}</strong> deja
-                        de usarse desde la fecha que indiques (sus movimientos anteriores se conservan).
-                    </Alert>
-                ) : (
-                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                        Esta cuenta recibira todos los cobros y pagos por transferencia, QR, cheque y deposito.
-                        Debe ser una cuenta en bolivianos, la moneda del sistema.
-                    </Typography>
-                )}
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                    {esPrimera
+                        ? 'Sera la cuenta principal: recibira los cobros y pagos por transferencia, QR, cheque y deposito.'
+                        : 'La cuenta se agrega a las que ya tienes; ninguna se elimina.'}
+                    {' '}Debe ser una cuenta en bolivianos, la moneda del sistema.
+                </Typography>
 
                 <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
                     <Box sx={{ gridColumn: { sm: '1 / -1' } }}>
@@ -104,7 +101,7 @@ export default function CuentaBancariaDialog({ open, cuentaActual, onClose, onGu
                                 slotProps={{ htmlInput: { maxLength: 80 } }} />
                         </Campo>
                     </Box>
-                    <Campo etiqueta="Saldo inicial" ayuda="Saldo de la cuenta el dia que empieza a usarse.">
+                    <Campo etiqueta="Saldo inicial" ayuda="Lo que tenia la cuenta en su fecha de apertura.">
                         <TextField fullWidth type="number" value={form.saldoInicial} placeholder="0.00"
                             onChange={(e) => cambiar('saldoInicial', e.target.value)}
                             error={!!errores.saldoInicial} helperText={errores.saldoInicial}
@@ -113,12 +110,26 @@ export default function CuentaBancariaDialog({ open, cuentaActual, onClose, onGu
                                 input: { startAdornment: <InputAdornment position="start">Bs</InputAdornment> },
                             }} />
                     </Campo>
-                    <Campo etiqueta="Se usa desde" ayuda="Los movimientos por banco desde esta fecha van a esta cuenta.">
+                    <Campo etiqueta="Fecha de apertura" ayuda={`Desde el ${INICIO_SISTEMA} hasta hoy.`}>
                         <TextField fullWidth type="date" value={form.desde} onChange={(e) => cambiar('desde', e.target.value)}
                             error={!!errores.desde} helperText={errores.desde}
-                            slotProps={{ htmlInput: { max: textoAIso(fechaTexto()) } }} />
+                            slotProps={{ htmlInput: { min: textoAIso(INICIO_SISTEMA), max: textoAIso(fechaTexto()) } }} />
                     </Campo>
                 </Box>
+
+                {!esPrimera && (
+                    <Box sx={{ mt: 2, p: 1.5, borderRadius: 2, bgcolor: '#F1F5FA' }}>
+                        <FormControlLabel
+                            control={<Checkbox checked={form.principal} onChange={(e) => cambiar('principal', e.target.checked)} />}
+                            label={<Typography variant="body2" sx={{ fontWeight: 600 }}>Usar como cuenta principal</Typography>}
+                        />
+                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', pl: 4 }}>
+                            {form.principal
+                                ? `Desde su fecha de apertura, los cobros y pagos por banco entraran en esta cuenta en lugar de ${etiquetaCuenta(principalActual)}.`
+                                : `Los cobros y pagos por banco seguiran entrando en ${etiquetaCuenta(principalActual)}.`}
+                        </Typography>
+                    </Box>
+                )}
             </DialogContent>
             <DialogActions sx={{ p: 2 }}>
                 <Button variant="outlined" onClick={onClose}>Cancelar</Button>

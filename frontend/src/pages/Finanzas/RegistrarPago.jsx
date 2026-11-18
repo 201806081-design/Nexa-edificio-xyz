@@ -16,7 +16,7 @@ import {
 import { EXPENSAS_MOCK } from '../../constants/expensasMock';
 import { deudasPorDepto, registrarAbono, fechaDeTexto } from '../../constants/deudasMock';
 import { formatBs } from '../../constants/finanzasMock';
-import { cuentaBancariaActiva, etiquetaCuenta, codigoCuenta } from '../../constants/cajaBancosMock';
+import { cuentaPrincipal, etiquetaCuenta, codigoCuenta } from '../../constants/cajaBancosMock';
 
 function distribuir(deudas, monto) {
     let restante = Number(monto) || 0;
@@ -333,8 +333,8 @@ export default function RegistrarPago() {
         });
     };
 
-    // Cuenta bancaria del edificio que recibe el pago (se registra en Caja y bancos)
-    const cuentaBanco = cuentaBancariaActiva();
+    // Cuenta principal del edificio: recibe los pagos por banco (se elige en Caja y bancos)
+    const cuentaBanco = cuentaPrincipal();
     const codigoBanco = codigoCuenta(cuentaBanco);
 
     // Datos codificados en el QR mock (esto no realiza un pago real; en integracion con

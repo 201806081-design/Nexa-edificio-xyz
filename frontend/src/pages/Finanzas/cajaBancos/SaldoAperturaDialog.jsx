@@ -17,7 +17,11 @@ import { formatBs } from '../../../constants/finanzasMock';
 
 export default function SaldoAperturaDialog({ open, onClose, onGuardado }) {
     const actual = saldoApertura();
-    const [form, setForm] = useState({ caja: String(actual.caja), banco: String(actual.banco) });
+    // { caja: '1500', 'BCO-001': '25000', ... }
+    const [form, setForm] = useState(() => Object.fromEntries([
+        ['caja', String(actual.caja)],
+        ...actual.cuentas.map((c) => [c.id, String(c.saldoInicial)]),
+    ]));
     const [errores, setErrores] = useState({});
 
     const cambiar = (campo, valor) => {
@@ -33,11 +37,11 @@ export default function SaldoAperturaDialog({ open, onClose, onGuardado }) {
         onGuardado();
     };
 
-    const total = (Number(form.caja) || 0) + (Number(form.banco) || 0);
-    const campo = (clave, etiqueta, deshabilitado = false) => (
-        <Box>
+    const total = Object.values(form).reduce((s, v) => s + (Number(v) || 0), 0);
+    const campo = (clave, etiqueta) => (
+        <Box key={clave}>
             <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>{etiqueta}</Typography>
-            <TextField fullWidth type="number" value={form[clave]} disabled={deshabilitado}
+            <TextField fullWidth type="number" value={form[clave]}
                 onChange={(e) => cambiar(clave, e.target.value)}
                 error={!!errores[clave]} helperText={errores[clave] || ' '}
                 slotProps={{
@@ -62,7 +66,7 @@ export default function SaldoAperturaDialog({ open, onClose, onGuardado }) {
                 </Typography>
                 <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
                     {campo('caja', 'Caja (efectivo)')}
-                    {campo('banco', actual.cuenta ? etiquetaCuenta(actual.cuenta) : 'Banco (sin cuenta al inicio)', !actual.cuenta)}
+                    {actual.cuentas.map((c) => campo(c.id, etiquetaCuenta(c)))}
                 </Box>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', bgcolor: '#E4EEF5', borderRadius: 2, p: 1.5 }}>
                     <Typography sx={{ fontWeight: 600 }}>Total de apertura</Typography>

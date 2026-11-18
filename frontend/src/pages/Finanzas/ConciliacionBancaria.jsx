@@ -15,14 +15,14 @@ import VisibilityIcon from '@mui/icons-material/Visibility';
 import NorthIcon from '@mui/icons-material/North';
 import SouthIcon from '@mui/icons-material/South';
 import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import {
     ESTADOS_CONCILIACION, TIPOS_MOV_BANCO,
     movimientosConciliacion, conciliarMovimientos, marcarEnInvestigacion,
 } from '../../constants/conciliacionMock';
 import {
-    CUENTAS_BANCARIAS, cuentaBancariaActiva, cuentaBancariaPorId, etiquetaCuenta,
+    cuentasBancarias, cuentaPrincipal, cuentaBancariaPorId, etiquetaCuenta,
     movimientosBanco, libroDelPeriodo,
 } from '../../constants/cajaBancosMock';
 import { periodosConMovimientos, periodoEnCurso } from '../../constants/periodos';
@@ -74,6 +74,7 @@ const fechaEnPeriodo = (fecha, periodoSel) => {
 
 export default function ConciliacionBancaria() {
     const navigate = useNavigate();
+    const location = useLocation();
 
     // Periodos: meses cerrados + mes en curso (para seguimiento diario)
     const [tick, setTick] = useState(0);
@@ -90,8 +91,12 @@ export default function ConciliacionBancaria() {
     }, [periodos, periodo]);
 
     // Cuenta bancaria en uso (se registra en Caja y bancos). Se concilia una cuenta por vez.
-    const cuentasActivas = CUENTAS_BANCARIAS.filter((c) => c.activa);
-    const [cuentaId, setCuentaId] = useState(() => cuentaBancariaActiva()?.id ?? '');
+    // Abre la cuenta que se estaba viendo en Caja y bancos (o la principal)
+    const cuentasActivas = cuentasBancarias();
+    const principal = cuentaPrincipal();
+    const [cuentaId, setCuentaId] = useState(() => (
+        cuentasActivas.some((c) => c.id === location.state?.cuentaId) ? location.state.cuentaId : principal?.id ?? cuentasActivas[0]?.id ?? ''
+    ));
     const cuenta = cuentaBancariaPorId(cuentaId);
     const [estado, setEstado] = useState('Todos');
     const [tipo, setTipo] = useState('Todos');
@@ -177,7 +182,7 @@ export default function ConciliacionBancaria() {
 
             <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', justifyContent: { xs: 'stretch', md: 'flex-end' }, mb: 2 }}>
                 <Button variant="outlined" startIcon={<ArrowBackIcon />}
-                    onClick={() => navigate('/finanzas/caja-bancos', { state: { tab: 'bancos' } })}
+                    onClick={() => navigate('/finanzas/caja-bancos', { state: { tab: 'bancos', cuentaId } })}
                     sx={{ color: '#1a2733', borderColor: '#cdd8e3', width: { xs: '100%', md: 'auto' } }}>
                     Volver a caja y bancos
                 </Button>
@@ -191,7 +196,7 @@ export default function ConciliacionBancaria() {
                 <Typography variant="body2" sx={{ fontWeight: 700, mb: 0.5 }}>¿Como funciona esta pantalla?</Typography>
                 <Typography variant="body2">
                     Todo lo que se cobra o se paga por <strong>transferencia, QR, cheque o deposito</strong> entra como movimiento en
-                    {cuenta ? <strong> {etiquetaCuenta(cuenta)}</strong> : <strong> la cuenta bancaria del edificio</strong>}:
+                    {principal ? <> la cuenta principal, <strong>{etiquetaCuenta(principal)}</strong></> : <strong> la cuenta principal del edificio</strong>}:
                     cobros de expensas y anticipos, gastos, sueldos y depositos desde caja. Lo que se mueve en
                     <strong> efectivo no aparece</strong> porque no pasa por el banco (se controla en Caja).
                     <strong> Conciliar</strong> = confirmar que el movimiento del banco coincide con lo registrado en el sistema.

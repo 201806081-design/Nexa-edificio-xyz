@@ -11,7 +11,7 @@ import DashboardLayout from '../../layouts/DashboardLayout';
 import { MEDIOS_PAGO, HISTORIAL_ANTICIPOS } from '../../constants/pagosMock';
 import { DEPARTAMENTOS_ACTIVOS, EXPENSAS_MOCK } from '../../constants/expensasMock';
 import { formatBs } from '../../constants/finanzasMock';
-import { cuentaBancariaActiva, etiquetaCuenta, codigoCuenta } from '../../constants/cajaBancosMock';
+import { cuentaPrincipal, etiquetaCuenta, codigoCuenta } from '../../constants/cajaBancosMock';
 
 const fechaBonita = (iso) => {
     if (!iso) return '';
@@ -141,8 +141,8 @@ export default function RegistrarAnticipo() {
         });
     };
 
-    // Cuenta bancaria del edificio que recibe el pago (se registra en Caja y bancos)
-    const cuentaBanco = cuentaBancariaActiva();
+    // Cuenta principal del edificio: recibe los pagos por banco (se elige en Caja y bancos)
+    const cuentaBanco = cuentaPrincipal();
     const codigoBanco = codigoCuenta(cuentaBanco);
 
     // Datos codificados en el QR mock

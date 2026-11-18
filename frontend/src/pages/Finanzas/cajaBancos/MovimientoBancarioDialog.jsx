@@ -6,7 +6,7 @@ import {
 import SwapVertIcon from '@mui/icons-material/SwapVert';
 import {
     TIPOS_MOV_BANCARIO, OPCIONES_MOV_BANCARIO, entraAlBanco,
-    validarMovimientoBancario, registrarMovimientoBancario,
+    validarMovimientoBancario, registrarMovimientoBancario, cuentasBancarias,
     etiquetaCuenta, saldoCaja, saldoBanco, fechaTexto, isoATexto, textoAIso,
 } from '../../../constants/cajaBancosMock';
 import { formatBs } from '../../../constants/finanzasMock';
@@ -15,7 +15,8 @@ import { formatBs } from '../../../constants/finanzasMock';
 //   - Deposito desde caja / Retiro a caja: traspaso (no es ingreso ni gasto)
 //   - Comision o cargo bancario / Interes ganado: gasto o ingreso del edificio
 //
-// props: open, cuenta, tipoInicial, onClose, onGuardado(tipo)
+// props: open, cuentaInicial, tipoInicial, onClose, onGuardado(tipo)
+// Si hay varias cuentas, se elige en cual se registra.
 
 const EXPLICACION = {
     [TIPOS_MOV_BANCARIO.DEPOSITO]: 'Dinero de caja que se deposita en el banco. Baja el efectivo y sube el banco; no es ingreso nuevo.',
@@ -31,7 +32,10 @@ const formInicial = (tipo) => ({
     tipo, fecha: textoAIso(fechaTexto()), monto: montoSugerido(tipo), referencia: '', descripcion: '',
 });
 
-export default function MovimientoBancarioDialog({ open, cuenta, tipoInicial = TIPOS_MOV_BANCARIO.DEPOSITO, onClose, onGuardado }) {
+export default function MovimientoBancarioDialog({ open, cuentaInicial, tipoInicial = TIPOS_MOV_BANCARIO.DEPOSITO, onClose, onGuardado }) {
+    const cuentas = cuentasBancarias();
+    const [cuentaId, setCuentaId] = useState(() => cuentaInicial?.id ?? cuentas[0]?.id ?? '');
+    const cuenta = cuentas.find((c) => c.id === cuentaId) ?? null;
     // El formulario arranca limpio cada vez: la pantalla monta el dialogo solo al abrirlo
     const [form, setForm] = useState(() => formInicial(tipoInicial));
     const [errores, setErrores] = useState({});
@@ -70,8 +74,20 @@ export default function MovimientoBancarioDialog({ open, cuenta, tipoInicial = T
             </DialogTitle>
             <DialogContent dividers>
                 <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                    Cuenta: <strong>{etiquetaCuenta(cuenta)}</strong>. Registra lo que figura en el extracto del banco.
+                    Registra lo que figura en el extracto del banco.
                 </Typography>
+
+                {cuentas.length > 1 && (
+                    <>
+                        <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Cuenta</Typography>
+                        <Select fullWidth value={cuentaId} onChange={(e) => { setCuentaId(e.target.value); setErrores({}); }} sx={{ mb: 2 }}>
+                            {cuentas.map((c) => <MenuItem key={c.id} value={c.id}>{etiquetaCuenta(c)}</MenuItem>)}
+                        </Select>
+                    </>
+                )}
+                {cuentas.length === 1 && (
+                    <Typography variant="body2" sx={{ mb: 2 }}>Cuenta: <strong>{etiquetaCuenta(cuenta)}</strong></Typography>
+                )}
 
                 <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Tipo de movimiento</Typography>
                 <Select fullWidth value={form.tipo} onChange={(e) => cambiarTipo(e.target.value)} sx={{ mb: 1 }}>

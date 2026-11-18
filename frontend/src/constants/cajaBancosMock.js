@@ -71,9 +71,17 @@ export const CAJA = { id: 'CAJA', nombre: 'Caja General', saldoInicial: 1500, de
 
 // ------------------------------------------------------------
 //  CUENTAS BANCARIAS
-//  Se usa UNA cuenta a la vez. Eliminar o cambiar de cuenta no borra el
-//  historial: la cuenta queda inactiva con su fecha de baja ('hasta') y los
-//  movimientos de esas fechas siguen siendo suyos.
+//  El edificio puede tener VARIAS cuentas a la vez. Una de ellas es la
+//  PRINCIPAL: la que recibe los cobros y pagos por QR, transferencia,
+//  cheque o deposito. Las demas solo tienen lo que se registre en ellas
+//  (depositos desde caja, retiros, comisiones, intereses).
+//
+//  HISTORIAL_PRINCIPAL dice que cuenta era la principal en cada fecha, asi
+//  cambiar de principal no mueve los cobros pasados a otra cuenta.
+//
+//  Eliminar una cuenta la quita junto con lo registrado en ella. Si era la
+//  principal, sus cobros y pagos pasan a otra cuenta (o a la proxima que se
+//  registre, si no queda ninguna).
 // ------------------------------------------------------------
 
 export const BANCOS_BOLIVIA = [
@@ -83,15 +91,17 @@ export const BANCOS_BOLIVIA = [
 ];
 export const TIPOS_CUENTA_BANCARIA = ['Cuenta corriente', 'Caja de ahorro'];
 
-// Cuenta de ejemplo con la que arranca el sistema (la del seed del backend).
-// El administrador la reemplaza por la cuenta real del edificio.
+// Cuenta de ejemplo con la que arranca el sistema (la del seed del backend)
 export const CUENTAS_BANCARIAS = [
     {
         id: 'BCO-001', banco: 'Banco Unión', nroCuenta: '1000-2345-6789', tipoCuenta: 'Cuenta corriente',
         moneda: 'Bolivianos', titular: 'Edificio XYZ', saldoInicial: 25000,
-        desde: INICIO_SISTEMA, hasta: null, activa: true, ejemplo: true,
+        desde: INICIO_SISTEMA, activa: true, ejemplo: true,
     },
 ];
+
+// Que cuenta era la principal desde cada fecha (ordenado por fecha)
+const HISTORIAL_PRINCIPAL = [{ cuentaId: 'BCO-001', desde: INICIO_SISTEMA }];
 
 // Ultimos 4 digitos del numero de cuenta: '1000-2345-6789' -> '6789'
 export const ultimosDigitos = (nro) => String(nro || '').replace(/\D/g, '').slice(-4);
@@ -104,17 +114,41 @@ export const codigoCuenta = (c) => (c
     ? `${c.banco.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/\s+/g, '-')}-${ultimosDigitos(c.nroCuenta)}`
     : 'SIN-CUENTA');
 
-// La cuenta que se usa hoy (o null si no hay ninguna registrada)
-export const cuentaBancariaActiva = () => CUENTAS_BANCARIAS.find((c) => c.activa) ?? null;
-
 export const cuentaBancariaPorId = (id) => CUENTAS_BANCARIAS.find((c) => c.id === id) ?? null;
 
-// Cuenta en uso en una fecha 'DD/MM/AAAA' (desde <= fecha < hasta)
-export const cuentaBancariaEn = (fecha) => {
+// Cuentas registradas (sin las eliminadas), en el orden en que se registraron
+export const cuentasBancarias = () => CUENTAS_BANCARIAS.filter((c) => c.activa);
+
+// Cuenta principal en una fecha 'DD/MM/AAAA' (null si no habia ninguna)
+export const cuentaPrincipalEn = (fecha) => {
     const f = claveFecha(fecha);
-    return CUENTAS_BANCARIAS
-        .filter((c) => claveFecha(c.desde) <= f && (!c.hasta || f < claveFecha(c.hasta)))
-        .sort((a, b) => claveFecha(b.desde).localeCompare(claveFecha(a.desde)))[0] ?? null;
+    const tramo = HISTORIAL_PRINCIPAL.filter((h) => claveFecha(h.desde) <= f).at(-1);
+    return tramo ? cuentaBancariaPorId(tramo.cuentaId) : null;
+};
+
+// Cuenta principal hoy: la que recibe los cobros y pagos por banco
+export const cuentaPrincipal = () => {
+    const actual = HISTORIAL_PRINCIPAL.at(-1);
+    return actual ? cuentaBancariaPorId(actual.cuentaId) : null;
+};
+
+export const esPrincipal = (cuentaId) => cuentaPrincipal()?.id === cuentaId;
+
+const ordenarHistorial = () => HISTORIAL_PRINCIPAL.sort((a, b) => claveFecha(a.desde).localeCompare(claveFecha(b.desde)));
+
+// La cuenta pasa a ser la principal desde una fecha (los cobros anteriores no se mueven)
+const hacerPrincipalDesde = (cuentaId, desde) => {
+    for (let i = HISTORIAL_PRINCIPAL.length - 1; i >= 0; i--) {
+        if (claveFecha(HISTORIAL_PRINCIPAL[i].desde) >= claveFecha(desde)) HISTORIAL_PRINCIPAL.splice(i, 1);
+    }
+    HISTORIAL_PRINCIPAL.push({ cuentaId, desde });
+    ordenarHistorial();
+};
+
+// Marca una cuenta como principal desde hoy
+export const usarComoPrincipal = (cuentaId) => {
+    if (!cuentaBancariaPorId(cuentaId)?.activa || esPrincipal(cuentaId)) return;
+    hacerPrincipalDesde(cuentaId, fechaTexto());
 };
 
 // Valida los datos del formulario. Devuelve { campo: 'mensaje' } (vacio si esta bien)
@@ -123,11 +157,15 @@ export const validarCuentaBancaria = (datos) => {
     if (!String(datos.banco || '').trim()) err.banco = 'Indica el banco';
     const digitos = String(datos.nroCuenta || '').replace(/\D/g, '');
     if (digitos.length < 6 || digitos.length > 20) err.nroCuenta = 'Entre 6 y 20 digitos';
+    else if (cuentasBancarias().some((c) => String(c.nroCuenta).replace(/\D/g, '') === digitos)) {
+        err.nroCuenta = 'Esa cuenta ya esta registrada';
+    }
     if (!TIPOS_CUENTA_BANCARIA.includes(datos.tipoCuenta)) err.tipoCuenta = 'Elige el tipo de cuenta';
     if (!String(datos.titular || '').trim()) err.titular = 'Indica el titular';
     const saldo = Number(datos.saldoInicial);
     if (datos.saldoInicial === '' || !Number.isFinite(saldo) || saldo < 0) err.saldoInicial = 'Saldo valido (puede ser 0)';
-    if (!datos.desde) err.desde = 'Indica desde cuando se usa';
+    if (!datos.desde) err.desde = 'Indica la fecha';
+    else if (claveFecha(datos.desde) < claveFecha(INICIO_SISTEMA)) err.desde = `No puede ser antes del inicio del sistema (${INICIO_SISTEMA})`;
     else if (claveFecha(datos.desde) > claveFecha(fechaTexto())) err.desde = 'No puede ser una fecha futura';
     return err;
 };
@@ -137,14 +175,12 @@ const siguienteId = (lista, prefijo) => {
     return `${prefijo}-${String(n).padStart(3, '0')}`;
 };
 
-// Registra una cuenta y la deja en uso. Si ya habia una, deja de usarse desde
-// la fecha de la nueva (asi se cambia de banco sin perder el historial).
+// Registra una cuenta y la AGREGA a las existentes (no reemplaza a ninguna).
+//   principal: true -> recibe los cobros y pagos por banco desde su fecha.
+// Si no habia ninguna cuenta, es la principal y recibe tambien los cobros
+// y pagos que quedaron sin cuenta.
 export const registrarCuentaBancaria = (datos) => {
-    const actual = cuentaBancariaActiva();
-    if (actual) {
-        actual.activa = false;
-        actual.hasta = datos.desde;
-    }
+    const habiaCuentas = cuentasBancarias().length > 0;
     const nueva = {
         id: siguienteId(CUENTAS_BANCARIAS, 'BCO'),
         banco: datos.banco.trim(),
@@ -154,20 +190,48 @@ export const registrarCuentaBancaria = (datos) => {
         titular: datos.titular.trim(),
         saldoInicial: round2(datos.saldoInicial),
         desde: datos.desde,
-        hasta: null,
         activa: true,
         ejemplo: false,
     };
     CUENTAS_BANCARIAS.push(nueva);
+    if (!habiaCuentas) hacerPrincipalDesde(nueva.id, INICIO_SISTEMA);
+    else if (datos.principal) hacerPrincipalDesde(nueva.id, nueva.desde);
     return nueva;
 };
 
-// Elimina la cuenta: deja de usarse desde hoy (su historial se conserva)
+const fuePrincipal = (cuentaId) => HISTORIAL_PRINCIPAL.some((h) => h.cuentaId === cuentaId);
+
+// Lo que pasara al eliminar una cuenta (para avisar antes)
+export const resumenEliminacion = (cuentaId) => ({
+    registrados: TRASPASOS.filter((t) => t.cuentaId === cuentaId).length
+        + MOVIMIENTOS_LISTA.filter((m) => m.cuentaId === cuentaId).length,
+    principal: esPrincipal(cuentaId),
+    recibioCobros: fuePrincipal(cuentaId),
+    sucesora: cuentasBancarias().find((c) => c.id !== cuentaId) ?? null,
+});
+
+// Elimina una cuenta y lo registrado en ella (depositos, retiros, comisiones,
+// intereses). Si recibio cobros y pagos (fue la principal), esos cobros y su
+// saldo inicial pasan a otra cuenta registrada, asi el dinero no desaparece;
+// si no queda ninguna, quedan sin cuenta hasta que se registre otra.
 export const eliminarCuentaBancaria = (id) => {
     const cuenta = cuentaBancariaPorId(id);
     if (!cuenta || !cuenta.activa) return;
     cuenta.activa = false;
-    cuenta.hasta = fechaTexto();
+    for (let i = TRASPASOS.length - 1; i >= 0; i--) if (TRASPASOS[i].cuentaId === id) TRASPASOS.splice(i, 1);
+    for (let i = MOVIMIENTOS_LISTA.length - 1; i >= 0; i--) if (MOVIMIENTOS_LISTA[i].cuentaId === id) MOVIMIENTOS_LISTA.splice(i, 1);
+
+    const sucesora = cuentasBancarias()[0];
+    if (sucesora && fuePrincipal(id)) sucesora.saldoInicial = round2(sucesora.saldoInicial + cuenta.saldoInicial);
+    for (let i = HISTORIAL_PRINCIPAL.length - 1; i >= 0; i--) {
+        if (HISTORIAL_PRINCIPAL[i].cuentaId !== id) continue;
+        if (sucesora) HISTORIAL_PRINCIPAL[i].cuentaId = sucesora.id;
+        else HISTORIAL_PRINCIPAL.splice(i, 1);
+    }
+    // Tramos seguidos de la misma cuenta se unen en uno
+    for (let i = HISTORIAL_PRINCIPAL.length - 1; i > 0; i--) {
+        if (HISTORIAL_PRINCIPAL[i].cuentaId === HISTORIAL_PRINCIPAL[i - 1].cuentaId) HISTORIAL_PRINCIPAL.splice(i, 1);
+    }
 };
 
 // ------------------------------------------------------------
@@ -237,13 +301,21 @@ export const movimientosCaja = () => [
     ...TRASPASOS.map(traspasoEnCaja),
 ].filter((m) => claveFecha(m.fecha) >= claveFecha(CAJA.desde)).sort(porFechaAsc);
 
-// Movimientos de una cuenta bancaria. Los registrados en una cuenta (depositos,
-// retiros, comisiones, intereses) quedan en esa cuenta; los cobros y pagos por
-// banco van a la cuenta que estaba en uso en su fecha.
-export const movimientosBanco = (cuentaId) => [
+// Todos los movimientos por banco con la cuenta a la que pertenecen:
+// los registrados en una cuenta (depositos, retiros, comisiones, intereses)
+// son de esa cuenta; los cobros y pagos por banco, de la principal de su fecha.
+const movimientosPorBanco = () => [
     ...libroDiario().filter((m) => m.cuenta === 'Banco').map(desdeLibro),
     ...TRASPASOS.map(traspasoEnBanco),
-].filter((m) => (m.cuentaId ?? cuentaBancariaEn(m.fecha)?.id) === cuentaId).sort(porFechaAsc);
+].map((m) => ({ ...m, cuentaId: m.cuentaId ?? cuentaPrincipalEn(m.fecha)?.id ?? null }));
+
+// Movimientos de una cuenta bancaria, del mas antiguo al mas reciente
+export const movimientosBanco = (cuentaId) => movimientosPorBanco()
+    .filter((m) => m.cuentaId === cuentaId).sort(porFechaAsc);
+
+// Cobros y pagos por banco que no tienen cuenta (se eliminaron todas las cuentas)
+export const movimientosSinCuenta = () => movimientosPorBanco()
+    .filter((m) => !m.cuentaId || !cuentaBancariaPorId(m.cuentaId)?.activa).sort(porFechaAsc);
 
 const neto = (movs) => round2(movs.reduce((s, m) => s + (m.tipo === 'Ingreso' ? m.monto : -m.monto), 0));
 
@@ -251,16 +323,15 @@ const neto = (movs) => round2(movs.reduce((s, m) => s + (m.tipo === 'Ingreso' ? 
 export const saldoCaja = () => round2(CAJA.saldoInicial + neto(movimientosCaja()));
 export const saldoBanco = (cuentaId) => {
     const cuenta = cuentaBancariaPorId(cuentaId);
-    return cuenta ? round2(cuenta.saldoInicial + neto(movimientosBanco(cuentaId))) : 0;
+    return cuenta?.activa ? round2(cuenta.saldoInicial + neto(movimientosBanco(cuentaId))) : 0;
 };
 
-// Saldo del banco al cierre de una fecha: el de la cuenta que estaba en uso ese dia
-export const saldoBancoAl = (fecha) => {
-    const cuenta = cuentaBancariaEn(fecha);
-    if (!cuenta) return 0;
-    return round2(cuenta.saldoInicial
-        + neto(movimientosBanco(cuenta.id).filter((m) => claveFecha(m.fecha) <= claveFecha(fecha))));
-};
+// Suma de todas las cuentas registradas
+export const saldoBancos = () => round2(cuentasBancarias().reduce((s, c) => s + saldoBanco(c.id), 0));
+
+// Saldo de todas las cuentas al cierre de una fecha
+export const saldoBancoAl = (fecha) => round2(cuentasBancarias().reduce((s, c) => s + c.saldoInicial
+    + neto(movimientosBanco(c.id).filter((m) => claveFecha(m.fecha) <= claveFecha(fecha))), 0));
 
 // Libro de un periodo con saldo acumulado en cada fila.
 // Devuelve { saldoInicial, ingresos, egresos, saldoFinal, filas } (filas: mas reciente primero)
@@ -288,13 +359,11 @@ export const libroDelPeriodo = (movs, saldoApertura, periodo) => {
 
 export const PRIMER_MES = nombrePeriodo(PRIMER_PERIODO.anio, PRIMER_PERIODO.mes);
 
-// Cuenta bancaria que estaba en uso al iniciar el sistema
-export const cuentaDeApertura = () => cuentaBancariaEn(INICIO_SISTEMA);
-
+// Caja + saldo inicial de cada cuenta registrada
 export const saldoApertura = () => {
-    const cuenta = cuentaDeApertura();
-    const banco = cuenta?.saldoInicial ?? 0;
-    return { fecha: INICIO_SISTEMA, caja: CAJA.saldoInicial, banco, cuenta, total: round2(CAJA.saldoInicial + banco) };
+    const cuentas = cuentasBancarias();
+    const banco = round2(cuentas.reduce((s, c) => s + c.saldoInicial, 0));
+    return { fecha: INICIO_SISTEMA, caja: CAJA.saldoInicial, banco, cuentas, total: round2(CAJA.saldoInicial + banco) };
 };
 
 // Punto mas bajo al que llega el saldo si se parte de 0: { monto, fecha }
@@ -308,8 +377,8 @@ const puntoMasBajo = (movs) => {
     return minimo;
 };
 
-// Valida { caja, banco }: montos validos y que con ellos ningun saldo quede negativo
-export const validarSaldosApertura = ({ caja, banco }) => {
+// Valida { caja, [cuentaId]: saldo }: montos validos y que con ellos ningun saldo quede negativo
+export const validarSaldosApertura = (saldos) => {
     const err = {};
     const revisar = (campo, valor, movs, lugar) => {
         const n = Number(valor);
@@ -319,16 +388,14 @@ export const validarSaldosApertura = ({ caja, banco }) => {
             err[campo] = `Con ese monto ${lugar} quedaria en negativo el ${bajo.fecha}. Minimo: ${formatBs(round2(-bajo.monto))}`;
         }
     };
-    revisar('caja', caja, movimientosCaja(), 'la caja');
-    const cuenta = cuentaDeApertura();
-    if (cuenta) revisar('banco', banco, movimientosBanco(cuenta.id), 'el banco');
+    revisar('caja', saldos.caja, movimientosCaja(), 'la caja');
+    cuentasBancarias().forEach((c) => revisar(c.id, saldos[c.id], movimientosBanco(c.id), etiquetaCuenta(c)));
     return err;
 };
 
-export const editarSaldosApertura = ({ caja, banco }) => {
-    CAJA.saldoInicial = round2(caja);
-    const cuenta = cuentaDeApertura();
-    if (cuenta) cuenta.saldoInicial = round2(banco);
+export const editarSaldosApertura = (saldos) => {
+    CAJA.saldoInicial = round2(saldos.caja);
+    cuentasBancarias().forEach((c) => { c.saldoInicial = round2(saldos[c.id]); });
 };
 
 // Cuadre de fondos de un periodo (o de todos):
@@ -361,7 +428,9 @@ export const validarMovimientoBancario = (datos, cuentaId) => {
     if (!OPCIONES_MOV_BANCARIO.includes(datos.tipo)) err.tipo = 'Elige el tipo de movimiento';
     if (!datos.fecha) err.fecha = 'Indica la fecha';
     else if (claveFecha(datos.fecha) > claveFecha(fechaTexto())) err.fecha = 'No puede ser una fecha futura';
-    else if (cuentaBancariaEn(datos.fecha)?.id !== cuentaId) err.fecha = 'En esa fecha no se usaba esta cuenta';
+    else if (claveFecha(datos.fecha) < claveFecha(cuentaBancariaPorId(cuentaId)?.desde ?? INICIO_SISTEMA)) {
+        err.fecha = 'Es anterior a la fecha de apertura de la cuenta';
+    }
     const monto = Number(datos.monto);
     if (!(monto > 0)) err.monto = 'Ingresa un monto mayor a 0';
     else if (datos.tipo === TIPOS_MOV_BANCARIO.DEPOSITO && monto > saldoCaja()) err.monto = 'Es mas de lo que hay en caja';

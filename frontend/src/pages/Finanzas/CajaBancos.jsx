@@ -13,6 +13,7 @@ import MoveDownIcon from '@mui/icons-material/MoveDown';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteOutlinedIcon from '@mui/icons-material/DeleteOutlined';
 import SyncIcon from '@mui/icons-material/Sync';
+import StarBorderIcon from '@mui/icons-material/StarBorder';
 import FlagIcon from '@mui/icons-material/Flag';
 import { useNavigate, useLocation } from 'react-router-dom';
 import DashboardLayout from '../../layouts/DashboardLayout';
@@ -23,9 +24,10 @@ import MovimientoBancarioDialog from './cajaBancos/MovimientoBancarioDialog';
 import ArqueoCajaDialog from './cajaBancos/ArqueoCajaDialog';
 import SaldoAperturaDialog from './cajaBancos/SaldoAperturaDialog';
 import {
-    CAJA, ARQUEOS, TIPOS_MOV_BANCARIO, PRIMER_MES,
-    cuentaBancariaActiva, cuentaDeApertura, etiquetaCuenta, eliminarCuentaBancaria,
-    movimientosCaja, movimientosBanco, saldoCaja, saldoBanco, libroDelPeriodo, resultadoArqueo,
+    CAJA, ARQUEOS, TIPOS_MOV_BANCARIO, PRIMER_MES, INICIO_SISTEMA,
+    cuentasBancarias, cuentaPrincipal, etiquetaCuenta, eliminarCuentaBancaria,
+    usarComoPrincipal, resumenEliminacion, movimientosSinCuenta,
+    movimientosCaja, movimientosBanco, saldoCaja, saldoBanco, saldoBancos, libroDelPeriodo, resultadoArqueo,
 } from '../../constants/cajaBancosMock';
 import { movimientosConciliacion, porConciliar } from '../../constants/conciliacionMock';
 import { periodosConMovimientos } from '../../constants/periodos';
@@ -105,35 +107,45 @@ export default function CajaBancos() {
     const [dialogoArqueo, setDialogoArqueo] = useState(false);
     const [dialogoApertura, setDialogoApertura] = useState(false);
     const [confirmarEliminar, setConfirmarEliminar] = useState(false);
+    const [confirmarPrincipal, setConfirmarPrincipal] = useState(false);
+    // Cuenta que se esta viendo en la pestana Bancos (por defecto la principal)
+    const [cuentaVistaId, setCuentaVistaId] = useState(() => location.state?.cuentaId ?? cuentaPrincipal()?.id ?? '');
     const [snack, setSnack] = useState({ open: false, msg: '', sev: 'success' });
     const avisar = (msg, sev = 'success') => setSnack({ open: true, msg, sev });
 
     const datos = useMemo(() => {
-        const cuenta = cuentaBancariaActiva();
+        const cuentas = cuentasBancarias();
+        const principal = cuentaPrincipal();
+        // Si la cuenta elegida se elimino, se muestra la principal (o la primera)
+        const cuenta = cuentas.find((c) => c.id === cuentaVistaId) ?? principal ?? cuentas[0] ?? null;
         const conciliacion = cuenta ? movimientosConciliacion(cuenta.id) : [];
         return {
-            cuenta,
+            cuentas, principal, cuenta,
             saldoCaja: saldoCaja(),
-            saldoBanco: cuenta ? saldoBanco(cuenta.id) : 0,
-            pendientes: cuenta ? porConciliar(cuenta.id) : 0,
+            saldoBancos: saldoBancos(),
+            saldoCuenta: cuenta ? saldoBanco(cuenta.id) : 0,
+            pendientes: cuentas.reduce((n, c) => n + porConciliar(c.id), 0),
             libroCaja: libroDelPeriodo(movimientosCaja(), CAJA.saldoInicial, periodo),
             libroBanco: cuenta ? libroDelPeriodo(movimientosBanco(cuenta.id), cuenta.saldoInicial, periodo) : null,
             estadoConciliacion: new Map(conciliacion.map((m) => [m.id, m.estado])),
+            sinCuenta: { cantidad: movimientosSinCuenta().length },
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [periodo, version]);
-    const { cuenta } = datos;
-    // La cuenta en uso es la misma con la que arranco el sistema (su saldo inicial es de apertura)
-    const esCuentaDeApertura = !!cuenta && cuentaDeApertura()?.id === cuenta.id;
+    }, [periodo, version, cuentaVistaId]);
+    const { cuenta, cuentas, principal } = datos;
+    const cuentaEsPrincipal = !!cuenta && principal?.id === cuenta.id;
+    // El saldo inicial de una cuenta abierta al iniciar el sistema es parte de la apertura
+    const esCuentaDeApertura = !!cuenta && cuenta.desde === INICIO_SISTEMA;
     const esPrimerMes = periodo === PRIMER_MES;
 
     const KPIS = [
         { label: 'Efectivo en caja', valor: formatBs(datos.saldoCaja), nota: CAJA.nombre, icon: <PaymentsIcon />, color: '#2E9D78', bg: '#E4F4EE' },
         {
-            label: 'Saldo en banco', valor: cuenta ? formatBs(datos.saldoBanco) : '—',
-            nota: cuenta ? etiquetaCuenta(cuenta) : 'Sin cuenta registrada', icon: <AccountBalanceIcon />, color: '#1F5F8B', bg: '#E4EEF5',
+            label: 'Saldo en bancos', valor: cuentas.length ? formatBs(datos.saldoBancos) : '—',
+            nota: cuentas.length ? `${cuentas.length} cuenta${cuentas.length !== 1 ? 's' : ''}` : 'Sin cuentas registradas',
+            icon: <AccountBalanceIcon />, color: '#1F5F8B', bg: '#E4EEF5',
         },
-        { label: 'Total disponible', valor: formatBs(datos.saldoCaja + datos.saldoBanco), nota: 'Caja + banco', icon: <SavingsIcon />, color: '#132B3E', bg: '#F1F5FA' },
+        { label: 'Total disponible', valor: formatBs(datos.saldoCaja + datos.saldoBancos), nota: 'Caja + bancos', icon: <SavingsIcon />, color: '#132B3E', bg: '#F1F5FA' },
         {
             label: 'Por conciliar', valor: datos.pendientes, nota: datos.pendientes ? 'Movimientos del banco' : 'Todo conciliado',
             icon: <RuleIcon />, color: datos.pendientes ? '#B6802A' : '#2E9D78', bg: datos.pendientes ? '#FDF0D5' : '#E4F4EE',
@@ -143,17 +155,30 @@ export default function CajaBancos() {
     // ---------- Acciones ----------
     const cuentaGuardada = (nueva) => {
         setDialogoCuenta(false);
+        setCuentaVistaId(nueva.id);
         refrescar();
-        avisar(`Cuenta ${etiquetaCuenta(nueva)} registrada. Desde ahora recibe los cobros y pagos por banco.`);
+        avisar(cuentaPrincipal()?.id === nueva.id
+            ? `Cuenta ${etiquetaCuenta(nueva)} registrada como principal: recibe los cobros y pagos por banco.`
+            : `Cuenta ${etiquetaCuenta(nueva)} registrada.`);
     };
 
     const eliminarCuenta = () => {
         const etiqueta = etiquetaCuenta(cuenta);
         eliminarCuentaBancaria(cuenta.id);
         setConfirmarEliminar(false);
+        setCuentaVistaId(cuentaPrincipal()?.id ?? cuentasBancarias()[0]?.id ?? '');
         refrescar();
-        avisar(`Cuenta ${etiqueta} eliminada. Su historial se conserva.`, 'info');
+        avisar(`Cuenta ${etiqueta} eliminada.`, 'info');
     };
+
+    const hacerPrincipal = () => {
+        usarComoPrincipal(cuenta.id);
+        setConfirmarPrincipal(false);
+        refrescar();
+        avisar(`${etiquetaCuenta(cuenta)} es ahora la cuenta principal.`);
+    };
+
+    const eliminacion = cuenta ? resumenEliminacion(cuenta.id) : null;
 
     const movimientoGuardado = (tipo) => {
         setDialogoMovimiento(null);
@@ -180,7 +205,7 @@ export default function CajaBancos() {
         <DashboardLayout>
             <Typography variant="h1" color="primary.main" sx={{ mb: 0.5 }}>Caja y bancos</Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                Controla el efectivo de caja y la cuenta bancaria del edificio, y concilia sus movimientos
+                Controla el efectivo de caja y las cuentas bancarias del edificio, y concilia sus movimientos
             </Typography>
 
             <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', lg: 'repeat(4, 1fr)' }, gap: 2, mb: 2 }}>
@@ -208,7 +233,7 @@ export default function CajaBancos() {
                             Saldo de apertura
                         </Button>
                         <Button variant="outlined" startIcon={<MoveDownIcon />} sx={botonSecundarioSx}
-                            disabled={!cuenta} onClick={() => setDialogoMovimiento(TIPOS_MOV_BANCARIO.DEPOSITO)}>
+                            disabled={cuentas.length === 0} onClick={() => setDialogoMovimiento(TIPOS_MOV_BANCARIO.DEPOSITO)}>
                             Depositar en banco
                         </Button>
                         <Button variant="contained" startIcon={<FactCheckIcon />} sx={{ width: { xs: '100%', sm: 'auto' } }}
@@ -273,6 +298,33 @@ export default function CajaBancos() {
             {/* ===================== BANCOS ===================== */}
             {tab === 'bancos' && (
                 <Box>
+                    {/* Barra fija: elegir cuenta y registrar otra (siempre visible) */}
+                    <Paper sx={{ p: 2, borderRadius: 2, mb: 2, display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+                        <Box sx={{ flex: 1, minWidth: { xs: '100%', sm: 280 } }}>
+                            <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Cuenta bancaria</Typography>
+                            <Select fullWidth displayEmpty value={cuenta?.id ?? ''} disabled={cuentas.length === 0}
+                                onChange={(e) => setCuentaVistaId(e.target.value)}>
+                                {cuentas.length === 0 && <MenuItem value=""><em>No hay cuentas registradas</em></MenuItem>}
+                                {cuentas.map((c) => (
+                                    <MenuItem key={c.id} value={c.id}>
+                                        {etiquetaCuenta(c)}{principal?.id === c.id ? ' · Principal' : ''}
+                                    </MenuItem>
+                                ))}
+                            </Select>
+                        </Box>
+                        <Button variant="contained" startIcon={<AddIcon />} onClick={() => setDialogoCuenta(true)}
+                            sx={{ width: { xs: '100%', sm: 'auto' }, py: 1.6 }}>
+                            Registrar cuenta bancaria
+                        </Button>
+                    </Paper>
+
+                    {datos.sinCuenta.cantidad > 0 && (
+                        <Alert severity="warning" sx={{ mb: 2 }}>
+                            Hay <strong>{datos.sinCuenta.cantidad} cobros y pagos por banco</strong> que no tienen cuenta.
+                            Registra una cuenta: sera la principal y los recibira.
+                        </Alert>
+                    )}
+
                     {cuenta ? (
                         <Paper sx={{ p: { xs: 2, md: 3 }, borderRadius: 2, mb: 2 }}>
                             <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'flex-start', justifyContent: 'space-between' }}>
@@ -283,16 +335,19 @@ export default function CajaBancos() {
                                     <Box sx={{ minWidth: 0 }}>
                                         <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
                                             <Typography variant="h3" sx={{ fontWeight: 700 }}>{cuenta.banco}</Typography>
-                                            <Chip size="small" label="En uso" sx={{ bgcolor: '#E4F4EE', color: '#2E9D78', fontWeight: 600 }} />
+                                            {cuentaEsPrincipal && <Chip size="small" label="Principal" sx={{ bgcolor: '#E4F4EE', color: '#2E9D78', fontWeight: 600 }} />}
                                             {cuenta.ejemplo && <Chip size="small" label="Cuenta de ejemplo" sx={{ bgcolor: '#FDF0D5', color: '#B6802A', fontWeight: 600 }} />}
                                         </Box>
                                         <Typography variant="body2" color="text.secondary">{cuenta.tipoCuenta} · N.º {cuenta.nroCuenta}</Typography>
                                     </Box>
                                 </Box>
                                 <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', width: { xs: '100%', sm: 'auto' } }}>
-                                    <Button variant="outlined" startIcon={<AddIcon />} sx={botonSecundarioSx} onClick={() => setDialogoCuenta(true)}>
-                                        Registrar cuenta bancaria
-                                    </Button>
+                                    {!cuentaEsPrincipal && (
+                                        <Button variant="outlined" startIcon={<StarBorderIcon />} sx={botonSecundarioSx}
+                                            onClick={() => setConfirmarPrincipal(true)}>
+                                            Usar como principal
+                                        </Button>
+                                    )}
                                     <Button variant="outlined" color="error" startIcon={<DeleteOutlinedIcon />} sx={{ width: { xs: '100%', sm: 'auto' } }}
                                         onClick={() => setConfirmarEliminar(true)}>
                                         Eliminar
@@ -301,22 +356,24 @@ export default function CajaBancos() {
                             </Box>
                             <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, 1fr)', md: 'repeat(4, 1fr)' }, gap: 2, mt: 2 }}>
                                 <Dato etiqueta="Titular" valor={cuenta.titular} />
-                                <Dato etiqueta="Moneda" valor={cuenta.moneda} />
-                                <Dato etiqueta="En uso desde" valor={cuenta.desde} />
+                                <Dato etiqueta="Fecha de apertura" valor={cuenta.desde} />
                                 <Dato etiqueta={esCuentaDeApertura ? 'Saldo de apertura' : 'Saldo inicial'} valor={formatBs(cuenta.saldoInicial)} />
+                                <Dato etiqueta="Saldo actual" valor={formatBs(datos.saldoCuenta)} />
                             </Box>
+                            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1.5 }}>
+                                {cuentaEsPrincipal
+                                    ? 'Es la cuenta principal: recibe los cobros y pagos por QR, transferencia, cheque y deposito.'
+                                    : 'Solo tiene lo que registres en ella (depositos, retiros, comisiones). Los cobros y pagos por banco van a la principal.'}
+                            </Typography>
                         </Paper>
                     ) : (
                         <Paper sx={{ p: 4, borderRadius: 2, mb: 2, textAlign: 'center' }}>
                             <AccountBalanceIcon sx={{ fontSize: 48, color: 'text.secondary', mb: 1 }} />
-                            <Typography sx={{ fontWeight: 700, mb: 0.5 }}>No hay una cuenta bancaria registrada</Typography>
-                            <Typography variant="body2" color="text.secondary" sx={{ mb: 2, maxWidth: 520, mx: 'auto' }}>
-                                Registra la cuenta del edificio: recibira todos los cobros y pagos por transferencia, QR, cheque y deposito.
-                                Mientras no haya una, esos movimientos no se asignan a ningun banco.
+                            <Typography sx={{ fontWeight: 700, mb: 0.5 }}>No hay cuentas bancarias registradas</Typography>
+                            <Typography variant="body2" color="text.secondary" sx={{ maxWidth: 520, mx: 'auto' }}>
+                                Usa <strong>Registrar cuenta bancaria</strong>. La primera cuenta que registres sera la principal y recibira
+                                los cobros y pagos por transferencia, QR, cheque y deposito.
                             </Typography>
-                            <Button variant="contained" startIcon={<AddIcon />} onClick={() => setDialogoCuenta(true)}>
-                                Registrar cuenta bancaria
-                            </Button>
                         </Paper>
                     )}
 
@@ -324,7 +381,7 @@ export default function CajaBancos() {
                         <>
                             <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', justifyContent: { sm: 'flex-end' }, mb: 2 }}>
                                 <Button variant="outlined" startIcon={<SyncIcon />} sx={botonSecundarioSx}
-                                    onClick={() => navigate('/finanzas/caja-bancos/conciliacion')}>
+                                    onClick={() => navigate('/finanzas/caja-bancos/conciliacion', { state: { cuentaId: cuenta.id } })}>
                                     Conciliar movimientos
                                 </Button>
                                 <Button variant="contained" startIcon={<AddIcon />} sx={{ width: { xs: '100%', sm: 'auto' } }}
@@ -337,7 +394,7 @@ export default function CajaBancos() {
                                 titulo={`Movimientos — ${etiquetaCuenta(cuenta)}`}
                                 periodo={periodo}
                                 esApertura={esPrimerMes && esCuentaDeApertura}
-                                vacio={`No hubo movimientos en el banco en ${periodo}.`}
+                                vacio={`No hubo movimientos en esta cuenta en ${periodo}.`}
                                 columnaExtra={{
                                     titulo: 'Conciliacion',
                                     render: (m) => {
@@ -353,10 +410,10 @@ export default function CajaBancos() {
 
             {/* ===================== DIALOGOS ===================== */}
             {dialogoCuenta && (
-                <CuentaBancariaDialog open cuentaActual={cuenta} onClose={() => setDialogoCuenta(false)} onGuardada={cuentaGuardada} />
+                <CuentaBancariaDialog open principalActual={principal} onClose={() => setDialogoCuenta(false)} onGuardada={cuentaGuardada} />
             )}
             {dialogoMovimiento && (
-                <MovimientoBancarioDialog open cuenta={cuenta} tipoInicial={dialogoMovimiento}
+                <MovimientoBancarioDialog open cuentaInicial={tab === 'bancos' ? cuenta : principal} tipoInicial={dialogoMovimiento}
                     onClose={() => setDialogoMovimiento(null)} onGuardado={movimientoGuardado} />
             )}
             {dialogoApertura && (
@@ -367,26 +424,44 @@ export default function CajaBancos() {
                     onClose={() => setDialogoArqueo(false)} onGuardado={arqueoGuardado} />
             )}
 
-            <Dialog open={confirmarEliminar} onClose={() => setConfirmarEliminar(false)} maxWidth="xs" fullWidth>
+            <Dialog open={confirmarEliminar && !!cuenta} onClose={() => setConfirmarEliminar(false)} maxWidth="xs" fullWidth>
                 <DialogTitle sx={{ fontWeight: 700 }}>Eliminar cuenta bancaria</DialogTitle>
                 <DialogContent dividers>
                     <Typography variant="body2" sx={{ mb: 1.5 }}>
-                        <strong>{etiquetaCuenta(cuenta)}</strong> dejara de usarse desde hoy.
+                        Se eliminara <strong>{etiquetaCuenta(cuenta)}</strong>
+                        {eliminacion?.registrados > 0
+                            ? ` junto con lo registrado en ella (${eliminacion.registrados} depositos, retiros o comisiones).`
+                            : '.'}
                     </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                        Sus movimientos anteriores se conservan en el historial. Registra otra cuenta para seguir recibiendo
-                        cobros y pagos por banco.
-                    </Typography>
-                    {datos.saldoBanco > 0 && (
-                        <Alert severity="warning" sx={{ mt: 1.5 }}>
-                            La cuenta tiene un saldo de <strong>{formatBs(datos.saldoBanco)}</strong>. Si lo vas a usar, registra antes
-                            un retiro a caja.
-                        </Alert>
+                    {eliminacion?.recibioCobros && (
+                        <Typography variant="body2" color="text.secondary">
+                            {eliminacion.sucesora
+                                ? <>Sus cobros y pagos por banco y su saldo inicial pasaran a <strong>{etiquetaCuenta(eliminacion.sucesora)}</strong>
+                                    {eliminacion.principal ? ', que sera la nueva cuenta principal' : ''}.</>
+                                : 'Sus cobros y pagos por banco quedaran sin cuenta hasta que registres otra, que sera la principal y los recibira.'}
+                        </Typography>
                     )}
                 </DialogContent>
                 <DialogActions sx={{ p: 2 }}>
                     <Button variant="outlined" onClick={() => setConfirmarEliminar(false)}>Cancelar</Button>
                     <Button variant="contained" color="error" onClick={eliminarCuenta}>Eliminar cuenta</Button>
+                </DialogActions>
+            </Dialog>
+
+            <Dialog open={confirmarPrincipal && !!cuenta} onClose={() => setConfirmarPrincipal(false)} maxWidth="xs" fullWidth>
+                <DialogTitle sx={{ fontWeight: 700 }}>Usar como cuenta principal</DialogTitle>
+                <DialogContent dividers>
+                    <Typography variant="body2" sx={{ mb: 1.5 }}>
+                        Desde hoy, los cobros y pagos por QR, transferencia, cheque y deposito entraran en
+                        <strong> {etiquetaCuenta(cuenta)}</strong>.
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                        Lo anterior se queda en {principal ? <strong>{etiquetaCuenta(principal)}</strong> : 'su cuenta'}.
+                    </Typography>
+                </DialogContent>
+                <DialogActions sx={{ p: 2 }}>
+                    <Button variant="outlined" onClick={() => setConfirmarPrincipal(false)}>Cancelar</Button>
+                    <Button variant="contained" onClick={hacerPrincipal}>Usar como principal</Button>
                 </DialogActions>
             </Dialog>
 
