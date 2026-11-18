@@ -35,7 +35,7 @@
 
 import { periodosCerrados, periodoEnCurso } from './periodos';
 import { EXPENSA_BASE, CONFIG_AGUA as CONFIG_AGUA_SHARED, REGLAS_PERIODO } from './configuracionMock';
-import { CONFIG_MORA as CONFIG_MORA_SHARED } from './moraMock';
+import { CONFIG_MORA as CONFIG_MORA_SHARED, textoMora } from './moraMock';
 import { departamentos, numeroDe, numerosDepto, vincularResponsable, categoriaDe } from './edificioMock';
 import { DEPARTAMENTOS_PAGO } from './pagosMock';
 export { REGLAS_PERIODO };
@@ -58,7 +58,7 @@ export const HISTORIAL_TARIFAS = [
     {
         id: 'HT-001', fechaCambio: '01/10/2026', vigenteDesde: 'Octubre 2026',
         precioPorM3: CONFIG_AGUA.tarifaPorM3, minimoBs: CONFIG_AGUA.minimoBs, minimoM3: CONFIG_AGUA.minimoM3,
-        interesMensual: CONFIG_MORA.interesMensual, tipoCalculo: CONFIG_MORA.tipoCalculo,
+        mora: textoMora(CONFIG_MORA),
         diaVencimiento: REGLAS_PERIODO?.diaVencimiento ?? 15,
         alicuotaA: EXPENSA_BASE.A, alicuotaB: EXPENSA_BASE.B, alicuotaC: EXPENSA_BASE.C,
         admin: 'Oscar Tarque', razon: 'Configuracion inicial del edificio',

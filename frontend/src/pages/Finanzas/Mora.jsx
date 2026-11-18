@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import {
     Box, Typography, Paper, Button, TextField, Select, MenuItem, Alert,
-    InputAdornment, IconButton, Table, TableHead, TableBody, TableRow, TableCell,
+    IconButton, Table, TableHead, TableBody, TableRow, TableCell,
     Dialog, DialogTitle, DialogContent, DialogActions, Divider, CircularProgress, Snackbar,
     Menu,
 } from '@mui/material';
@@ -11,14 +11,17 @@ import CloseIcon from '@mui/icons-material/Close';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import EventIcon from '@mui/icons-material/Event';
 import CalculateIcon from '@mui/icons-material/Calculate';
+import PaymentsIcon from '@mui/icons-material/Payments';
 import CalendarMonthIcon from '@mui/icons-material/CalendarMonth';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 import PaidIcon from '@mui/icons-material/Paid';
 import { useNavigate } from 'react-router-dom';
 import DashboardLayout from '../../layouts/DashboardLayout';
+import CampoInteresMora from '../../components/CampoInteresMora';
 import {
-    CONFIG_MORA, APLICAR_MORA_DESDE, TIPOS_CALCULO,
-    REGLA_MORA,
+    CONFIG_MORA, METODOS_MORA, APLICAR_MORA_DESDE, TIPOS_CALCULO,
+    esMontoFijo, montoConMora, valorMora, etiquetaMora, formaCalculoMora, textoMora,
+    describirReglaMora, validarConfigMora, guardarConfigMora,
 } from '../../constants/moraMock';
 import { REGLAS_PERIODO, DIAS_VENCIMIENTO, textoDiaVencimiento } from '../../constants/configuracionMock';
 import { deudasVencidas, diaVencimiento as diaVencimientoNum } from '../../constants/deudasMock';
@@ -117,17 +120,20 @@ export default function Mora() {
     // Dashboard, Gestion financiera, Estado de cuenta, Registrar pago y Comunicados.
     // Se recalculan con la fecha del sistema; el tick (cada 5s) refresca la vista
     // si cambia la fecha de la computadora.
-    const tasa = (Number(config.interesMensual) || 0) / 100;
+    // config se reemplaza al guardar: cualquier cambio de la regla recalcula las deudas
     const filas = useMemo(
         () => deudasVencidas({ config, dia: diaVencimientoNum(diaVencimiento) }),
         // eslint-disable-next-line react-hooks/exhaustive-deps
-        [diaVencimiento, config.tipoCalculo, tasa, tick],
+        [config, diaVencimiento, tick],
     );
+    const regla = describirReglaMora(config);
+    const errorConfig = validarConfigMora(cfgDraft);
+    const draftFijo = cfgDraft.metodo === METODOS_MORA.MONTO_FIJO;
     // Total vencido = suma de los pendientes (no de la deuda actual total)
     const totalVencido = filas.reduce((acc, f) => acc + f.pendiente, 0);
 
     const abrirConfig = () => {
-        // Siempre leer el ultimo valor compartido (por si lo cambiaron en ConfiguracionFinanciera o v2)
+        // Siempre leer el ultimo valor compartido (por si lo cambiaron en Configuracion financiera)
         setCfgDraft({
             ...CONFIG_MORA,
             diaVencimiento: REGLAS_PERIODO.diaVencimiento,
@@ -138,18 +144,12 @@ export default function Mora() {
         setOpenConfig(true);
     };
     const guardarConfig = () => {
-        const { diaVencimiento: nuevoDia, vigenciaMes, ...resto } = cfgDraft;
-        const nuevoVigenteDesde = yyyyMmToTexto(vigenciaMes) || resto.vigenteDesde;
-        const nuevaConfig = { ...resto, vigenteDesde: nuevoVigenteDesde };
-        setConfig(nuevaConfig);
-        // BUG FIX: mutar CONFIG_MORA para que sincronice con v2 y persista entre pantallas
-        CONFIG_MORA.interesMensual = Number(nuevaConfig.interesMensual) || 0;
-        CONFIG_MORA.aplicarMoraDesde = nuevaConfig.aplicarMoraDesde;
-        CONFIG_MORA.tipoCalculo = nuevaConfig.tipoCalculo;
-        CONFIG_MORA.vigenteDesde = nuevaConfig.vigenteDesde;
-        // Sincroniza con la configuracion financiera (mutacion mock compartida)
-        REGLAS_PERIODO.diaVencimiento = nuevoDia;
-        setDiaVencimiento(nuevoDia);
+        if (errorConfig) return;
+        const { vigenciaMes, ...resto } = cfgDraft;
+        // Guarda en la configuracion compartida con "Configuracion financiera" de Expensas
+        const guardada = guardarConfigMora({ ...resto, vigenteDesde: yyyyMmToTexto(vigenciaMes) || resto.vigenteDesde });
+        setConfig(guardada);
+        setDiaVencimiento(REGLAS_PERIODO.diaVencimiento);
         setOpenConfig(false);
         setExitoMsg('Configuracion de mora guardada y sincronizada');
     };
@@ -176,11 +176,11 @@ export default function Mora() {
                 <Typography variant="body2" sx={{ fontWeight: 600, mb: 1.5 }}>Regla de mora vigente</Typography>
                 <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'flex-start', justifyContent: 'space-between' }}>
                     <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(4, 1fr)' }, gap: 2, flex: 1, minWidth: 0 }}>
-                        <DatoRegla etiqueta="Interes mensual" valor={`${config.interesMensual} %`}
-                            icon={<PercentIcon />} color="#E5A33B" bg="#FDF0D5" />
+                        <DatoRegla etiqueta={etiquetaMora(config)} valor={valorMora(config)}
+                            icon={esMontoFijo(config) ? <PaymentsIcon /> : <PercentIcon />} color="#E5A33B" bg="#FDF0D5" />
                         <DatoRegla etiqueta="Aplicar desde" valor={config.aplicarMoraDesde}
                             icon={<EventIcon />} color="#1F5F8B" bg="#E4EEF5" />
-                        <DatoRegla etiqueta="Tipo de calculo" valor={config.tipoCalculo}
+                        <DatoRegla etiqueta="Tipo de calculo" valor={formaCalculoMora(config)}
                             icon={<CalculateIcon />} color="#8E6DD1" bg="#EFEAF8" />
                         <DatoRegla etiqueta="Dia de vencimiento" valor={textoDiaVencimiento(diaVencimiento)}
                             icon={<CalendarMonthIcon />} color="#2E9D78" bg="#E4F4EE" />
@@ -195,8 +195,8 @@ export default function Mora() {
             {/* Regla aplicada */}
             <Alert severity="warning" icon={false} sx={{ bgcolor: '#FDF0D5', color: '#8A5A00', mb: 2 }}>
                 <Typography variant="body2" sx={{ fontWeight: 700, mb: 0.5 }}>Regla aplicada</Typography>
-                <Typography variant="body2">{REGLA_MORA.texto}</Typography>
-                <Typography variant="body2">{REGLA_MORA.ejemplo}</Typography>
+                <Typography variant="body2">{regla.texto}</Typography>
+                {regla.ejemplo && <Typography variant="body2">{regla.ejemplo}</Typography>}
             </Alert>
 
             {/* Deudas vencidas */}
@@ -229,7 +229,7 @@ export default function Mora() {
                                     <TableCell>{f.periodo}</TableCell>
                                     <TableCell>{formatBs(f.deudaOriginal)}</TableCell>
                                     <TableCell>{f.meses}</TableCell>
-                                    <TableCell>{config.interesMensual} %</TableCell>
+                                    <TableCell>{valorMora(config)}</TableCell>
                                     <TableCell sx={{ color: '#D9534F', fontWeight: 600 }}>{formatBs(f.interes)}</TableCell>
                                     <TableCell sx={{ color: '#D9534F', fontWeight: 700 }}>
                                         {formatBs(f.deudaActual)}
@@ -275,13 +275,21 @@ export default function Mora() {
                 <DialogContent dividers>
                     <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                         Define la regla que se aplicara a las deudas vencidas. Los valores se sincronizan
-                        con <strong>Configuracion financiera v2</strong> y con <strong>Expensas v1</strong>.
+                        con la <strong>Configuracion financiera</strong> de Expensas.
                     </Typography>
 
-                    <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Interes mensual (%)</Typography>
-                    <TextField fullWidth type="number" value={cfgDraft.interesMensual}
-                        onChange={(e) => cambiarDraft('interesMensual', e.target.value)} sx={{ mb: 2 }}
-                        slotProps={{ input: { endAdornment: <InputAdornment position="end">%</InputAdornment> } }} />
+                    {/* Interes mensual (%) o (fijo): solo uno activo */}
+                    <CampoInteresMora
+                        metodo={METODOS_MORA.PORCENTAJE} seleccion={cfgDraft.metodo} valor={cfgDraft.interesMensual}
+                        onMetodo={(m) => cambiarDraft('metodo', m)} onValor={(v) => cambiarDraft('interesMensual', v)}
+                        sx={{ mb: 2 }}
+                    />
+                    <CampoInteresMora
+                        metodo={METODOS_MORA.MONTO_FIJO} seleccion={cfgDraft.metodo} valor={cfgDraft.montoFijo}
+                        onMetodo={(m) => cambiarDraft('metodo', m)} onValor={(v) => cambiarDraft('montoFijo', v)}
+                        sx={{ mb: 2 }}
+                    />
+                    {errorConfig && <Alert severity="error" sx={{ mb: 2 }}>{errorConfig}</Alert>}
 
                     <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Aplicar mora desde</Typography>
                     <Select fullWidth value={cfgDraft.aplicarMoraDesde} onChange={(e) => cambiarDraft('aplicarMoraDesde', e.target.value)} sx={{ mb: 2 }}>
@@ -296,19 +304,19 @@ export default function Mora() {
                         Compartido con Configuracion financiera. Al cambiarlo aqui, tambien cambia alla.
                     </Typography>
 
-                    <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Tipo de calculo</Typography>
-                    <Select fullWidth value={cfgDraft.tipoCalculo} onChange={(e) => cambiarDraft('tipoCalculo', e.target.value)} sx={{ mb: 2 }}>
+                    <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5, color: draftFijo ? 'text.secondary' : 'text.primary' }}>Tipo de calculo</Typography>
+                    <Select fullWidth value={cfgDraft.tipoCalculo} disabled={draftFijo} onChange={(e) => cambiarDraft('tipoCalculo', e.target.value)} sx={{ mb: 2 }}>
                         {TIPOS_CALCULO.map((t) => <MenuItem key={t} value={t}>{t}</MenuItem>)}
                     </Select>
 
                     <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Vigente desde</Typography>
                     <TextField fullWidth type="month" value={cfgDraft.vigenciaMes || ''}
                         onChange={(e) => cambiarDraft('vigenciaMes', e.target.value)} sx={{ mb: 1 }} />
-                    <Typography variant="caption" color="text.secondary">Los intereses ya aplicados conservaran la tasa anterior.</Typography>
+                    <Typography variant="caption" color="text.secondary">Al guardar, las deudas vencidas se recalculan con la nueva regla.</Typography>
                 </DialogContent>
                 <DialogActions sx={{ p: 2 }}>
                     <Button variant="outlined" onClick={() => setOpenConfig(false)}>Cancelar</Button>
-                    <Button variant="contained" onClick={guardarConfig}>Guardar configuracion</Button>
+                    <Button variant="contained" onClick={guardarConfig} disabled={!!errorConfig}>Guardar configuracion</Button>
                 </DialogActions>
             </Dialog>
 
@@ -335,12 +343,12 @@ export default function Mora() {
                             <Typography variant="body2" sx={{ fontWeight: 700, color: 'primary.main' }}>{filas.length}</Typography>
                         </Box>
                         <Box sx={{ bgcolor: '#E4EEF5', borderRadius: 2, p: 1.5 }}>
-                            <Typography variant="body2" color="text.secondary">Interes mensual</Typography>
-                            <Typography variant="body2" sx={{ fontWeight: 700, color: 'primary.main' }}>{config.interesMensual} %</Typography>
+                            <Typography variant="body2" color="text.secondary">{etiquetaMora(config)}</Typography>
+                            <Typography variant="body2" sx={{ fontWeight: 700, color: 'primary.main' }}>{valorMora(config)}</Typography>
                         </Box>
                     </Box>
                     <Alert severity="warning" icon={false} sx={{ bgcolor: '#FDF0D5', color: '#8A5A00' }}>
-                        <Typography variant="body2" sx={{ fontWeight: 700, mb: 0.5 }}>Calculo {config.tipoCalculo.toLowerCase()}</Typography>
+                        <Typography variant="body2" sx={{ fontWeight: 700, mb: 0.5 }}>Mora: {textoMora(config)}</Typography>
                         <Typography variant="body2">Solo se aplicara el interes que aun no fue registrado. Presionar nuevamente no duplicara el cobro del mismo mes.</Typography>
                     </Alert>
                 </DialogContent>
@@ -393,19 +401,15 @@ export default function Mora() {
                                 <Typography variant="body2" sx={{ fontWeight: 600 }}>{detalle.meses}</Typography>
                             </Box>
                             <Box sx={{ display: 'flex', justifyContent: 'space-between', py: 0.5 }}>
-                                <Typography variant="body2" color="text.secondary">Tasa mensual</Typography>
-                                <Typography variant="body2" sx={{ fontWeight: 600 }}>{config.interesMensual} %</Typography>
+                                <Typography variant="body2" color="text.secondary">{etiquetaMora(config)}</Typography>
+                                <Typography variant="body2" sx={{ fontWeight: 600 }}>{textoMora(config)}</Typography>
                             </Box>
 
                             <Divider sx={{ my: 1.5 }} />
                             <Typography variant="body2" sx={{ fontWeight: 700, mb: 0.5 }}>Interes mes a mes</Typography>
                             {Array.from({ length: detalle.meses }).map((_, i) => {
-                                const prev = config.tipoCalculo === 'Simple'
-                                    ? detalle.deudaOriginal * (1 + tasa * i)
-                                    : detalle.deudaOriginal * (1 + tasa) ** i;
-                                const actual = config.tipoCalculo === 'Simple'
-                                    ? detalle.deudaOriginal * (1 + tasa * (i + 1))
-                                    : detalle.deudaOriginal * (1 + tasa) ** (i + 1);
+                                const prev = montoConMora(detalle.deudaOriginal, i, config);
+                                const actual = montoConMora(detalle.deudaOriginal, i + 1, config);
                                 return (
                                     <Box key={i} sx={{ display: 'flex', justifyContent: 'space-between', py: 0.5 }}>
                                         <Typography variant="body2" color="text.secondary">Mes {i + 1}</Typography>

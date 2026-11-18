@@ -9,7 +9,7 @@
 //  La deuda sale SIEMPRE de las expensas (EXPENSAS_MOCK):
 //    - original    = total de la expensa (base + agua + extras)
 //    - meses       = cuantas fechas de vencimiento pasaron sin pagarla
-//    - deudaActual = original con el interes de mora aplicado
+//    - deudaActual = original con la mora aplicada (porcentaje o monto fijo)
 //    - pendiente   = deudaActual - pagado
 //  Una expensa con estado 'Pagada' no genera deuda.
 //
@@ -18,7 +18,7 @@
 // ============================================================
 
 import { EXPENSAS_MOCK } from './expensasMock';
-import { CONFIG_MORA } from './moraMock';
+import { CONFIG_MORA, APLICAR_DESDE, montoConMora } from './moraMock';
 import { REGLAS_PERIODO } from './configuracionMock';
 import { responsableDe } from './edificioMock';
 
@@ -51,29 +51,41 @@ const fechaVencimiento = (anio, idxMes, dia, k) => {
     return new Date(anio, mes, dia);
 };
 
-// Cuantas fechas de vencimiento pasaron desde que vencio el periodo hasta hoy.
+// Fecha desde la que se cobra la mora del vencimiento k, segun "Aplicar mora desde":
+//   Fecha de vencimiento     -> el mismo dia de vencimiento
+//   Dia siguiente (defecto)  -> el dia despues del vencimiento
+//   Periodo vencido          -> el dia 1 del mes siguiente al vencimiento
+const inicioMora = (vencimiento, aplicarDesde) => {
+    if (aplicarDesde === APLICAR_DESDE.VENCIMIENTO) return vencimiento;
+    if (aplicarDesde === APLICAR_DESDE.PERIODO_VENCIDO) {
+        return new Date(vencimiento.getFullYear(), vencimiento.getMonth() + 1, 1);
+    }
+    return new Date(vencimiento.getFullYear(), vencimiento.getMonth(), vencimiento.getDate() + 1);
+};
+
+// Cuantos meses de mora acumula un periodo hasta hoy.
 // Ej.: 'Octubre 2026' con vencimiento el 10 -> vence el 10/nov/2026.
-//      Hoy 09/nov -> 0 | hoy 10/nov -> 1 | hoy 15/dic -> 2
-export const mesesVencidos = (periodo, hoy = new Date(), dia = diaVencimiento()) => {
+//      Aplicar desde el dia siguiente: hoy 10/nov -> 0 | 11/nov -> 1 | 11/dic -> 2
+//      Aplicar desde el vencimiento:   hoy 10/nov -> 1 | 10/dic -> 2
+export const mesesVencidos = (
+    periodo,
+    hoy = new Date(),
+    dia = diaVencimiento(),
+    aplicarDesde = CONFIG_MORA.aplicarMoraDesde,
+) => {
     const [mesNombre, anioTxt] = String(periodo || '').split(' ');
     const idxMes = MESES_ES.indexOf(mesNombre);
     const anio = Number(anioTxt);
     if (idxMes < 0 || !anio) return 0;
     const finDelDia = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate(), 23, 59, 59);
     let meses = 0;
-    while (fechaVencimiento(anio, idxMes, dia, meses) <= finDelDia && meses < 240) meses++;
+    while (inicioMora(fechaVencimiento(anio, idxMes, dia, meses), aplicarDesde) <= finDelDia && meses < 240) meses++;
     return meses;
 };
 
-// Monto con interes de mora segun la configuracion vigente (simple o compuesto)
-export const montoConMora = (original, meses, config = CONFIG_MORA) => {
-    const tasa = (Number(config.interesMensual) || 0) / 100;
-    const m = Math.max(0, Number(meses) || 0);
-    const total = config.tipoCalculo === 'Simple'
-        ? original * (1 + tasa * m)
-        : original * (1 + tasa) ** m;
-    return round2(total);
-};
+// Monto con mora segun la configuracion vigente (porcentaje simple/compuesto o monto fijo).
+// La formula vive en moraMock para que todas las pantallas usen la misma.
+export { montoConMora };
 
 // Situacion de UNA expensa a la fecha indicada.
 export const situacionExpensa = (e, { hoy = new Date(), config = CONFIG_MORA, dia = diaVencimiento() } = {}) => {
@@ -84,7 +96,7 @@ export const situacionExpensa = (e, { hoy = new Date(), config = CONFIG_MORA, di
     const pagado = round2(Number(e.pagado) || 0);
     const pagada = e.estado === 'Pagada';
 
-    const meses = pagada ? 0 : mesesVencidos(e.periodo, hoy, dia);
+    const meses = pagada ? 0 : mesesVencidos(e.periodo, hoy, dia, config.aplicarMoraDesde);
     const deudaActual = pagada ? original : montoConMora(original, meses, config);
     const pendiente = pagada ? 0 : Math.max(0, round2(deudaActual - pagado));
     const interes = pagada ? Math.max(0, round2(pagado - original)) : round2(deudaActual - original);

@@ -19,7 +19,7 @@ import { formatBs } from '../../constants/finanzasMock';
 import { EXPENSAS_MOCK, DEPARTAMENTOS_ACTIVOS } from '../../constants/expensasMock';
 import { periodosConMovimientos, periodoEnCurso } from '../../constants/periodos';
 import { PAGOS_MOCK, HISTORIAL_ANTICIPOS, totalPago } from '../../constants/pagosMock';
-import { CONFIG_MORA } from '../../constants/moraMock';
+import { textoMora } from '../../constants/moraMock';
 import { historialDepto, round2 } from '../../constants/deudasMock';
 import { responsableDe } from '../../constants/edificioMock';
 import { deptoDeUsuario } from '../../constants/usuariosMock';
@@ -151,7 +151,7 @@ function computeEstadoCuenta(deptoId, deptos, periodoFiltro) {
     const detalleMora = vencidos.length === 0
         ? 'Sin mora: el departamento no tiene periodos vencidos.'
         : vencidos
-            .map((h) => `${h.periodo}: Bs ${(h.base + h.agua).toFixed(0)} vencido × ${CONFIG_MORA.interesMensual}% = Bs ${h.mora.toFixed(2)} de interes acumulado.`)
+            .map((h) => `${h.periodo}: Bs ${(h.base + h.agua).toFixed(0)} vencido con mora de ${textoMora()} = Bs ${h.mora.toFixed(2)} de mora acumulada.`)
             .join(' ');
 
     // Si el periodo seleccionado es el mes en curso y aun no hay expensa generada,
